@@ -1,0 +1,82 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Archon - Architecture Dependency Graph</title>
+        <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <style type="text/css">
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #1e1e1e;
+                color: white;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+            #mynetwork {
+                width: 100vw;
+                height: 100vh;
+                border: none;
+            }
+            #title-card {
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid #444;
+                z-index: 10;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="title-card">
+            <h2>Archon Reality Graph</h2>
+            <p>Total Modules: 18</p>
+            <p>Total Dependencies: 5</p>
+        </div>
+        <div id="mynetwork"></div>
+
+        <script type="text/javascript">
+            // Parse the injected JSON data
+            var nodes = new vis.DataSet([{"id": "test_chat", "label": "test_chat", "title": "test_chat"}, {"id": "test_generation", "label": "test_generation", "title": "test_generation"}, {"id": "conformance.checker", "label": "checker", "title": "conformance.checker"}, {"id": "conformance.classifier_agent", "label": "classifier_agent", "title": "conformance.classifier_agent"}, {"id": "conformance.extraction", "label": "extraction", "title": "conformance.extraction"}, {"id": "conformance.graph", "label": "graph", "title": "conformance.graph"}, {"id": "conformance.visualize", "label": "visualize", "title": "conformance.visualize"}, {"id": "conformance", "label": "conformance", "title": "conformance"}, {"id": "conformance.tests", "label": "tests", "title": "conformance.tests"}, {"id": "generation.generate_augmented_dataset", "label": "generate_augmented_dataset", "title": "generation.generate_augmented_dataset"}, {"id": "generation.generate_manual_dataset", "label": "generate_manual_dataset", "title": "generation.generate_manual_dataset"}, {"id": "generation.CoreGen.pdfExtract", "label": "pdfExtract", "title": "generation.CoreGen.pdfExtract"}, {"id": "shared.schema", "label": "schema", "title": "shared.schema"}, {"id": "shared", "label": "shared", "title": "shared"}, {"id": "shared.cli.main", "label": "main", "title": "shared.cli.main"}, {"id": "shared.cli", "label": "cli", "title": "shared.cli"}, {"id": "shared.fixtures.dummy_code.a", "label": "a", "title": "shared.fixtures.dummy_code.a"}, {"id": "shared.fixtures.dummy_code.b", "label": "b", "title": "shared.fixtures.dummy_code.b"}]);
+            var edges = new vis.DataSet([{"from": "conformance.graph", "to": "conformance.extraction", "arrows": "to"}, {"from": "conformance.visualize", "to": "conformance.extraction", "arrows": "to"}, {"from": "conformance.visualize", "to": "conformance.graph", "arrows": "to"}, {"from": "shared.fixtures.dummy_code.a", "to": "shared.fixtures.dummy_code.b", "arrows": "to"}, {"from": "shared.fixtures.dummy_code.b", "to": "shared.fixtures.dummy_code.a", "arrows": "to"}]);
+
+            var container = document.getElementById('mynetwork');
+            var data = {
+                nodes: nodes,
+                edges: edges
+            };
+            
+            // Configure the physics engine for a cool floating effect
+            var options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 16,
+                    color: {
+                        background: '#3498db',
+                        border: '#2980b9'
+                    },
+                    font: { color: '#ffffff' }
+                },
+                edges: {
+                    color: '#555555',
+                    smooth: { type: 'continuous' }
+                },
+                physics: {
+                    barnesHut: {
+                        gravitationalConstant: -2000,
+                        centralGravity: 0.3,
+                        springLength: 150,
+                        springConstant: 0.04,
+                        damping: 0.09
+                    },
+                    stabilization: { iterations: 150 }
+                }
+            };
+            
+            var network = new vis.Network(container, data, options);
+        </script>
+    </body>
+    </html>
+    

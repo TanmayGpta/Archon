@@ -1,0 +1,94 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Archon - Architecture Dependency Graph</title>
+        <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+        <style type="text/css">
+            body {
+                margin: 0; padding: 0;
+                background-color: #1e1e1e;
+                color: white;
+                font-family: 'Segoe UI', sans-serif;
+            }
+            #mynetwork {
+                width: 100vw;
+                height: 100vh;
+            }
+            #legend {
+                position: absolute;
+                top: 15px; left: 15px;
+                background: rgba(0,0,0,0.75);
+                padding: 14px 18px;
+                border-radius: 10px;
+                border: 1px solid #444;
+                z-index: 10;
+                min-width: 220px;
+            }
+            #legend h3 { margin: 0 0 10px 0; font-size: 16px; }
+            .legend-item { display: flex; align-items: center; margin: 6px 0; font-size: 13px; }
+            .legend-dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; flex-shrink: 0; }
+        </style>
+    </head>
+    <body>
+        <div id="legend">
+            <h3>Archon Reality Graph</h3>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#3498db;"></div>
+                Internal Modules (8)
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#e67e22;"></div>
+                External Packages (11)
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#7f8c8d;"></div>
+                Standard Library (8)
+            </div>
+            <hr style="border-color:#444; margin: 10px 0;">
+            <small>Total Edges: 26</small>
+        </div>
+        <div id="mynetwork"></div>
+
+        <script type="text/javascript">
+            var nodes = new vis.DataSet([{"id": "FinSight.backend.main", "label": "main", "title": "FinSight.backend.main [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "fastapi", "label": "fastapi", "title": "fastapi [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "api", "label": "api", "title": "api [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "FinSight.backend.ai_modules.advisor_engine", "label": "advisor_engine", "title": "FinSight.backend.ai_modules.advisor_engine [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "json", "label": "json", "title": "json [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "FinSight.backend.ai_modules.route_optimizer", "label": "route_optimizer", "title": "FinSight.backend.ai_modules.route_optimizer [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "polyline", "label": "polyline", "title": "polyline [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "math", "label": "math", "title": "math [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "random", "label": "random", "title": "random [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "os", "label": "os", "title": "os [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "requests", "label": "requests", "title": "requests [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "time", "label": "time", "title": "time [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "FinSight.backend.ai_modules", "label": "ai_modules", "title": "FinSight.backend.ai_modules [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "FinSight.backend.api.auth", "label": "auth", "title": "FinSight.backend.api.auth [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "jose", "label": "jose", "title": "jose [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "FinSight.backend.api.routes", "label": "routes", "title": "FinSight.backend.api.routes [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "ai_modules", "label": "ai_modules", "title": "ai_modules [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "", "label": "", "title": " [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "pickle", "label": "pickle", "title": "pickle [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "pathlib", "label": "pathlib", "title": "pathlib [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "prophet", "label": "prophet", "title": "prophet [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "pandas", "label": "pandas", "title": "pandas [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "mysql", "label": "mysql", "title": "mysql [external]", "color": {"background": "#e67e22", "border": "#e67e22"}, "size": 14, "font": {"color": "#ffffff"}}, {"id": "datetime", "label": "datetime", "title": "datetime [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "typing", "label": "typing", "title": "typing [stdlib]", "color": {"background": "#7f8c8d", "border": "#7f8c8d"}, "size": 12, "font": {"color": "#cccccc"}}, {"id": "FinSight.backend.services.upload_csv", "label": "upload_csv", "title": "FinSight.backend.services.upload_csv [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}, {"id": "FinSight.frontend.node_modules.flatted.python.flatted", "label": "flatted", "title": "FinSight.frontend.node_modules.flatted.python.flatted [internal]", "color": {"background": "#3498db", "border": "#3498db"}, "size": 18, "font": {"color": "#ffffff"}}]);
+            var edges = new vis.DataSet([{"from": "FinSight.backend.main", "to": "fastapi", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.main", "to": "api", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.advisor_engine", "to": "json", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "polyline", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "math", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "random", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "os", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "requests", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.ai_modules.route_optimizer", "to": "time", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.auth", "to": "jose", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.auth", "to": "fastapi", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "fastapi", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "ai_modules", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "jose", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "pickle", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "pathlib", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "prophet", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "pandas", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "mysql", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "datetime", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.api.routes", "to": "typing", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.services.upload_csv", "to": "mysql", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.services.upload_csv", "to": "pandas", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.backend.services.upload_csv", "to": "os", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}, {"from": "FinSight.frontend.node_modules.flatted.python.flatted", "to": "json", "arrows": "to", "color": {"color": "#333333", "opacity": 0.6}}]);
+
+            var container = document.getElementById('mynetwork');
+            var data = { nodes: nodes, edges: edges };
+
+            var options = {
+                nodes: {
+                    shape: 'dot',
+                    borderWidth: 2,
+                    shadow: true
+                },
+                edges: {
+                    smooth: { type: 'continuous' },
+                    width: 1.5
+                },
+                physics: {
+                    forceAtlas2Based: {
+                        gravitationalConstant: -50,
+                        centralGravity: 0.005,
+                        springLength: 230,
+                        springConstant: 0.18,
+                    },
+                    maxVelocity: 146,
+                    solver: 'forceAtlas2Based',
+                    timestep: 0.35,
+                    stabilization: { iterations: 150 }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 150,
+                    navigationButtons: true,
+                    keyboard: true
+                }
+            };
+
+            var network = new vis.Network(container, data, options);
+        </script>
+    </body>
+    </html>
+    

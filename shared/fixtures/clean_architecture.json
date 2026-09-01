@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "project_name": "Standard Clean Architecture",
+  "default_policy": "default-deny",
+  "unclassified_policy": "flag_for_review",
+  "layers": [
+    {
+      "name": "Domain",
+      "description": "The core business entities, enterprise logic, and base data structures. This layer must be entirely independent and not know about databases, web frameworks, or external APIs.",
+      "match_patterns": []
+    },
+    {
+      "name": "Application",
+      "description": "Use cases, business rules, and application-specific logic. It coordinates the Domain layer but still knows nothing about UI or infrastructure.",
+      "match_patterns": []
+    },
+    {
+      "name": "Presentation",
+      "description": "The delivery mechanism. Handles HTTP requests, GraphQL resolvers, web sockets, or CLI commands. Translates user input into Application use cases.",
+      "match_patterns": ["*.api.*", "*.routes.*", "*.views.*", "*.cli.*"]
+    },
+    {
+      "name": "Infrastructure",
+      "description": "Implementation details. Database connections (SQLAlchemy), external API integrations, caching (Redis), file system access, and messaging queues.",
+      "match_patterns": ["*.db.*", "*.repositories.*", "*.integrations.*"]
+    }
+  ],
+  "rules": [
+    {
+      "source_layer": "Application",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Application use cases orchestrate Domain entities.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Application",
+      "type": "allow",
+      "reason": "Presentation layer triggers Application use cases.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Infrastructure",
+      "target_layer": "Application",
+      "type": "allow",
+      "reason": "Infrastructure implements interfaces defined by the Application layer.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Sometimes Presentation maps Domain entities directly (CQRS).",
+      "severity": "minor"
+    },
+    {
+      "source_layer": "Infrastructure",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Infrastructure maps database rows to Domain entities.",
+      "severity": "minor"
+    }
+  ]
+}

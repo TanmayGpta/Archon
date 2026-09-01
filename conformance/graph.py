@@ -1,36 +1,66 @@
 import networkx as nx
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Tuple
 from conformance.extraction import extract_project_dependencies
+
+# Standard library modules to visually de-emphasize (still shown but styled differently)
+STDLIB_MODULES = {
+    "os", "sys", "re", "json", "math", "time", "datetime", "collections",
+    "itertools", "functools", "pathlib", "typing", "abc", "io", "copy",
+    "hashlib", "uuid", "random", "string", "struct", "socket", "threading",
+    "multiprocessing", "subprocess", "shutil", "tempfile", "glob", "fnmatch",
+    "logging", "warnings", "traceback", "inspect", "ast", "dis", "types",
+    "enum", "dataclasses", "contextlib", "weakref", "gc", "platform",
+    "unittest", "http", "urllib", "email", "html", "xml", "csv", "sqlite3",
+    "base64", "binascii", "codecs", "locale", "gettext", "argparse", "textwrap",
+}
 
 def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
     """
-    Converts a dictionary of dependencies into a NetworkX Directed Graph.
+    Converts a dictionary of dependencies into a rich NetworkX Directed Graph.
+    Shows ALL imports (internal, stdlib, and external) as different node types.
     """
     G = nx.DiGraph()
     
-    # Add all nodes and edges
+    internal_modules = set(dependencies.keys())
+
     for source_module, imports in dependencies.items():
-        # Ensure the source node exists (even if it imports nothing)
+        # Always add the source node as "internal"
         if not G.has_node(source_module):
-            G.add_node(source_module)
+            G.add_node(source_module, node_type="internal")
             
         for target_module in imports:
-            # We only care about internal project dependencies for architecture rules.
-            # So, if 'target_module' isn't in our dictionary keys, it's probably 
-            # an external library (like 'os', 'pydantic', or 'flask').
-            # We filter those out to keep the graph clean.
-            if target_module in dependencies:
-                G.add_edge(source_module, target_module)
+            # Strip sub-modules to get root package: "os.path" -> "os"
+            root_import = target_module.split(".")[0]
+            
+            if target_module in internal_modules or root_import in internal_modules:
+                # It's an internal project file - draw the edge
+                target_key = target_module if target_module in internal_modules else root_import
+                G.add_node(target_key, node_type="internal")
+                G.add_edge(source_module, target_key)
+            elif root_import in STDLIB_MODULES:
+                # It's a Python standard library module
+                if not G.has_node(root_import):
+                    G.add_node(root_import, node_type="stdlib")
+                G.add_edge(source_module, root_import)
+            else:
+                # It's a third-party library (flask, numpy, langchain, etc.)
+                if not G.has_node(root_import):
+                    G.add_node(root_import, node_type="external")
+                G.add_edge(source_module, root_import)
                 
     return G
 
 def find_cycles(G: nx.DiGraph) -> List[List[str]]:
     """
     Uses Tarjan's algorithm (via NetworkX) to find all circular dependencies.
+    Only checks internal project nodes, not external libraries.
     """
+    # Build a subgraph with only internal nodes for cycle detection
+    internal_nodes = [n for n, d in G.nodes(data=True) if d.get("node_type") == "internal"]
+    internal_subgraph = G.subgraph(internal_nodes)
+    
     try:
-        # simple_cycles finds all elementary circuits
-        return list(nx.simple_cycles(G))
+        return list(nx.simple_cycles(internal_subgraph))
     except nx.NetworkXNoCycle:
         return []
 
@@ -38,7 +68,6 @@ if __name__ == "__main__":
     import os
     import sys
     
-    # 1. Extract raw dependencies
     if len(sys.argv) > 1:
         project_dir = os.path.abspath(sys.argv[1])
     else:
@@ -47,23 +76,25 @@ if __name__ == "__main__":
     print(f"Extracting dependencies from: {project_dir}")
     raw_deps = extract_project_dependencies(project_dir)
     
-    # 2. Build the NetworkX Graph
     print("Building Directed Graph...")
     G = build_dependency_graph(raw_deps)
     
-    print("\n--- Graph Statistics ---")
-    print(f"Total Nodes (Files): {G.number_of_nodes()}")
-    print(f"Total Edges (Imports): {G.number_of_edges()}")
+    internal = [n for n, d in G.nodes(data=True) if d.get("node_type") == "internal"]
+    stdlib   = [n for n, d in G.nodes(data=True) if d.get("node_type") == "stdlib"]
+    external = [n for n, d in G.nodes(data=True) if d.get("node_type") == "external"]
     
-    # 3. Check for cycles
-    print("\n--- Cycle Detection ---")
+    print(f"\n--- Graph Statistics ---")
+    print(f"Internal Modules : {len(internal)}")
+    print(f"Stdlib Modules   : {len(stdlib)}")
+    print(f"External Packages: {len(external)}")
+    print(f"Total Edges      : {G.number_of_edges()}")
+    
+    print("\n--- Cycle Detection (internal only) ---")
     cycles = find_cycles(G)
-    
     if not cycles:
         print("[OK] No circular dependencies found!")
     else:
         print(f"[ERROR] Found {len(cycles)} circular dependencies:")
         for cycle in cycles:
-            # Print cycle path: A -> B -> C -> A
             path = " -> ".join(cycle) + f" -> {cycle[0]}"
             print(f"  {path}")
