@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "project_name": "Model-View-Controller (MVC)",
+  "default_policy": "default-deny",
+  "unclassified_policy": "flag_for_review",
+  "layers": [
+    {
+      "name": "Model",
+      "description": "Manages the data, logic, and rules of the application. Handles database interactions and state.",
+      "match_patterns": ["*.models.*", "*.db.*", "*.schema.*"]
+    },
+    {
+      "name": "View",
+      "description": "Any output representation of information. Renders the UI or formats API JSON responses.",
+      "match_patterns": ["*.views.*", "*.templates.*", "*.ui.*"]
+    },
+    {
+      "name": "Controller",
+      "description": "Accepts input and converts it to commands for the Model or View. Contains routing and orchestration logic.",
+      "match_patterns": ["*.controllers.*", "*.routes.*", "*.handlers.*", "*.api.*"]
+    }
+  ],
+  "rules": [
+    {
+      "source_layer": "Controller",
+      "target_layer": "Model",
+      "type": "allow",
+      "reason": "Controllers modify the Model state based on user input.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Controller",
+      "target_layer": "View",
+      "type": "allow",
+      "reason": "Controllers pass data to Views to be rendered.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "View",
+      "target_layer": "Model",
+      "type": "allow",
+      "reason": "Views are allowed to read Model data to render it (Passive View pattern).",
+      "severity": "minor"
+    }
+  ]
+}

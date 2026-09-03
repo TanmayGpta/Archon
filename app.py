@@ -13,73 +13,41 @@ from conformance.extraction import extract_project_dependencies
 from conformance.graph import build_dependency_graph
 from conformance.visualize import generate_interactive_html
 from conformance.classifier_agent import classify_modules
+from conformance.checker import check_architecture
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(layout="wide", page_title="Archon Conformance", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-        .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        .block-container { padding-top: 3rem; padding-bottom: 0rem; }
+        header[data-testid="stHeader"] { background-color: transparent; }
     </style>
 """, unsafe_allow_html=True)
 
-# ── Helper: fetch live NVIDIA model list ──────────────────────────────────────
-@st.cache_data(ttl=300)  # Cache for 5 minutes so we don't spam NVIDIA's API
-def fetch_nvidia_models() -> list:
-    """
-    Hits the NVIDIA NIM /v1/models endpoint to get the live list of available models.
-    Falls back to a hardcoded list if the API call fails.
-    """
-    fallback = [
-        "meta/llama-3.3-70b-instruct",
-        "nvidia/llama-3.3-nemotron-super-49b-v1",
-        "qwen/qwen2.5-72b-instruct",
-        "deepseek-ai/deepseek-r1",
-    ]
-    
-    api_key = os.getenv("NVIDIA_API_KEY")
-    if not api_key:
-        return fallback
-    
-    try:
-        response = http_requests.get(
-            "https://integrate.api.nvidia.com/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5
-        )
-        if response.status_code == 200:
-            data = response.json()
-            # Only keep models with "provider/model-name" format.
-            # UUIDs like "f6b06895-..." are internal function IDs, not public endpoints.
-            models = [
-                m["id"] for m in data.get("data", [])
-                if "/" in m.get("id", "")
-            ]
-            return sorted(models) if models else fallback
-    except Exception:
-        pass
-    
-    return fallback
+# ── CURATED NVIDIA MODELS ─────────────────────────────────────────────────────
+# Updated with active NVIDIA NIM hosted models
+CURATED_NVIDIA_MODELS = [
+    "meta/llama-3.2-11b-vision-instruct",
+    "meta/llama-3.2-90b-vision-instruct",
+    "deepseek-ai/deepseek-v4-pro-0813",
+    "deepseek-ai/deepseek-v4-flash-0731",
+    "moonshotai/kimi-k3"
+]
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("Archon")
 
-    st.header("1. Upload Codebase")
+    st.header("1. Upload Project Files")
     st.write("Upload a `.zip` of a Python project.")
     uploaded_zip = st.file_uploader("Project ZIP", type=["zip"], label_visibility="collapsed")
 
     st.header("2. AI Settings")
     provider = st.selectbox("Provider", ["groq", "nvidia", "gemini", "openai", "qwen"])
 
-    # Dynamic model selection — only shows live NVIDIA models when nvidia is selected
     if provider == "nvidia":
-        with st.spinner("Fetching live NVIDIA models..."):
-            nvidia_models = fetch_nvidia_models()
-        nvidia_model = st.selectbox("NVIDIA Model", nvidia_models)
-        # Warn user if they pick a reasoning model — those think for minutes
-        if nvidia_model and any(x in nvidia_model for x in ["reasoning", "r1", "deepseek-r1"]):
-            st.warning("Reasoning models can take several minutes. Pick an 'instruct' model for fast results.")
+        nvidia_model = st.selectbox("NVIDIA Model", CURATED_NVIDIA_MODELS)
     else:
         nvidia_model = None
 
@@ -88,14 +56,41 @@ with st.sidebar:
     classify_btn = st.button("Run AI Classifier", use_container_width=True)
 
     st.header("4. The Blueprint")
-    ruleset_path = os.path.join("shared", "fixtures", "clean_architecture.json")
-    try:
-        with open(ruleset_path, "r") as f:
-            blueprint = json.load(f)
-        with st.expander("View Architecture Rules (JSON)"):
-            st.json(blueprint)
-    except Exception:
-        blueprint = {}
+    st.write("Select an architecture ruleset to enforce.")
+    
+    template_choice = st.selectbox(
+        "Architecture Template", 
+        ["Clean Architecture", "Model-View-Controller (MVC)", "Traditional 3-Tier", "Upload Custom JSON..."]
+    )
+    
+    uploaded_json = None
+    if template_choice == "Upload Custom JSON...":
+        uploaded_json = st.file_uploader("Upload Architecture JSON", type=["json"], label_visibility="collapsed")
+    
+    # ── Map choice to JSON file ──
+    template_map = {
+        "Clean Architecture": "clean_architecture.json",
+        "Model-View-Controller (MVC)": "mvc_architecture.json",
+        "Traditional 3-Tier": "layered_architecture.json"
+    }
+
+    if template_choice == "Upload Custom JSON..." and uploaded_json is not None:
+        blueprint = json.load(uploaded_json)
+        ruleset_path = "temp_blueprint.json"
+        with open(ruleset_path, "w") as f:
+            json.dump(blueprint, f)
+    else:
+        # Load from our curated fixtures
+        file_name = template_map.get(template_choice, "clean_architecture.json")
+        ruleset_path = os.path.join("shared", "fixtures", file_name)
+        try:
+            with open(ruleset_path, "r") as f:
+                blueprint = json.load(f)
+        except Exception:
+            blueprint = {}
+
+    with st.expander("View Architecture Rules (JSON)"):
+        st.json(blueprint)
 
 # ── STATE ─────────────────────────────────────────────────────────────────────
 if 'target_dir' not in st.session_state:
@@ -116,6 +111,7 @@ if generate_btn:
             html_path = "temp_graph.html"
             generate_interactive_html(G, html_path)
 
+            st.session_state['G'] = G
             st.session_state['nodes_list'] = list(G.nodes())
             st.session_state['graph_html'] = html_path
     else:
@@ -135,6 +131,13 @@ if classify_btn:
                     model_choice=provider,
                     nvidia_model=nvidia_model  # Pass the selected NVIDIA model name through
                 )
+                st.session_state['classification_mapping'] = result.mapping
+                
+                # RE-RENDER GRAPH WITH AI COLORS
+                html_path = "temp_graph.html"
+                generate_interactive_html(st.session_state['G'], html_path, mapping=result.mapping)
+                st.session_state['graph_html'] = html_path
+                
                 st.success(f"Classification Complete! Confidence: {result.confidence_score * 100:.1f}%")
                 st.info(f"**AI Reasoning:** {result.reasoning}")
                 with st.expander("View Layer Mappings", expanded=False):
@@ -142,7 +145,39 @@ if classify_btn:
             except Exception as e:
                 st.error(f"AI Error: {e}")
 
-# ── RENDER GRAPH ──────────────────────────────────────────────────────────────
+# ── RUN AUDIT (THE CHECKER) ───────────────────────────────────────────────────
+if st.sidebar.button("Run Conformance Audit", type="primary", use_container_width=True):
+    if 'G' not in st.session_state or 'classification_mapping' not in st.session_state:
+        st.sidebar.error("Generate graph and run AI classifier first!")
+    else:
+        with st.spinner("Auditing architecture against Blueprint..."):
+            report = check_architecture(
+                G=st.session_state['G'],
+                mapping=st.session_state['classification_mapping'],
+                ruleset=blueprint
+            )
+            
+            st.session_state['audit_report'] = report
+
+# ── RENDER RESULTS ────────────────────────────────────────────────────────────
+if 'audit_report' in st.session_state:
+    report = st.session_state['audit_report']
+    
+    # Display the score
+    score_color = "green" if report.score > 80 else ("orange" if report.score > 50 else "red")
+    st.markdown(f"<h2 style='text-align: center; color: {score_color};'>Architecture Health Score: {report.score:.1f}%</h2>", unsafe_allow_html=True)
+    st.write(f"Checked **{report.total_edges_checked}** internal dependencies.")
+    
+    # Display violations
+    if report.violations:
+        st.error(f"Found {len(report.violations)} architectural violations!")
+        for v in report.violations:
+            st.warning(f"**Violation:** `{v.source_module}` ({v.source_layer}) ➔ `{v.target_module}` ({v.target_layer})\n\n*Reason: {v.reason}*")
+    else:
+        st.success("No architectural violations found! Your codebase perfectly matches the blueprint.")
+        
+    st.divider()
+
 if 'graph_html' in st.session_state and os.path.exists(st.session_state['graph_html']):
     with open(st.session_state['graph_html'], "r", encoding="utf-8") as f:
         html_data = f.read()

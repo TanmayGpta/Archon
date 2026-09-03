@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "project_name": "Traditional 3-Tier Layered",
+  "default_policy": "default-deny",
+  "unclassified_policy": "flag_for_review",
+  "layers": [
+    {
+      "name": "Presentation",
+      "description": "Top-level layer handling UI, web requests, CLI inputs, and API endpoints.",
+      "match_patterns": ["*.api.*", "*.ui.*", "*.web.*"]
+    },
+    {
+      "name": "Business",
+      "description": "Middle layer containing the core business logic, calculations, and services.",
+      "match_patterns": ["*.services.*", "*.logic.*", "*.core.*"]
+    },
+    {
+      "name": "DataAccess",
+      "description": "Bottom layer handling persistence, database connections, and external file storage.",
+      "match_patterns": ["*.repositories.*", "*.db.*", "*.storage.*"]
+    }
+  ],
+  "rules": [
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Business",
+      "type": "allow",
+      "reason": "Presentation layer delegates work to Business services.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Business",
+      "target_layer": "DataAccess",
+      "type": "allow",
+      "reason": "Business services fetch or save data via the DataAccess layer.",
+      "severity": "major"
+    }
+  ]
+}

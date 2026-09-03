@@ -40,10 +40,10 @@ def get_llm(model_choice: str, nvidia_model: str = None):
         ).with_structured_output(ModuleClassification)
 
     elif model_choice == "groq":
-        # Groq runs Llama-3.3-70b on LPU hardware — sub-second responses, free tier
+        # Groq fast inference
         from langchain_groq import ChatGroq
         return ChatGroq(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             temperature=0.1,
             groq_api_key=os.getenv("GROQ_API_KEY")
         ).with_structured_output(ModuleClassification)
@@ -55,7 +55,7 @@ def get_llm(model_choice: str, nvidia_model: str = None):
         # think for minutes before answering. Use instruct models only.
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
-            model=nvidia_model or "meta/llama-3.3-70b-instruct",
+            model=nvidia_model or "meta/llama-3.2-11b-vision-instruct",
             temperature=0.1,
             openai_api_key=os.getenv("NVIDIA_API_KEY"),
             openai_api_base="https://integrate.api.nvidia.com/v1",

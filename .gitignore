@@ -1,1 +1,28 @@
+# Python Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables (CRITICAL: Never commit API keys)
 .env
+.env.local
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archon Specific Temp Files
+temp_graph.html
+temp_blueprint.json
+dependency_graph.html
+*.zip
