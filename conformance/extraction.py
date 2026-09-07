@@ -1,15 +1,20 @@
 import ast
 import os
-from typing import Set, Dict
+from typing import Set, Dict, Any
 
-def extract_imports_from_file(filepath: str) -> Set[str]:
-    """Reads a Python file and returns a set of all modules it imports."""
-    imports = set()
+def extract_imports_from_file(filepath: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Reads a Python file and returns a dictionary mapping imported modules
+    to their metadata (line number and actual code snippet).
+    """
+    imports = {}
     try:
         with open(filepath, "r", encoding="utf-8") as file:
             file_content = file.read()
     except Exception:
         return imports
+
+    lines = file_content.splitlines()
 
     try:
         tree = ast.parse(file_content, filename=filepath)
@@ -18,24 +23,36 @@ def extract_imports_from_file(filepath: str) -> Set[str]:
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
+            lineno = getattr(node, "lineno", 1)
+            code_line = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
             for alias in node.names:
-                imports.add(alias.name)
+                imports[alias.name] = {
+                    "line_number": lineno,
+                    "code_snippet": code_line
+                }
         elif isinstance(node, ast.ImportFrom):
             if node.module:
+                lineno = getattr(node, "lineno", 1)
+                code_line = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
                 prefix = "." * node.level if node.level > 0 else ""
-                imports.add(f"{prefix}{node.module}")
+                target_mod = f"{prefix}{node.module}"
+                imports[target_mod] = {
+                    "line_number": lineno,
+                    "code_snippet": code_line
+                }
                 
     return imports
 
-def extract_project_dependencies(project_root: str) -> Dict[str, Set[str]]:
+def extract_project_dependencies(project_root: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
-    Recursively scans a project directory for Python files and maps their dependencies.
-    Returns a dictionary mapping module names to a set of imported modules.
+    Recursively scans a project directory for Python files and maps their dependencies
+    along with line numbers and code snippets.
+    Returns: { source_module: { target_module: {'line_number': int, 'code_snippet': str} } }
     """
     dependencies = {}
     
     for root, _, files in os.walk(project_root):
-        # Optional: skip common hidden/cache directories
+        # Skip common hidden/cache directories
         if any(skip in root for skip in [".venv", "__pycache__", ".git"]):
             continue
             
@@ -43,8 +60,7 @@ def extract_project_dependencies(project_root: str) -> Dict[str, Set[str]]:
             if file.endswith(".py"):
                 filepath = os.path.join(root, file)
                 
-                # Convert the file path into a Python module name 
-                # (e.g., "conformance/extraction.py" -> "conformance.extraction")
+                # Convert file path into Python module name 
                 rel_path = os.path.relpath(filepath, project_root)
                 if file == "__init__.py":
                     module_name = os.path.dirname(rel_path).replace(os.sep, ".")
@@ -53,8 +69,8 @@ def extract_project_dependencies(project_root: str) -> Dict[str, Set[str]]:
                 else:
                     module_name = rel_path.replace(os.sep, ".")[:-3]
                 
-                imports = extract_imports_from_file(filepath)
-                dependencies[module_name] = imports
+                imports_with_meta = extract_imports_from_file(filepath)
+                dependencies[module_name] = imports_with_meta
                 
     return dependencies
 

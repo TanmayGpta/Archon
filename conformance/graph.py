@@ -32,21 +32,26 @@ def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
             # Strip sub-modules to get root package: "os.path" -> "os"
             root_import = target_module.split(".")[0]
             
+            # Extract line number and code snippet if available
+            meta = imports.get(target_module, {}) if isinstance(imports, dict) else {}
+            line_no = meta.get("line_number")
+            snippet = meta.get("code_snippet")
+            
             if target_module in internal_modules or root_import in internal_modules:
                 # It's an internal project file - draw the edge
                 target_key = target_module if target_module in internal_modules else root_import
                 G.add_node(target_key, node_type="internal")
-                G.add_edge(source_module, target_key)
+                G.add_edge(source_module, target_key, line_number=line_no, code_snippet=snippet)
             elif root_import in STDLIB_MODULES:
                 # It's a Python standard library module
                 if not G.has_node(root_import):
                     G.add_node(root_import, node_type="stdlib")
-                G.add_edge(source_module, root_import)
+                G.add_edge(source_module, root_import, line_number=line_no, code_snippet=snippet)
             else:
                 # It's a third-party library (flask, numpy, langchain, etc.)
                 if not G.has_node(root_import):
                     G.add_node(root_import, node_type="external")
-                G.add_edge(source_module, root_import)
+                G.add_edge(source_module, root_import, line_number=line_no, code_snippet=snippet)
                 
     return G
 
