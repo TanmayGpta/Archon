@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archon-cli"
+version = "1.0.0"
+description = "Archon - Software Architecture Generation and Conformance Governance Engine"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "networkx>=3.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-groq>=0.2.0",
+    "langchain-openai>=0.2.0",
+    "langchain-google-genai>=2.0.0",
+    "streamlit>=1.38.0"
+]
+
+[project.scripts]
+archon = "shared.cli.main:cli"
+
+[tool.setuptools]
+packages = ["shared", "shared.cli", "conformance", "generation"]

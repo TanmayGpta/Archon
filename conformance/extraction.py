@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, Optional, List
 
 def extract_imports_from_file(filepath: str) -> Dict[str, Dict[str, Any]]:
     """
@@ -43,17 +43,23 @@ def extract_imports_from_file(filepath: str) -> Dict[str, Dict[str, Any]]:
                 
     return imports
 
-def extract_project_dependencies(project_root: str) -> Dict[str, Dict[str, Dict[str, Any]]]:
+def extract_project_dependencies(
+    project_root: str,
+    exclude_dirs: Optional[List[str]] = None
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
     Recursively scans a project directory for Python files and maps their dependencies
     along with line numbers and code snippets.
     Returns: { source_module: { target_module: {'line_number': int, 'code_snippet': str} } }
     """
     dependencies = {}
+    default_excludes = [".venv", "__pycache__", ".git", ".idea", ".vscode", "node_modules"]
+    all_excludes = set(default_excludes + (exclude_dirs or []))
     
-    for root, _, files in os.walk(project_root):
-        # Skip common hidden/cache directories
-        if any(skip in root for skip in [".venv", "__pycache__", ".git"]):
+    for root, dirs, files in os.walk(project_root):
+        # Prune excluded directories in-place to avoid deep traversals
+        dirs[:] = [d for d in dirs if d not in all_excludes and not any(skip in d for skip in all_excludes)]
+        if any(skip in root.split(os.sep) for skip in all_excludes):
             continue
             
         for file in files:

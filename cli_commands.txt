@@ -1,0 +1,86 @@
+================================================================================
+                    ARCHON CLI COMMAND CHEAT SHEET
+================================================================================
+
+1. SHORTCUT COMMANDS (FASTEST & EASIEST)
+--------------------------------------------------------------------------------
+# Audit another project on your computer (from your Archon terminal):
+archon check "C:\path\to\YourProject"
+# (Automatically defaults to Clean Architecture and runs offline!)
+
+# Audit Archon on itself (Dogfooding mode):
+archon self-check
+
+# Audit current folder against Clean Architecture:
+archon check
+
+# Audit with a preset blueprint shortcut ('clean', 'mvc', 'archon', '3tier'):
+archon check "C:\path\to\YourProject" -b mvc
+
+
+2. VIEW HELP & OPTIONS
+--------------------------------------------------------------------------------
+# General CLI help:
+archon --help
+
+# Help for the check command (all available flags and arguments):
+archon check --help
+
+# Help for the self-check command:
+archon self-check --help
+
+
+3. RUN AUDITS ON A CODEBASE (OFFLINE / FAST / DETERMINISTIC)
+--------------------------------------------------------------------------------
+# Audit the demo ecommerce codebase against Clean Architecture (no flags needed):
+archon check test_codebases/ecommerce_platform
+
+# Audit any external project folder (Drag & drop into terminal!):
+archon check "C:\Users\username\Desktop\MyProject"
+
+# Audit Archon on itself (Dogfooding mode - 0 arguments needed):
+archon self-check
+
+
+4. RUN AUDITS WITH AI LAYER CLASSIFIER (REQUIRES API KEY IN .ENV)
+--------------------------------------------------------------------------------
+# Explicitly use Groq (Fastest free tier):
+archon check test_codebases/ecommerce_platform -p groq
+
+# Explicitly use Google Gemini:
+archon check test_codebases/ecommerce_platform -p gemini
+
+# Explicitly use OpenAI:
+archon check test_codebases/ecommerce_platform -p openai
+
+
+5. EXPORT AUDIT REPORTS (HTML, JSON, MARKDOWN)
+--------------------------------------------------------------------------------
+# Generate a standalone visual HTML report:
+archon check test_codebases/ecommerce_platform -o audit_report.html
+
+# Generate a machine-readable JSON report:
+archon check test_codebases/ecommerce_platform -o audit_report.json
+
+# Generate a Markdown report (ideal for GitHub Pull Request comments):
+archon check test_codebases/ecommerce_platform -o audit_report.md
+
+
+6. CI/CD AUTOMATION & GATEKEEPING
+--------------------------------------------------------------------------------
+# Strict gatekeeping: exit with code 1 if ANY violation exists (default):
+archon check ./my_codebase
+
+# Set a custom passing score threshold (e.g. 80.0%):
+archon check ./my_codebase -t 80.0
+
+# Non-blocking / informational audit (always exits with code 0):
+archon check ./my_codebase --no-fail
+
+
+7. EQUIVALENT PYTHON MODULE SYNTAX
+--------------------------------------------------------------------------------
+# You can always use 'python -m shared.cli.main' interchangeably with 'archon':
+python -m shared.cli.main self-check
+python -m shared.cli.main check "C:\path\to\YourProject"
+================================================================================

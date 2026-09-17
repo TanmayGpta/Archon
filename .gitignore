@@ -26,3 +26,15 @@ temp_graph.html
 temp_blueprint.json
 dependency_graph.html
 *.zip
+audit_report.*
+test_report.*
+
+# Build, Packaging & Egg Info
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Test caches
+.pytest_cache/

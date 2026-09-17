@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "project_name": "Archon System Architecture",
+  "default_policy": "default-deny",
+  "unclassified_policy": "flag_for_review",
+  "layers": [
+    {
+      "name": "Presentation",
+      "description": "User interfaces and delivery entrypoints: Streamlit web dashboard (app.py) and CLI automation commands (shared.cli). Translates user or CI input into application workflows.",
+      "match_patterns": ["app", "*app*", "*shared.cli*", "*cli*"]
+    },
+    {
+      "name": "Application",
+      "description": "Multi-agent workflows and high-level use-case orchestration: SRS Generation multi-agent pipeline (generation.*), Self-Healing autonomous remediation agent (healing.*), and end-to-end audit pipelines.",
+      "match_patterns": ["*generation*", "*healing*"]
+    },
+    {
+      "name": "Domain",
+      "description": "Core deterministic logic, data models, and analysis engines: AST static dependency parser (extraction.py), NetworkX reality graph (graph.py), deterministic rule verification engine (checker.py), and Pydantic ruleset contracts (shared.schema).",
+      "match_patterns": ["*checker*", "*extraction*", "*graph*", "*schema*"]
+    },
+    {
+      "name": "Infrastructure",
+      "description": "External integration drivers and presentation renderers: External LLM provider client adapters (classifier_agent.py, generation.llm), file system/zip handlers, and interactive vis-network HTML canvas generator (visualize.py).",
+      "match_patterns": ["*classifier_agent*", "*visualize*", "*generation.llm*"]
+    },
+    {
+      "name": "Observability",
+      "description": "System monitoring, telemetry, and metrics export: Prometheus metrics exporter (monitoring latency, health scores, LLM token costs), health checks, and Docker containerization hooks.",
+      "match_patterns": ["*telemetry*", "*monitoring*", "*metrics*"]
+    }
+  ],
+  "rules": [
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Application",
+      "type": "allow",
+      "reason": "Presentation triggers Generation workflows and Self-Healing remediation passes.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Presentation displays Domain structures like the Reality Graph and Architecture Health Score.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Presentation",
+      "target_layer": "Infrastructure",
+      "type": "allow",
+      "reason": "Presentation loads the interactive vis-network HTML canvas component.",
+      "severity": "minor"
+    },
+    {
+      "source_layer": "Application",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Generation pipeline outputs validated Pydantic rulesets; Healing agent consumes Conformance violations.",
+      "severity": "critical"
+    },
+    {
+      "source_layer": "Application",
+      "target_layer": "Infrastructure",
+      "type": "allow",
+      "reason": "Generation agents and Healing agents query external LLMs through infrastructure adapters.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Infrastructure",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Infrastructure adapters instantiate and populate Domain entities and schema models.",
+      "severity": "major"
+    },
+    {
+      "source_layer": "Observability",
+      "target_layer": "Domain",
+      "type": "allow",
+      "reason": "Prometheus metric collectors record health scores and violation metrics directly from the Domain engine.",
+      "severity": "minor"
+    },
+    {
+      "source_layer": "Observability",
+      "target_layer": "Application",
+      "type": "allow",
+      "reason": "Observability tracks workflow duration, iteration counts, and LLM token usage across agents.",
+      "severity": "minor"
+    }
+  ]
+}

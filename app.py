@@ -77,7 +77,7 @@ with st.sidebar:
     
     template_choice = st.selectbox(
         "Architecture Template", 
-        ["Clean Architecture", "Model-View-Controller (MVC)", "Traditional 3-Tier", "Upload Custom JSON..."]
+        ["Clean Architecture", "Archon Self-Hosted Architecture", "Model-View-Controller (MVC)", "Traditional 3-Tier", "Upload Custom JSON..."]
     )
     
     uploaded_json = None
@@ -87,6 +87,7 @@ with st.sidebar:
     # ── Map choice to JSON file ──
     template_map = {
         "Clean Architecture": "clean_architecture.json",
+        "Archon Self-Hosted Architecture": "archon_architecture.json",
         "Model-View-Controller (MVC)": "mvc_architecture.json",
         "Traditional 3-Tier": "layered_architecture.json"
     }

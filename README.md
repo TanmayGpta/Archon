@@ -43,11 +43,24 @@ archon/
 
 ## Usage
 
-# Generate an architecture + ruleset from an SRS
-python -m shared.cli.main generate --srs requirements.txt --out architecture.json
+### 1. Web UI Dashboard
+```bash
+streamlit run app.py
+```
 
-# Check a codebase against a ruleset
-python -m shared.cli.main check --repo ./target-codebase --rules architecture.json --out report.html
+### 2. Fast CLI Architecture Conformance Checks
+```bash
+# 1. Audit Archon on itself (Dogfooding mode - 0 arguments needed!)
+archon self-check
+
+# 2. Audit any external project or demo codebase (runs fast & offline by default)
+archon check test_codebases/ecommerce_platform
+archon check "C:\path\to\YourProject"
+
+# 3. Generate an interactive visual HTML audit report
+archon check test_codebases/ecommerce_platform -o audit_report.html
+```
+*(See `cli_commands.txt` for the complete cheat sheet of flags, LLM providers, and CI/CD threshold options).*
 
 ## Status
 

@@ -19,3 +19,6 @@ streamlit~=1.38.0
 flask~=3.0
 click~=8.0
 python-dotenv~=1.0
+
+# --- Testing ---
+pytest>=8.0
