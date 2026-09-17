@@ -20,5 +20,7 @@ flask~=3.0
 click~=8.0
 python-dotenv~=1.0
 
-# --- Testing ---
+# --- Testing & Reports ---
 pytest>=8.0
+reportlab>=4.0.0
+

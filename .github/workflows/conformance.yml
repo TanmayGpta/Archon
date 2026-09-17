@@ -1,0 +1,48 @@
+name: Archon Architecture Conformance (Dogfooding)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  conformance-audit:
+    name: Continuous Architectural Governance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run Archon Self-Audit (Dogfooding)
+        run: |
+          archon self-check -o audit_report.md
+
+      - name: Publish Report to GitHub Step Summary
+        if: always()
+        run: |
+          if [ -f audit_report.md ]; then
+            cat audit_report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Conformance Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archon-conformance-report
+          path: audit_report.md
+          retention-days: 14
