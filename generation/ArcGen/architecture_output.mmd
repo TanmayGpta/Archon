@@ -1,48 +1,73 @@
 flowchart TD
     subgraph Presentation["Presentation"]
-        COMP-001[" APAFAPIGateway "]
-        COMP-002[" APAFWebApp "]
+        COMP-001[" C2C API Gateway "]
+        COMP-002[" Incident Management BFF "]
+        COMP-003[" Remote Control BFF "]
+        COMP-004[" Web Map BFF "]
     end
 
     subgraph Application["Application"]
-        COMP-003[" AuthNAuthZService "]
-        COMP-005[" TelemetryAcquisitionService "]
-        COMP-007[" ProcessingOrchestratorService "]
-        COMP-009[" TelemetryCleaningService "]
-        COMP-011[" IDFSProcessingService "]
-        COMP-013[" CalibrationValidationService "]
-        COMP-015[" SwRILocalArchiveService "]
-        COMP-017[" PublicDataDisplayService "]
-        COMP-019[" ScienceDataAccessService "]
+        COMP-005[" Incident Management Use Cases "]
+        COMP-006[" Device Management Use Cases "]
+        COMP-007[" Network Data Use Cases "]
+        COMP-008[" Map Generation Use Cases "]
+        COMP-009[" Authentication Use Cases "]
+        COMP-010[" Data Ingestion Use Cases "]
+    end
+
+    subgraph Domain["Domain"]
+        COMP-011[" Traffic Domain Entities "]
+        COMP-012[" User & Configuration Domain Entities "]
+        COMP-013[" Domain Services "]
     end
 
     subgraph Infrastructure["Infrastructure"]
-        COMP-004[(" AuthNAuthZDB ")]
-        COMP-006[(" RawTelemetryDB ")]
-        COMP-008[(" SagaStateDB ")]
-        COMP-010[(" CleanedTelemetryDB ")]
-        COMP-012[(" IDFSDataDB ")]
-        COMP-014[(" CalibrationValidationDB ")]
-        COMP-016[(" ArchiveMetadataDB ")]
-        COMP-018[(" PublicDisplayCacheDB ")]
+        COMP-014[(" C2C Main Database ")]
+        COMP-015[(" User & Auth Database ")]
+        COMP-016[(" Configuration Database ")]
+        COMP-017[" Persistence Adapters "]
+        COMP-018[" TMDD/DATEX/ASN Adapter "]
+        COMP-019[" ESRI Map Adapter "]
+        COMP-020[" External System Connectors "]
+        COMP-021[" Logging & Monitoring Module "]
+        COMP-022[" Microsoft Windows NT Environment "]
+        COMP-023[" TxDOT Traffic Management Centers (TMCs) "]
+        COMP-024[" Existing Traffic Management Systems "]
+        COMP-025[" NCTCOG GeoData Warehouse "]
+        COMP-026[" ESRI ARC Internet Map Server (ARC IMS) "]
+        COMP-027[" Internet WWW Server "]
     end
 
 
-    COMP-001 -->|"HTTPS/REST"| COMP-003
     COMP-001 -->|"HTTPS/REST"| COMP-002
-    COMP-003 -->|"PostgreSQL wire protocol"| COMP-004
-    COMP-001 -->|"HTTPS/REST"| COMP-005
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-006
-    COMP-001 -->|"HTTPS/REST"| COMP-007
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-008
-    COMP-001 -->|"HTTPS/REST"| COMP-009
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-010
-    COMP-001 -->|"HTTPS/REST"| COMP-011
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-012
+    COMP-001 -->|"HTTPS/REST"| COMP-003
+    COMP-001 -->|"HTTPS/REST"| COMP-004
+    COMP-002 -->|"In-process memory call"| COMP-005
+    COMP-003 -->|"In-process memory call"| COMP-006
+    COMP-004 -->|"In-process memory call"| COMP-008
+    COMP-005 -->|"In-process memory call"| COMP-011
+    COMP-006 -->|"In-process memory call"| COMP-011
+    COMP-007 -->|"In-process memory call"| COMP-011
+    COMP-008 -->|"In-process memory call"| COMP-011
+    COMP-009 -->|"In-process memory call"| COMP-012
+    COMP-010 -->|"In-process memory call"| COMP-018
+    COMP-018 -.->|"TCP/IP (DATEX/ASN over TCP)"| COMP-020
+    COMP-020 -.->|"TCP/IP"| COMP-023
+    COMP-020 -.->|"TCP/IP"| COMP-024
+    COMP-020 -->|"HTTPS/REST"| COMP-025
+    COMP-019 -->|"HTTP"| COMP-026
+    COMP-004 -->|"In-process memory call"| COMP-019
+    COMP-005 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-005 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-006 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-006 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-007 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-008 -->|"PostgreSQL wire protocol"| COMP-017
+    COMP-009 -->|"PostgreSQL wire protocol"| COMP-015
+    COMP-009 -->|"PostgreSQL wire protocol"| COMP-015
     COMP-001 -->|"HTTPS/REST"| COMP-013
-    COMP-013 -->|"PostgreSQL wire protocol"| COMP-014
-    COMP-001 -->|"HTTPS/REST"| COMP-015
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-016
-    COMP-001 -->|"HTTPS/REST"| COMP-017
-    COMP-002 -->|"PostgreSQL wire protocol"| COMP-018
-    COMP-001 -->|"HTTPS/REST"| COMP-019
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-014
+    COMP-012 -->|"PostgreSQL wire protocol"| COMP-016
+    COMP-001 -->|"HTTPS/REST"| COMP-021
+    COMP-022 -->|"HTTPS/REST"| COMP-001
+    COMP-027 -->|"HTTPS/REST"| COMP-001

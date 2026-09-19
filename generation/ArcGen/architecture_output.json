@@ -1,134 +1,235 @@
 {
-  "project_name": "ASPERA-3 Processing and Archiving Facility (APAF)",
-  "style": "Microservices Architecture",
+  "project_name": "C2CTest",
+  "style": "Clean Architecture (Onion / Concentric)",
   "nodes": [
     {
       "node_id": "COMP-001",
-      "name": "APAFAPIGateway",
+      "name": "C2C API Gateway",
       "node_type": "gateway",
       "layer": "Presentation",
-      "description": "Entry point for all external client requests, routing them to appropriate microservices. Handles cross-cutting concerns like authentication, authorization, and rate limiting.",
+      "description": "Central entry point for all external requests, including various GUIs and external systems. Handles request routing and initial authentication.",
       "responsibilities": [
-        "Route incoming requests to backend services",
-        "Enforce authentication and authorization policies",
-        "Provide a unified API for web clients and external consumers"
+        "Authenticate incoming requests",
+        "Route requests to appropriate backend modules/services",
+        "Provide a unified API facade"
       ],
       "traced_requirements": [
-        "FR-008",
-        "FR-009",
-        "NFR-002",
-        "NFR-003"
+        "FR-017",
+        "ASR-005"
       ],
       "kb_citations": [
         "PAT-API-GATEWAY",
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-002",
-      "name": "APAFWebApp",
-      "node_type": "module",
+      "name": "Incident Management BFF",
+      "node_type": "service",
       "layer": "Presentation",
-      "description": "The client-side web application providing user interfaces for public data displays and password-protected science analysis displays.",
+      "description": "Backend for Frontend specifically tailored for the Incident GUI, providing optimized data and operations for incident and lane closure management.",
       "responsibilities": [
-        "Render web-based displays of current ASPERA-3 data for public view",
-        "Render web-based displays for science analysis for ASPERA-3 team members",
-        "Handle user login and session management for protected views"
+        "Serve incident and lane closure data to the Incident GUI",
+        "Process incident and lane closure creation, modification, and deletion requests from the GUI"
       ],
       "traced_requirements": [
-        "FR-008",
-        "FR-009",
-        "NFR-002",
-        "NFR-003"
+        "FR-016",
+        "TC-009"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-BFF",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-003",
-      "name": "AuthNAuthZService",
+      "name": "Remote Control BFF",
       "node_type": "service",
-      "layer": "Application",
-      "description": "Manages user authentication and authorization for access to protected APAF resources and web displays.",
+      "layer": "Presentation",
+      "description": "Backend for Frontend specifically tailored for the Remote Control GUI, managing device control commands and status requests.",
       "responsibilities": [
-        "Manage user accounts and roles",
-        "Authenticate users (e.g., ASPERA-3 team members)",
-        "Authorize access to specific data and functionalities"
+        "Serve device status information to the Remote Control GUI",
+        "Process device control commands from the GUI",
+        "Display command/control status updates"
       ],
       "traced_requirements": [
-        "NFR-002",
-        "NFR-003"
+        "FR-018",
+        "FR-019",
+        "TC-010"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-BFF",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-004",
-      "name": "AuthNAuthZDB",
-      "node_type": "datastore",
-      "layer": "Infrastructure",
-      "description": "Dedicated database for storing user credentials, roles, and authorization policies for the AuthNAuthZService.",
+      "name": "Web Map BFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend for Frontend specifically tailored for the Web Map Application, providing map data, traffic conditions, and interactive map features.",
       "responsibilities": [
-        "Persist user authentication and authorization data"
+        "Generate map data for display on the Internet WWW server",
+        "Provide traffic condition overlays (e.g., speed color-coding)",
+        "Display incidents and device locations on the map",
+        "Handle map magnification and panning requests"
       ],
       "traced_requirements": [
-        "NFR-002",
-        "NFR-003"
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015",
+        "TC-006",
+        "TC-008"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-BFF",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-005",
-      "name": "TelemetryAcquisitionService",
-      "node_type": "service",
+      "name": "Incident Management Use Cases",
+      "node_type": "module",
       "layer": "Application",
-      "description": "Responsible for acquiring raw ASPERA-3 and Mars Express Orbit/Attitude (MEX OA) telemetry data from ESOC.",
+      "description": "Encapsulates the application-specific business rules for managing incidents and lane closures, orchestrating interactions with domain and infrastructure layers.",
       "responsibilities": [
-        "Connect to ESOC systems",
-        "Retrieve ASPERA-3 telemetry data",
-        "Retrieve MEX OA telemetry data",
-        "Store raw telemetry for initial processing"
+        "Create, retrieve, update, and delete incident information",
+        "Create, retrieve, update, and delete lane closure information",
+        "Retrieve incidents for map display and tabular format"
       ],
       "traced_requirements": [
-        "FR-001",
-        "NFR-001"
+        "FR-003",
+        "FR-004",
+        "FR-013",
+        "FR-014",
+        "FR-016"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-006",
-      "name": "RawTelemetryDB",
-      "node_type": "datastore",
-      "layer": "Infrastructure",
-      "description": "Dedicated database for storing raw, unprocessed ASPERA-3 and MEX OA telemetry data acquired from ESOC.",
+      "name": "Device Management Use Cases",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Manages the business logic for traffic device status retrieval and control command issuance.",
       "responsibilities": [
-        "Persist raw telemetry data"
+        "Retrieve status information for various traffic devices",
+        "Process control commands for traffic devices",
+        "Provide command timeframe information",
+        "Retrieve device information for map display"
       ],
       "traced_requirements": [
-        "FR-001"
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-015",
+        "FR-018",
+        "FR-019"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-007",
-      "name": "ProcessingOrchestratorService",
-      "node_type": "service",
+      "name": "Network Data Use Cases",
+      "node_type": "module",
       "layer": "Application",
-      "description": "Orchestrates the complex daily data processing and archiving workflow using the Saga pattern, coordinating multiple services.",
+      "description": "Handles the business logic for managing roadway network, link, and node data.",
       "responsibilities": [
-        "Initiate and manage the daily data processing saga",
-        "Coordinate telemetry cleaning, IDFS processing, archiving, calibration, and dissemination steps",
-        "Handle saga state and compensation logic for failures"
+        "Retrieve roadway network information",
+        "Retrieve link data (identifier, name, type)",
+        "Retrieve node information (identifier, name, type)"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "Map Generation Use Cases",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Orchestrates the process of generating map data, applying symbology, and integrating various traffic data for graphical depiction.",
+      "responsibilities": [
+        "Prepare map data for display (interstates, state highways)",
+        "Apply speed-based color coding to links",
+        "Integrate incident and device data onto the map",
+        "Manage map zoom and pan operations"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "Authentication Use Cases",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Manages user authentication and authorization processes.",
+      "responsibilities": [
+        "Validate user credentials (username, password)",
+        "Manage user sessions"
+      ],
+      "traced_requirements": [
+        "FR-017"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-010",
+      "name": "Data Ingestion Use Cases",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Orchestrates the reception, validation, and storage of traffic management data from various connected systems.",
+      "responsibilities": [
+        "Receive and process TMDD data elements and message sets",
+        "Combine data from connected systems into a single data store",
+        "Support normal and test mode operations (including logging)"
+      ],
+      "traced_requirements": [
+        "NFR-001",
+        "NFR-002",
+        "NFR-003",
+        "ASR-001",
+        "ASR-004",
+        "TC-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-011",
+      "name": "Traffic Domain Entities",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Core business objects representing traffic management concepts such as roadway networks, links, nodes, incidents, lane closures, and various traffic devices.",
+      "responsibilities": [
+        "Define structure and behavior of traffic-related data (e.g., Link, Node, Incident, Device)",
+        "Enforce core business rules related to traffic data integrity"
       ],
       "traced_requirements": [
         "FR-001",
@@ -138,236 +239,335 @@
         "FR-005",
         "FR-006",
         "FR-007",
-        "FR-010",
-        "FR-013",
-        "FR-014",
         "NFR-001"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-SAGA-ORCHESTRATED",
-        "PAT-DATABASE-PER-SERVICE"
-      ]
-    },
-    {
-      "node_id": "COMP-008",
-      "name": "SagaStateDB",
-      "node_type": "datastore",
-      "layer": "Infrastructure",
-      "description": "Dedicated database for the ProcessingOrchestratorService to store the current state of ongoing sagas and transaction logs.",
-      "responsibilities": [
-        "Persist saga state and history"
-      ],
-      "traced_requirements": [
-        "FR-001",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE",
-        "PAT-SAGA-ORCHESTRATED"
-      ]
-    },
-    {
-      "node_id": "COMP-009",
-      "name": "TelemetryCleaningService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Cleans raw ASPERA-3 and MEX OA telemetry data and generates intermediate cleaned-up telemetry files.",
-      "responsibilities": [
-        "Perform data cleaning on raw telemetry",
-        "Generate intermediate files of cleaned-up telemetry",
-        "Store cleaned telemetry and intermediate files"
-      ],
-      "traced_requirements": [
-        "FR-004",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
-      ]
-    },
-    {
-      "node_id": "COMP-010",
-      "name": "CleanedTelemetryDB",
-      "node_type": "datastore",
-      "layer": "Infrastructure",
-      "description": "Dedicated database for storing cleaned ASPERA-3 and MEX OA telemetry data and any generated intermediate files.",
-      "responsibilities": [
-        "Persist cleaned telemetry and intermediate files"
-      ],
-      "traced_requirements": [
-        "FR-004"
-      ],
-      "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
-      ]
-    },
-    {
-      "node_id": "COMP-011",
-      "name": "IDFSProcessingService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Processes cleaned telemetry and ancillary data into Instrument Data File Set (IDFS) data sets.",
-      "responsibilities": [
-        "Process ASPERA-3 science data into IDFS format",
-        "Process engineering and ancillary information into IDFS format",
-        "Store generated IDFS data sets"
-      ],
-      "traced_requirements": [
-        "FR-002",
-        "FR-003",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-012",
-      "name": "IDFSDataDB",
-      "node_type": "datastore",
-      "layer": "Infrastructure",
-      "description": "Dedicated database for storing processed ASPERA-3 and MEX OA IDFS data sets.",
+      "name": "User & Configuration Domain Entities",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Core business objects for user credentials and system configuration parameters.",
       "responsibilities": [
-        "Persist IDFS data sets"
+        "Define structure and behavior of User and Configuration data",
+        "Enforce business rules related to user authentication and system configuration"
       ],
       "traced_requirements": [
-        "FR-002",
-        "FR-003"
+        "FR-017",
+        "ASR-003",
+        "FR-012"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-013",
-      "name": "CalibrationValidationService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Performs calibration and validation of ASPERA-3 data prior to its deposition in NASA PDS.",
+      "name": "Domain Services",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Encapsulates complex, cross-entity business rules and orchestrates interactions between domain entities that don't fit naturally into a single entity.",
       "responsibilities": [
-        "Execute calibration algorithms on ASPERA-3 data",
-        "Perform validation checks on ASPERA-3 data integrity and quality",
-        "Store calibration and validation results"
+        "Implement complex traffic management business logic (e.g., device control validation)",
+        "Coordinate data aggregation and transformation for reporting/display"
       ],
       "traced_requirements": [
-        "FR-014",
-        "NFR-001"
+        "FR-005",
+        "FR-012",
+        "NFR-002",
+        "NFR-003"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-014",
-      "name": "CalibrationValidationDB",
+      "name": "C2C Main Database",
       "node_type": "datastore",
       "layer": "Infrastructure",
-      "description": "Dedicated database for storing calibration parameters, validation rules, and results for the CalibrationValidationService.",
+      "description": "Primary data store for all core traffic management data, including network topology, incidents, lane closures, and device status/control information.",
       "responsibilities": [
-        "Persist calibration and validation data"
+        "Persist roadway network, link, and node data",
+        "Persist incident and lane closure data",
+        "Persist traffic device status and control command data",
+        "Store TMDD data elements and message sets"
       ],
       "traced_requirements": [
-        "FR-014"
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "NFR-001",
+        "NFR-002"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-DATABASE-PER-SERVICE",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-015",
-      "name": "SwRILocalArchiveService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Manages the storage and retrieval of all APAF-generated data (raw, cleaned, IDFS) to the physical SwRI Local Archive.",
+      "name": "User & Auth Database",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated data store for user credentials and authentication-related information.",
       "responsibilities": [
-        "Store raw telemetry data in SwRI Local Archive",
-        "Store cleaned telemetry and intermediate files in SwRI Local Archive",
-        "Store IDFS data sets in SwRI Local Archive",
-        "Provide mechanisms for data retrieval and re-processing"
+        "Persist user names and passwords",
+        "Store user authentication tokens/sessions"
       ],
       "traced_requirements": [
-        "FR-005",
-        "FR-006",
-        "FR-007"
+        "FR-017"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-DATABASE-PER-SERVICE",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-016",
-      "name": "ArchiveMetadataDB",
+      "name": "Configuration Database",
       "node_type": "datastore",
       "layer": "Infrastructure",
-      "description": "Dedicated database for the SwRILocalArchiveService to store metadata and indexing information about archived files.",
+      "description": "Data store for system configuration parameters, including dynamic settings like speed values for map symbology.",
       "responsibilities": [
-        "Persist metadata for archived data"
+        "Persist system configuration parameters",
+        "Store speed values for link color coding"
       ],
       "traced_requirements": [
-        "FR-005",
-        "FR-006",
-        "FR-007"
+        "FR-012",
+        "ASR-003"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-DATABASE-PER-SERVICE",
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-017",
-      "name": "PublicDataDisplayService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Provides an API for the APAFWebApp to display the most current ASPERA-3 data for public viewing.",
+      "name": "Persistence Adapters",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Implements the data storage interfaces defined by the Domain layer, translating domain objects to database-specific formats and vice-versa.",
       "responsibilities": [
-        "Retrieve and format current ASPERA-3 data for public display",
-        "Serve data to the public web interface"
+        "Translate domain entities to database records",
+        "Translate database records to domain entities",
+        "Perform CRUD operations on C2C Main, User & Auth, and Configuration databases"
       ],
       "traced_requirements": [
-        "FR-008"
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-016",
+        "FR-017",
+        "FR-018",
+        "FR-019",
+        "NFR-001",
+        "NFR-002",
+        "FR-012",
+        "ASR-003"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     },
     {
       "node_id": "COMP-018",
-      "name": "PublicDisplayCacheDB",
-      "node_type": "datastore",
+      "name": "TMDD/DATEX/ASN Adapter",
+      "node_type": "module",
       "layer": "Infrastructure",
-      "description": "Dedicated database for the PublicDataDisplayService to store frequently accessed or pre-rendered public display data for performance.",
+      "description": "Handles communication with external systems using ITS standards like TMDD, DATEX/ASN, and TCP/IP.",
       "responsibilities": [
-        "Cache public display data"
+        "Encode/decode TMDD message sets using DATEX/ASN",
+        "Manage TCP/IP communication for data transmission",
+        "Provide runtime library for DATEX/ASN"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-004",
+        "TC-001",
+        "TC-002",
+        "TC-003",
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-019",
+      "name": "ESRI Map Adapter",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Integrates with ESRI products (ARC IMS, Map Objects) to provide map generation and display capabilities.",
+      "responsibilities": [
+        "Interface with ESRI ARC IMS for map image creation",
+        "Utilize ESRI Map Objects for GUI-based map rendering",
+        "Translate internal map data to ESRI-compatible formats"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-015",
+        "TC-006",
+        "TC-008",
+        "TC-009",
+        "TC-010"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-020",
+      "name": "External System Connectors",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Provides specific interfaces and protocols for connecting to various external traffic management systems and data sources.",
+      "responsibilities": [
+        "Connect to TxDOT Traffic Management Centers (TMCs)",
+        "Connect to existing traffic management systems",
+        "Retrieve basemap data from NCTCOG GeoData warehouse"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-004",
+        "TC-011"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-021",
+      "name": "Logging & Monitoring Module",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Provides system-wide logging capabilities, especially for activity tracking in test mode.",
+      "responsibilities": [
+        "Log system activities and events",
+        "Support different logging levels (e.g., for normal vs. test mode)"
+      ],
+      "traced_requirements": [
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-022",
+      "name": "Microsoft Windows NT Environment",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "The operating system and runtime environment where the C2CTest server application executes.",
+      "responsibilities": [
+        "Provide operating system services",
+        "Host the C/C++ runtime environment"
+      ],
+      "traced_requirements": [
+        "TC-004",
+        "TC-007"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-023",
+      "name": "TxDOT Traffic Management Centers (TMCs)",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "External systems managed by TxDOT that exchange traffic management data with C2CTest.",
+      "responsibilities": [
+        "Provide traffic data to C2CTest",
+        "Receive control commands/status from C2CTest"
+      ],
+      "traced_requirements": [
+        "ASR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-024",
+      "name": "Existing Traffic Management Systems",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "Other external traffic management systems that C2CTest integrates with to collect and disseminate data.",
+      "responsibilities": [
+        "Exchange traffic management data with C2CTest"
+      ],
+      "traced_requirements": [
+        "ASR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-025",
+      "name": "NCTCOG GeoData Warehouse",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "External data source for basemap data used in the C2CTest system.",
+      "responsibilities": [
+        "Provide basemap data (e.g., roadway networks) to C2CTest"
+      ],
+      "traced_requirements": [
+        "TC-011"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-026",
+      "name": "ESRI ARC Internet Map Server (ARC IMS)",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "Commercial off-the-shelf product used by C2CTest for creating and serving map images.",
+      "responsibilities": [
+        "Generate map images based on provided data"
+      ],
+      "traced_requirements": [
+        "TC-006",
+        "TC-008"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-027",
+      "name": "Internet WWW Server",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "An external web server responsible for hosting and displaying the C2CTest Web Map application.",
+      "responsibilities": [
+        "Host the Web Map application",
+        "Serve map content to end-users"
       ],
       "traced_requirements": [
         "FR-008"
       ],
       "kb_citations": [
-        "PAT-DATABASE-PER-SERVICE"
-      ]
-    },
-    {
-      "node_id": "COMP-019",
-      "name": "ScienceDataAccessService",
-      "node_type": "service",
-      "layer": "Application",
-      "description": "Provides an API for the ASPERA-3 team to access any available ASPERA-3 data for science analysis.",
-      "responsibilities": [
-        "Provide secure access to all available ASPERA-3 data for authorized users",
-        "Support data querying and retrieval for science analysis"
-      ],
-      "traced_requirements": [
-        "FR-009",
-        "NFR-003"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES",
-        "PAT-DATABASE-PER-SERVICE"
+        "PAT-CLEAN-ARCH"
       ]
     }
   ],
@@ -375,91 +575,488 @@
     {
       "edge_id": "EDGE-001",
       "source": "COMP-001",
-      "target": "COMP-003",
+      "target": "COMP-002",
       "edge_type": "sync_rest",
       "protocol": "HTTPS/REST",
-      "payload_description": "Authentication tokens, authorization requests for protected resources",
+      "payload_description": "Incident and lane\u2011closure CRUD requests from Incident GUI",
       "traced_requirements": [
-        "NFR-002",
-        "NFR-003"
+        "FR-003",
+        "FR-004",
+        "FR-016",
+        "FR-017"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "The API Gateway enforces authentication and authorization policies by consulting the AuthNAuthZService for incoming requests to protected resources."
+      "justification": "API Gateway authenticates and forwards incident\u2011related HTTP calls to the Incident Management BFF"
     },
     {
       "edge_id": "EDGE-002",
       "source": "COMP-001",
-      "target": "COMP-002",
+      "target": "COMP-003",
       "edge_type": "sync_rest",
       "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
+      "payload_description": "Device status queries and control command submissions from Remote Control GUI",
       "traced_requirements": [
-        "FR-008",
-        "FR-009",
-        "NFR-002",
-        "NFR-003"
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-018",
+        "FR-019",
+        "FR-017"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "APAFAPIGateway routes requests to APAFWebApp"
+      "justification": "API Gateway routes authenticated remote\u2011control HTTP calls to the Remote Control BFF"
     },
     {
       "edge_id": "EDGE-003",
-      "source": "COMP-003",
+      "source": "COMP-001",
       "target": "COMP-004",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Map view requests (zoom, pan, overlay toggles) from Web Map GUI",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "API Gateway forwards map\u2011related HTTP calls to the Web Map BFF"
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-002",
+      "target": "COMP-005",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Incident/lane\u2011closure use\u2011case invocations (create, read, update, delete)",
+      "traced_requirements": [
+        "FR-003",
+        "FR-004",
+        "FR-016"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Incident BFF delegates business operations to the Incident Management Use Cases module"
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-003",
+      "target": "COMP-006",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Device status retrieval, control command execution, and timeframe queries",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-018",
+        "FR-019"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Remote Control BFF invokes Device Management Use Cases for device\u2011centric operations"
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-004",
+      "target": "COMP-008",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Map generation parameters (zoom level, pan direction, overlay selections)",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Web Map BFF calls Map Generation Use Cases to assemble map data"
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-005",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Domain entities for incidents, lane closures, links, nodes",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Incident use cases manipulate Traffic Domain Entities"
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-006",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Domain entities for traffic devices, status, and control parameters",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Device use cases work with Traffic Domain Entities"
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-007",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Network, link, and node domain objects",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Network Data Use Cases retrieve roadway network domain entities"
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-008",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Map\u2011specific domain objects (links with speed values, incident icons, device markers)",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-012",
+        "FR-013",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Map Generation Use Cases consume Traffic Domain Entities to build map layers"
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-009",
+      "target": "COMP-012",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "User credential verification and configuration retrieval requests",
+      "traced_requirements": [
+        "FR-017",
+        "FR-012"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Authentication Use Cases operate on User & Configuration Domain Entities"
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-010",
+      "target": "COMP-018",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Raw TMDD/DATEX/ASN messages received from external traffic systems",
+      "traced_requirements": [
+        "NFR-001",
+        "TC-001",
+        "TC-002",
+        "TC-003",
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Data Ingestion Use Cases delegate encoding/decoding to the TMDD/DATEX/ASN Adapter"
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-018",
+      "target": "COMP-020",
+      "edge_type": "async_pubsub",
+      "protocol": "TCP/IP (DATEX/ASN over TCP)",
+      "payload_description": "Encoded TMDD message sets exchanged with external traffic management systems",
+      "traced_requirements": [
+        "ASR-001",
+        "TC-003",
+        "TC-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Adapter publishes TMDD data to the External System Connectors for transport"
+    },
+    {
+      "edge_id": "EDGE-014",
+      "source": "COMP-020",
+      "target": "COMP-023",
+      "edge_type": "async_pubsub",
+      "protocol": "TCP/IP",
+      "payload_description": "Bidirectional TMDD traffic data and control commands for TxDOT TMCs",
+      "traced_requirements": [
+        "ASR-001",
+        "FR-001",
+        "FR-005",
+        "FR-018"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "External System Connectors relay TMDD messages to/from TxDOT Traffic Management Centers"
+    },
+    {
+      "edge_id": "EDGE-015",
+      "source": "COMP-020",
+      "target": "COMP-024",
+      "edge_type": "async_pubsub",
+      "protocol": "TCP/IP",
+      "payload_description": "Exchange of TMDD data with legacy traffic management systems",
+      "traced_requirements": [
+        "ASR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Connectors enable interoperability with existing traffic management systems"
+    },
+    {
+      "edge_id": "EDGE-016",
+      "source": "COMP-020",
+      "target": "COMP-025",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Requests for basemap raster/vector data from NCTCOG GeoData Warehouse",
+      "traced_requirements": [
+        "TC-011",
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Connectors fetch basemap data needed for map generation"
+    },
+    {
+      "edge_id": "EDGE-017",
+      "source": "COMP-019",
+      "target": "COMP-026",
+      "edge_type": "sync_rest",
+      "protocol": "HTTP",
+      "payload_description": "Map image generation requests (tiles, legends) to ESRI ARC IMS",
+      "traced_requirements": [
+        "TC-006",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "ESRI Map Adapter forwards rendered map data to the ARC Internet Map Server"
+    },
+    {
+      "edge_id": "EDGE-018",
+      "source": "COMP-004",
+      "target": "COMP-019",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Prepared map data (layers, symbols) for ESRI Map Adapter",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Web Map BFF hands off map payload to the ESRI Map Adapter"
+    },
+    {
+      "edge_id": "EDGE-019",
+      "source": "COMP-005",
+      "target": "COMP-017",
       "edge_type": "db_write",
       "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
+      "payload_description": "Persist new or updated incident and lane\u2011closure records",
       "traced_requirements": [
+        "FR-003",
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Incident Use Cases write incident data to the C2C Main Database via Persistence Adapters"
+    },
+    {
+      "edge_id": "EDGE-020",
+      "source": "COMP-005",
+      "target": "COMP-017",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Query incident and lane\u2011closure data for display in GUI tables",
+      "traced_requirements": [
+        "FR-013",
+        "FR-014"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Incident Use Cases read stored incident data for presentation"
+    },
+    {
+      "edge_id": "EDGE-021",
+      "source": "COMP-006",
+      "target": "COMP-017",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Store device status updates and executed control commands",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Device Management Use Cases persist device state and command logs"
+    },
+    {
+      "edge_id": "EDGE-022",
+      "source": "COMP-006",
+      "target": "COMP-017",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Retrieve current device status and command timeframe information",
+      "traced_requirements": [
+        "FR-005",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Device Use Cases read device data needed for GUI display"
+    },
+    {
+      "edge_id": "EDGE-023",
+      "source": "COMP-007",
+      "target": "COMP-017",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Read roadway network, link, and node records",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Network Data Use Cases fetch network topology from the main database"
+    },
+    {
+      "edge_id": "EDGE-024",
+      "source": "COMP-008",
+      "target": "COMP-017",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Read speed\u2011value configuration for link color\u2011coding",
+      "traced_requirements": [
+        "FR-012"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Map Generation Use Cases need configuration data to apply speed\u2011based colors"
+    },
+    {
+      "edge_id": "EDGE-025",
+      "source": "COMP-009",
+      "target": "COMP-015",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Retrieve stored usernames, password hashes, and authentication tokens",
+      "traced_requirements": [
+        "FR-017"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Authentication Use Cases validate credentials against the User & Auth Database"
+    },
+    {
+      "edge_id": "EDGE-026",
+      "source": "COMP-009",
+      "target": "COMP-015",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "Persist new session tokens after successful login",
+      "traced_requirements": [
+        "FR-017"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Authentication Use Cases store session information for subsequent requests"
+    },
+    {
+      "edge_id": "EDGE-027",
+      "source": "COMP-001",
+      "target": "COMP-013",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-005",
+        "FR-012",
         "NFR-002",
         "NFR-003"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "AuthNAuthZService persists data to dedicated datastore AuthNAuthZDB"
+      "justification": "C2C API Gateway routes requests to Domain Services"
     },
     {
-      "edge_id": "EDGE-004",
-      "source": "COMP-001",
-      "target": "COMP-005",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-001",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to TelemetryAcquisitionService"
-    },
-    {
-      "edge_id": "EDGE-005",
+      "edge_id": "EDGE-028",
       "source": "COMP-002",
-      "target": "COMP-006",
+      "target": "COMP-014",
       "edge_type": "db_write",
       "protocol": "PostgreSQL wire protocol",
       "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFWebApp persists data to dedicated datastore RawTelemetryDB"
-    },
-    {
-      "edge_id": "EDGE-006",
-      "source": "COMP-001",
-      "target": "COMP-007",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
       "traced_requirements": [
         "FR-001",
         "FR-002",
@@ -468,207 +1065,76 @@
         "FR-005",
         "FR-006",
         "FR-007",
-        "FR-010",
-        "FR-013",
-        "FR-014",
-        "NFR-001"
+        "NFR-001",
+        "NFR-002"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "APAFAPIGateway routes requests to ProcessingOrchestratorService"
+      "justification": "Incident Management BFF persists data to dedicated datastore C2C Main Database"
     },
     {
-      "edge_id": "EDGE-007",
-      "source": "COMP-002",
-      "target": "COMP-008",
-      "edge_type": "db_write",
-      "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-001",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFWebApp persists data to dedicated datastore SagaStateDB"
-    },
-    {
-      "edge_id": "EDGE-008",
-      "source": "COMP-001",
-      "target": "COMP-009",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-004",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to TelemetryCleaningService"
-    },
-    {
-      "edge_id": "EDGE-009",
-      "source": "COMP-002",
-      "target": "COMP-010",
-      "edge_type": "db_write",
-      "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-004"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFWebApp persists data to dedicated datastore CleanedTelemetryDB"
-    },
-    {
-      "edge_id": "EDGE-010",
-      "source": "COMP-001",
-      "target": "COMP-011",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-002",
-        "FR-003",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to IDFSProcessingService"
-    },
-    {
-      "edge_id": "EDGE-011",
-      "source": "COMP-002",
-      "target": "COMP-012",
-      "edge_type": "db_write",
-      "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-002",
-        "FR-003"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFWebApp persists data to dedicated datastore IDFSDataDB"
-    },
-    {
-      "edge_id": "EDGE-012",
-      "source": "COMP-001",
-      "target": "COMP-013",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-014",
-        "NFR-001"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to CalibrationValidationService"
-    },
-    {
-      "edge_id": "EDGE-013",
-      "source": "COMP-013",
-      "target": "COMP-014",
-      "edge_type": "db_write",
-      "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-014"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "CalibrationValidationService persists data to dedicated datastore CalibrationValidationDB"
-    },
-    {
-      "edge_id": "EDGE-014",
-      "source": "COMP-001",
-      "target": "COMP-015",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-005",
-        "FR-006",
-        "FR-007"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to SwRILocalArchiveService"
-    },
-    {
-      "edge_id": "EDGE-015",
-      "source": "COMP-002",
+      "edge_id": "EDGE-029",
+      "source": "COMP-012",
       "target": "COMP-016",
       "edge_type": "db_write",
       "protocol": "PostgreSQL wire protocol",
       "payload_description": "INSERT/UPDATE domain entities and status",
       "traced_requirements": [
-        "FR-005",
-        "FR-006",
-        "FR-007"
+        "FR-012",
+        "ASR-003"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "APAFWebApp persists data to dedicated datastore ArchiveMetadataDB"
+      "justification": "User & Configuration Domain Entities persists data to dedicated datastore Configuration Database"
     },
     {
-      "edge_id": "EDGE-016",
+      "edge_id": "EDGE-030",
       "source": "COMP-001",
-      "target": "COMP-017",
+      "target": "COMP-021",
       "edge_type": "sync_rest",
       "protocol": "HTTPS/REST",
       "payload_description": "Authenticated internal service invocation",
       "traced_requirements": [
-        "FR-008"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFAPIGateway routes requests to PublicDataDisplayService"
-    },
-    {
-      "edge_id": "EDGE-017",
-      "source": "COMP-002",
-      "target": "COMP-018",
-      "edge_type": "db_write",
-      "protocol": "PostgreSQL wire protocol",
-      "payload_description": "INSERT/UPDATE domain entities and status",
-      "traced_requirements": [
-        "FR-008"
-      ],
-      "kb_citations": [
-        "PAT-MICROSERVICES"
-      ],
-      "justification": "APAFWebApp persists data to dedicated datastore PublicDisplayCacheDB"
-    },
-    {
-      "edge_id": "EDGE-018",
-      "source": "COMP-001",
-      "target": "COMP-019",
-      "edge_type": "sync_rest",
-      "protocol": "HTTPS/REST",
-      "payload_description": "Authenticated internal service invocation",
-      "traced_requirements": [
-        "FR-009",
         "NFR-003"
       ],
       "kb_citations": [
-        "PAT-MICROSERVICES"
+        "PAT-CLEAN-ARCH"
       ],
-      "justification": "APAFAPIGateway routes requests to ScienceDataAccessService"
+      "justification": "C2C API Gateway routes requests to Logging & Monitoring Module"
+    },
+    {
+      "edge_id": "EDGE-031",
+      "source": "COMP-022",
+      "target": "COMP-001",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "External incoming messages and telemetry",
+      "traced_requirements": [
+        "TC-004",
+        "TC-007"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "External system Microsoft Windows NT Environment exchanges data with C2C API Gateway"
+    },
+    {
+      "edge_id": "EDGE-032",
+      "source": "COMP-027",
+      "target": "COMP-001",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "External incoming messages and telemetry",
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "External system Internet WWW Server exchanges data with C2C API Gateway"
     }
   ],
-  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: ASPERA-3 Processing and Archiving Facility (APAF) (Microservices Architecture)\n\npackage \"Presentation\" {\n  [APAFAPIGateway] as COMP-001 <<gateway>>\n  [APAFWebApp] as COMP-002 <<module>>\n}\n\npackage \"Application\" {\n  [AuthNAuthZService] as COMP-003 <<service>>\n  [TelemetryAcquisitionService] as COMP-005 <<service>>\n  [ProcessingOrchestratorService] as COMP-007 <<service>>\n  [TelemetryCleaningService] as COMP-009 <<service>>\n  [IDFSProcessingService] as COMP-011 <<service>>\n  [CalibrationValidationService] as COMP-013 <<service>>\n  [SwRILocalArchiveService] as COMP-015 <<service>>\n  [PublicDataDisplayService] as COMP-017 <<service>>\n  [ScienceDataAccessService] as COMP-019 <<service>>\n}\n\npackage \"Infrastructure\" {\n  [AuthNAuthZDB] as COMP-004 <<datastore>>\n  [RawTelemetryDB] as COMP-006 <<datastore>>\n  [SagaStateDB] as COMP-008 <<datastore>>\n  [CleanedTelemetryDB] as COMP-010 <<datastore>>\n  [IDFSDataDB] as COMP-012 <<datastore>>\n  [CalibrationValidationDB] as COMP-014 <<datastore>>\n  [ArchiveMetadataDB] as COMP-016 <<datastore>>\n  [PublicDisplayCacheDB] as COMP-018 <<datastore>>\n}\n\n\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-003 --> COMP-004 : PostgreSQL wire protocol\nCOMP-001 --> COMP-005 : HTTPS/REST\nCOMP-002 --> COMP-006 : PostgreSQL wire protocol\nCOMP-001 --> COMP-007 : HTTPS/REST\nCOMP-002 --> COMP-008 : PostgreSQL wire protocol\nCOMP-001 --> COMP-009 : HTTPS/REST\nCOMP-002 --> COMP-010 : PostgreSQL wire protocol\nCOMP-001 --> COMP-011 : HTTPS/REST\nCOMP-002 --> COMP-012 : PostgreSQL wire protocol\nCOMP-001 --> COMP-013 : HTTPS/REST\nCOMP-013 --> COMP-014 : PostgreSQL wire protocol\nCOMP-001 --> COMP-015 : HTTPS/REST\nCOMP-002 --> COMP-016 : PostgreSQL wire protocol\nCOMP-001 --> COMP-017 : HTTPS/REST\nCOMP-002 --> COMP-018 : PostgreSQL wire protocol\nCOMP-001 --> COMP-019 : HTTPS/REST\n\n@enduml"
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: C2CTest (Clean Architecture (Onion / Concentric))\n\npackage \"Presentation\" {\n  [C2C API Gateway] as COMP-001 <<gateway>>\n  [Incident Management BFF] as COMP-002 <<service>>\n  [Remote Control BFF] as COMP-003 <<service>>\n  [Web Map BFF] as COMP-004 <<service>>\n}\n\npackage \"Application\" {\n  [Incident Management Use Cases] as COMP-005 <<module>>\n  [Device Management Use Cases] as COMP-006 <<module>>\n  [Network Data Use Cases] as COMP-007 <<module>>\n  [Map Generation Use Cases] as COMP-008 <<module>>\n  [Authentication Use Cases] as COMP-009 <<module>>\n  [Data Ingestion Use Cases] as COMP-010 <<module>>\n}\n\npackage \"Domain\" {\n  [Traffic Domain Entities] as COMP-011 <<module>>\n  [User & Configuration Domain Entities] as COMP-012 <<module>>\n  [Domain Services] as COMP-013 <<module>>\n}\n\npackage \"Infrastructure\" {\n  [C2C Main Database] as COMP-014 <<datastore>>\n  [User & Auth Database] as COMP-015 <<datastore>>\n  [Configuration Database] as COMP-016 <<datastore>>\n  [Persistence Adapters] as COMP-017 <<module>>\n  [TMDD/DATEX/ASN Adapter] as COMP-018 <<module>>\n  [ESRI Map Adapter] as COMP-019 <<module>>\n  [External System Connectors] as COMP-020 <<module>>\n  [Logging & Monitoring Module] as COMP-021 <<module>>\n  [Microsoft Windows NT Environment] as COMP-022 <<external>>\n  [TxDOT Traffic Management Centers (TMCs)] as COMP-023 <<external>>\n  [Existing Traffic Management Systems] as COMP-024 <<external>>\n  [NCTCOG GeoData Warehouse] as COMP-025 <<external>>\n  [ESRI ARC Internet Map Server (ARC IMS)] as COMP-026 <<external>>\n  [Internet WWW Server] as COMP-027 <<external>>\n}\n\n\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-001 --> COMP-004 : HTTPS/REST\nCOMP-002 --> COMP-005 : In-process memory call\nCOMP-003 --> COMP-006 : In-process memory call\nCOMP-004 --> COMP-008 : In-process memory call\nCOMP-005 --> COMP-011 : In-process memory call\nCOMP-006 --> COMP-011 : In-process memory call\nCOMP-007 --> COMP-011 : In-process memory call\nCOMP-008 --> COMP-011 : In-process memory call\nCOMP-009 --> COMP-012 : In-process memory call\nCOMP-010 --> COMP-018 : In-process memory call\nCOMP-018 ..> COMP-020 : TCP/IP (DATEX/ASN over TCP)\nCOMP-020 ..> COMP-023 : TCP/IP\nCOMP-020 ..> COMP-024 : TCP/IP\nCOMP-020 --> COMP-025 : HTTPS/REST\nCOMP-019 --> COMP-026 : HTTP\nCOMP-004 --> COMP-019 : In-process memory call\nCOMP-005 --> COMP-017 : PostgreSQL wire protocol\nCOMP-005 --> COMP-017 : PostgreSQL wire protocol\nCOMP-006 --> COMP-017 : PostgreSQL wire protocol\nCOMP-006 --> COMP-017 : PostgreSQL wire protocol\nCOMP-007 --> COMP-017 : PostgreSQL wire protocol\nCOMP-008 --> COMP-017 : PostgreSQL wire protocol\nCOMP-009 --> COMP-015 : PostgreSQL wire protocol\nCOMP-009 --> COMP-015 : PostgreSQL wire protocol\nCOMP-001 --> COMP-013 : HTTPS/REST\nCOMP-002 --> COMP-014 : PostgreSQL wire protocol\nCOMP-012 --> COMP-016 : PostgreSQL wire protocol\nCOMP-001 --> COMP-021 : HTTPS/REST\nCOMP-022 --> COMP-001 : HTTPS/REST\nCOMP-027 --> COMP-001 : HTTPS/REST\n\n@enduml"
 }

@@ -112,6 +112,68 @@ Hope this helps!"""
             self.assertEqual(res.name, "service_a")
             self.assertEqual(res.count, 10)
 
+    def test_omnikey_payload_uncapped_by_default(self):
+        from generation.ArcGen.llm import OmniKeyClient, FALLBACK_OMNIKEY_MODELS
+        self.assertEqual(FALLBACK_OMNIKEY_MODELS, ["gemini-2.5-flash"])
+
+        client = OmniKeyClient(api_key="mock_omnikey_key", model="gemini-2.5-flash")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "candidates": [{
+                "finishReason": "STOP",
+                "content": {"parts": [{"text": '{"name": "service_b", "count": 20}'}]}
+            }]
+        }
+        with patch("requests.post", return_value=mock_response) as mock_post:
+            client.generate_json(
+                system_prompt="sys",
+                user_prompt="usr",
+                target_schema=SampleSchema,
+            )
+            sent_payload = mock_post.call_args[1]["json"]
+            self.assertNotIn("maxOutputTokens", sent_payload["generationConfig"])
+
+    def test_groq_payload_uncapped_by_default(self):
+        client = GroqClient(api_key="mock_key", model="test-model")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": '{"name": "service_c", "count": 30}'}}]
+        }
+        with patch("requests.post", return_value=mock_response) as mock_post:
+            client.generate_json(
+                system_prompt="sys",
+                user_prompt="usr",
+                target_schema=SampleSchema,
+            )
+            sent_payload = mock_post.call_args[1]["json"]
+            self.assertNotIn("max_tokens", sent_payload)
+
+    def test_resilient_client_failover_cascade(self):
+        from generation.ArcGen.llm import ResilientLLMClient
+
+        tier1 = MagicMock(spec=BaseLLMClient)
+        tier1.generate_json.side_effect = RuntimeError("OmniKey Gemini down")
+
+        tier2 = MagicMock(spec=BaseLLMClient)
+        tier2.generate_json.side_effect = RuntimeError("Groq rate limited")
+
+        tier3 = MagicMock(spec=BaseLLMClient)
+        tier3.generate_json.return_value = SampleSchema(name="from_ollama", count=99)
+
+        client = ResilientLLMClient([tier1, tier2, tier3])
+        res = client.generate_json(
+            system_prompt="sys",
+            user_prompt="usr",
+            target_schema=SampleSchema,
+        )
+        self.assertEqual(res.name, "from_ollama")
+        self.assertEqual(res.count, 99)
+        tier1.generate_json.assert_called_once()
+        tier2.generate_json.assert_called_once()
+        tier3.generate_json.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

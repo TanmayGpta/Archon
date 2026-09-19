@@ -142,7 +142,6 @@ Produce the normalized JSON representation conforming to the rules."""
         system_prompt=NORMALIZER_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         temperature=0.1,
-        max_tokens=2048,
     )
 
     if project_name and not data.get("project_name"):

@@ -247,7 +247,6 @@ Output JSON conforming to the schema."""
         system_prompt=EDGE_GENERATOR_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         temperature=0.1,
-        max_tokens=8192,
     )
 
     if isinstance(data, list):

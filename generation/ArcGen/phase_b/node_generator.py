@@ -91,7 +91,6 @@ Decompose this system into architectural components (nodes). Output JSON conform
         system_prompt=NODE_GENERATOR_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         temperature=0.1,
-        max_tokens=8192,
     )
 
     if isinstance(data, list):

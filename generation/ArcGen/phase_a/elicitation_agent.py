@@ -160,7 +160,6 @@ OUTPUT MUST BE A JSON OBJECT:
                 system_prompt="You are an expert requirements parser extracting pre-existing architectural drivers.",
                 user_prompt=user_prompt,
                 temperature=0.1,
-                max_tokens=4096,
             )
             extracted_list = []
             for item in data.get("extracted", []):
@@ -215,7 +214,6 @@ OUTPUT MUST BE A JSON OBJECT:
                 system_prompt="You are a Principal Software Architect formulating a clarifying question.",
                 user_prompt=prompt,
                 temperature=0.2,
-                max_tokens=2048,
             )
             options = data.get("suggested_options") or []
             if not options:
@@ -255,7 +253,6 @@ OUTPUT MUST BE A JSON OBJECT:
                 system_prompt="You extract technical architectural constraints from interview responses.",
                 user_prompt=prompt,
                 temperature=0.1,
-                max_tokens=1500,
             )
 
             val = data.get("value")

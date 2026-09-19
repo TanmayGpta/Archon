@@ -58,9 +58,6 @@ _load_env_files()
 DEFAULT_OMNIKEY_MODEL = os.getenv("OMNIKEY_MODEL", "gemini-2.5-flash")
 FALLBACK_OMNIKEY_MODELS = [
     "gemini-2.5-flash",
-    "llama-3.3-70b-versatile",
-    "gemini-2.5-flash-lite",
-    "qwen/qwen3-32b",
 ]
 DEFAULT_OMNIKEY_BASE = os.getenv("OMNIKEY_BASE_URL", "https://omnikey-ai-unified-key-manager.onrender.com/v1beta")
 DEFAULT_GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
@@ -195,7 +192,7 @@ class GroqClient(BaseLLMClient):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        payload = {
+        payload: Dict[str, Any] = {
             "model": self.active_model,
             "messages": [
                 {"role": "system", "content": sys_p},
@@ -203,14 +200,15 @@ class GroqClient(BaseLLMClient):
             ],
             "response_format": {"type": "json_object"},
             "temperature": temperature,
-            "max_tokens": max_tokens or 2048,
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
 
         max_retries = 8
         response = None
         attempt = 0
         while attempt < max_retries:
-            response = requests.post(self.endpoint, headers=headers, json=payload, timeout=60)
+            response = requests.post(self.endpoint, headers=headers, json=payload, timeout=None)
             if response.status_code == 429:
                 wait_time = 15.0
                 retry_after_hdr = response.headers.get("retry-after")
@@ -254,15 +252,23 @@ class GroqClient(BaseLLMClient):
             elif response.status_code == 400 and attempt < max_retries - 1:
                 try:
                     err_data = response.json().get("error", {})
-                    if err_data.get("code") == "json_validate_failed" and err_data.get("failed_generation") == "":
-                        current_max = payload.get("max_tokens", 2048)
-                        new_max = min(current_max + 1500, 4096)
-                        if new_max > current_max:
-                            payload["max_tokens"] = new_max
-                            print(f"\n[Groq Token Headroom] Extended max_tokens to {new_max}, retrying...")
-                            time.sleep(1)
-                            attempt += 1
-                            continue
+                    if err_data.get("code") == "json_validate_failed":
+                        failed_gen = err_data.get("failed_generation", "")
+                        if failed_gen:
+                            try:
+                                parsed = safe_parse_json(failed_gen)
+                                if target_schema is not None:
+                                    return target_schema.model_validate(parsed)
+                                return parsed
+                            except Exception:
+                                pass
+                        current_max = payload.get("max_tokens", 4096)
+                        new_max = current_max + 2048
+                        payload["max_tokens"] = new_max
+                        print(f"\n[Groq Token Headroom] Extended max_tokens to {new_max}, retrying...")
+                        time.sleep(1)
+                        attempt += 1
+                        continue
                 except Exception:
                     pass
                 raise RuntimeError(
@@ -393,15 +399,18 @@ class OmniKeyClient(BaseLLMClient):
                 "Content-Type": "application/json",
             }
 
+            gen_config: Dict[str, Any] = {
+                "responseMimeType": "application/json",
+                "temperature": temperature,
+                "thinkingConfig": {"thinkingBudget": 0},
+            }
+            if max_tokens is not None:
+                gen_config["maxOutputTokens"] = max_tokens
+
             payload = {
                 "systemInstruction": {"parts": [{"text": enhanced_system_prompt}]},
                 "contents": [{"parts": [{"text": user_prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens or 8192,
-                    "thinkingConfig": {"thinkingBudget": 0},
-                },
+                "generationConfig": gen_config,
                 "safetySettings": [
                     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
                     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -414,7 +423,7 @@ class OmniKeyClient(BaseLLMClient):
             response = None
             for attempt in range(max_retries):
                 try:
-                    response = requests.post(url, headers=headers, json=payload, timeout=60)
+                    response = requests.post(url, headers=headers, json=payload, timeout=None)
                     if response.status_code == 200:
                         break
                     elif response.status_code == 429:
