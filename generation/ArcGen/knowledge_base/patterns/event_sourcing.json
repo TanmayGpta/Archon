@@ -1,0 +1,65 @@
+{
+  "pattern_id": "PAT-EVENT-SOURCING",
+  "name": "Event Sourcing",
+  "catalog_source": "Fowler (2005); Young (2010); Richardson (microservices.io)",
+  "topology_type": "Hybrid",
+  "forces_resolved": [
+    "100% complete, immutable audit log of every state change that ever occurred",
+    "Ability to reconstruct state at any historical point in time (temporal queries)",
+    "Avoids object-relational impedance mismatch by persisting append-only events"
+  ],
+  "forces_unresolved": [
+    "Steep learning curve and unfamiliar programming paradigm",
+    "Event schema evolution and migration over years of version changes",
+    "Querying current state requires replaying events or maintaining projections (CQRS dependency)"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": 0,
+    "Resource utilization": -1,
+    "Availability": 1,
+    "Fault tolerance": 2,
+    "Recoverability": 2,
+    "Confidentiality": 1,
+    "Integrity": 2,
+    "Modularity": 1,
+    "Reusability": 1,
+    "Analysability": 2,
+    "Modifiability": -1,
+    "Testability": 1,
+    "Scalability": 1,
+    "Adaptability": 1,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual",
+      "Strong"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 4,
+    "cost_factor": 3,
+    "max_scale_rps": 50000
+  },
+  "applicability_conditions": [
+    "Financial ledgers, regulatory compliance systems, audit-intensive banking domains",
+    "Collaborative editing, version control systems, and insurance claims adjudications",
+    "Domains where why and how a state changed is as critical as the current state"
+  ],
+  "anti_requisites": [
+    "Simple CRUD entities with destructive overwrite semantics",
+    "GDPR right-to-be-forgotten hard requirements without cryptographic shredding design",
+    "Team unfamiliar with event versioning and upcasting patterns"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-CLEAN-ARCH"
+    ],
+    "companions": [
+      "PAT-CQRS",
+      "PAT-EDA-BROKER"
+    ]
+  },
+  "pattern_role": "Companion"
+}

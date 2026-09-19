@@ -1,0 +1,63 @@
+{
+  "pattern_id": "PAT-BFF",
+  "name": "Backend for Frontend (BFF)",
+  "catalog_source": "Newman (2015, 2021); Richardson (microservices.io)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Tailored API payloads optimized specifically for distinct client types (iOS, Android, Web, IoT)",
+    "Prevents over-fetching and battery drain on mobile clients over cellular networks",
+    "Frontend teams own and deploy their specific BFF service independently"
+  ],
+  "forces_unresolved": [
+    "Code duplication across different BFF instances (e.g. mobile BFF vs web BFF)",
+    "Increased number of running services to manage and monitor",
+    "Additional network hop before reaching core domain services"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": 1,
+    "Resource utilization": 0,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 1,
+    "Modularity": 2,
+    "Reusability": -1,
+    "Analysability": 1,
+    "Modifiability": 2,
+    "Testability": 1,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong",
+      "Eventual"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 3,
+    "cost_factor": 2,
+    "max_scale_rps": 50000
+  },
+  "applicability_conditions": [
+    "Applications with multiple distinct client interfaces having drastically different UX requirements",
+    "High-traffic mobile apps requiring aggressive data aggregation and minimal roundtrips",
+    "Separate dedicated frontend teams operating on distinct release cadences"
+  ],
+  "anti_requisites": [
+    "Applications with only a single web frontend",
+    "Small engineering team with a single full-stack developer",
+    "Internal B2B APIs without customer-facing user interfaces"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-API-GATEWAY"
+    ],
+    "companions": [
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "Companion"
+}

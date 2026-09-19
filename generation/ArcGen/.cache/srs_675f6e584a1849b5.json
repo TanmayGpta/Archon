@@ -1,0 +1,49 @@
+{
+  "project_name": "IoT Fleet Monitoring System",
+  "domain": "Logistics / Transportation",
+  "actors": [
+    "Fleet Manager",
+    "Driver"
+  ],
+  "external_systems": [
+    "Cloud Service Provider"
+  ],
+  "data_objects": [
+    "Vehicle Telemetry Data",
+    "Alert"
+  ],
+  "functional_requirements": [
+    {
+      "req_id": "FR-001",
+      "raw_text": "The system shall monitor up to 500 connected delivery vans in real time.",
+      "req_type": "FR",
+      "iso_characteristic": null,
+      "iso_sub": null,
+      "arch_dimension": null,
+      "metric": null,
+      "target_value": null,
+      "unit": null,
+      "comparator": null,
+      "priority": "High",
+      "scenario": null
+    }
+  ],
+  "non_functional_requirements": [],
+  "asrs": [
+    {
+      "req_id": "ASR-001",
+      "raw_text": "The system shall support at least 500 concurrent device connections and ingest telemetry at a rate of 10 messages per second per device.",
+      "req_type": "ASR",
+      "iso_characteristic": "Performance Efficiency",
+      "iso_sub": "Capacity",
+      "arch_dimension": "Throughput / Scale",
+      "metric": "concurrent device connections",
+      "target_value": 500,
+      "unit": "devices",
+      "comparator": ">=",
+      "priority": "Critical",
+      "scenario": null
+    }
+  ],
+  "technical_constraints": []
+}

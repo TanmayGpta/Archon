@@ -1,0 +1,63 @@
+{
+  "pattern_id": "PAT-SAGA-CHOREO",
+  "name": "Saga Pattern (Choreography Topology)",
+  "catalog_source": "Richardson (microservices.io); Newman (2021)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "No centralized single point of coordination or bottleneck",
+    "Services independently react to domain events published by peers",
+    "Natural fit for event-driven event stream topologies"
+  ],
+  "forces_unresolved": [
+    "Difficult to understand overall end-to-end transaction flow by reading code",
+    "Risk of cyclic event dependency loops",
+    "Integration testing requires spinning up all participating event consumers"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": -1,
+    "Resource utilization": 1,
+    "Availability": 2,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 0,
+    "Integrity": 0,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": -2,
+    "Modifiability": 1,
+    "Testability": -2,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 4,
+    "cost_factor": 2,
+    "max_scale_rps": 60000
+  },
+  "applicability_conditions": [
+    "Simple workflows involving 2 to 4 collaborating services",
+    "Teams already heavily utilizing an asynchronous broker (Kafka/RabbitMQ)",
+    "Workflows where autonomy of individual services takes priority over central control"
+  ],
+  "anti_requisites": [
+    "Complex workflows involving 5+ participating services (choreography becomes unmanageable)",
+    "Strict regulatory compliance requiring an auditable centralized transaction state machine",
+    "Teams lacking comprehensive distributed tracing infrastructure"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-SAGA-ORCHESTRATED"
+    ],
+    "companions": [
+      "PAT-EDA-BROKER",
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "Companion"
+}

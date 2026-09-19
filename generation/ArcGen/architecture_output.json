@@ -1,0 +1,674 @@
+{
+  "project_name": "ASPERA-3 Processing and Archiving Facility (APAF)",
+  "style": "Microservices Architecture",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "APAFAPIGateway",
+      "node_type": "gateway",
+      "layer": "Presentation",
+      "description": "Entry point for all external client requests, routing them to appropriate microservices. Handles cross-cutting concerns like authentication, authorization, and rate limiting.",
+      "responsibilities": [
+        "Route incoming requests to backend services",
+        "Enforce authentication and authorization policies",
+        "Provide a unified API for web clients and external consumers"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY",
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "APAFWebApp",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "The client-side web application providing user interfaces for public data displays and password-protected science analysis displays.",
+      "responsibilities": [
+        "Render web-based displays of current ASPERA-3 data for public view",
+        "Render web-based displays for science analysis for ASPERA-3 team members",
+        "Handle user login and session management for protected views"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "AuthNAuthZService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Manages user authentication and authorization for access to protected APAF resources and web displays.",
+      "responsibilities": [
+        "Manage user accounts and roles",
+        "Authenticate users (e.g., ASPERA-3 team members)",
+        "Authorize access to specific data and functionalities"
+      ],
+      "traced_requirements": [
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "AuthNAuthZDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for storing user credentials, roles, and authorization policies for the AuthNAuthZService.",
+      "responsibilities": [
+        "Persist user authentication and authorization data"
+      ],
+      "traced_requirements": [
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-005",
+      "name": "TelemetryAcquisitionService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Responsible for acquiring raw ASPERA-3 and Mars Express Orbit/Attitude (MEX OA) telemetry data from ESOC.",
+      "responsibilities": [
+        "Connect to ESOC systems",
+        "Retrieve ASPERA-3 telemetry data",
+        "Retrieve MEX OA telemetry data",
+        "Store raw telemetry for initial processing"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-006",
+      "name": "RawTelemetryDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for storing raw, unprocessed ASPERA-3 and MEX OA telemetry data acquired from ESOC.",
+      "responsibilities": [
+        "Persist raw telemetry data"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-007",
+      "name": "ProcessingOrchestratorService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Orchestrates the complex daily data processing and archiving workflow using the Saga pattern, coordinating multiple services.",
+      "responsibilities": [
+        "Initiate and manage the daily data processing saga",
+        "Coordinate telemetry cleaning, IDFS processing, archiving, calibration, and dissemination steps",
+        "Handle saga state and compensation logic for failures"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-010",
+        "FR-013",
+        "FR-014",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-SAGA-ORCHESTRATED",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "SagaStateDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for the ProcessingOrchestratorService to store the current state of ongoing sagas and transaction logs.",
+      "responsibilities": [
+        "Persist saga state and history"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE",
+        "PAT-SAGA-ORCHESTRATED"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "TelemetryCleaningService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Cleans raw ASPERA-3 and MEX OA telemetry data and generates intermediate cleaned-up telemetry files.",
+      "responsibilities": [
+        "Perform data cleaning on raw telemetry",
+        "Generate intermediate files of cleaned-up telemetry",
+        "Store cleaned telemetry and intermediate files"
+      ],
+      "traced_requirements": [
+        "FR-004",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-010",
+      "name": "CleanedTelemetryDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for storing cleaned ASPERA-3 and MEX OA telemetry data and any generated intermediate files.",
+      "responsibilities": [
+        "Persist cleaned telemetry and intermediate files"
+      ],
+      "traced_requirements": [
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-011",
+      "name": "IDFSProcessingService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Processes cleaned telemetry and ancillary data into Instrument Data File Set (IDFS) data sets.",
+      "responsibilities": [
+        "Process ASPERA-3 science data into IDFS format",
+        "Process engineering and ancillary information into IDFS format",
+        "Store generated IDFS data sets"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "FR-003",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-012",
+      "name": "IDFSDataDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for storing processed ASPERA-3 and MEX OA IDFS data sets.",
+      "responsibilities": [
+        "Persist IDFS data sets"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-013",
+      "name": "CalibrationValidationService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Performs calibration and validation of ASPERA-3 data prior to its deposition in NASA PDS.",
+      "responsibilities": [
+        "Execute calibration algorithms on ASPERA-3 data",
+        "Perform validation checks on ASPERA-3 data integrity and quality",
+        "Store calibration and validation results"
+      ],
+      "traced_requirements": [
+        "FR-014",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-014",
+      "name": "CalibrationValidationDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for storing calibration parameters, validation rules, and results for the CalibrationValidationService.",
+      "responsibilities": [
+        "Persist calibration and validation data"
+      ],
+      "traced_requirements": [
+        "FR-014"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-015",
+      "name": "SwRILocalArchiveService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Manages the storage and retrieval of all APAF-generated data (raw, cleaned, IDFS) to the physical SwRI Local Archive.",
+      "responsibilities": [
+        "Store raw telemetry data in SwRI Local Archive",
+        "Store cleaned telemetry and intermediate files in SwRI Local Archive",
+        "Store IDFS data sets in SwRI Local Archive",
+        "Provide mechanisms for data retrieval and re-processing"
+      ],
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-016",
+      "name": "ArchiveMetadataDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for the SwRILocalArchiveService to store metadata and indexing information about archived files.",
+      "responsibilities": [
+        "Persist metadata for archived data"
+      ],
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-017",
+      "name": "PublicDataDisplayService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Provides an API for the APAFWebApp to display the most current ASPERA-3 data for public viewing.",
+      "responsibilities": [
+        "Retrieve and format current ASPERA-3 data for public display",
+        "Serve data to the public web interface"
+      ],
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-018",
+      "name": "PublicDisplayCacheDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for the PublicDataDisplayService to store frequently accessed or pre-rendered public display data for performance.",
+      "responsibilities": [
+        "Cache public display data"
+      ],
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-019",
+      "name": "ScienceDataAccessService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Provides an API for the ASPERA-3 team to access any available ASPERA-3 data for science analysis.",
+      "responsibilities": [
+        "Provide secure access to all available ASPERA-3 data for authorized users",
+        "Support data querying and retrieval for science analysis"
+      ],
+      "traced_requirements": [
+        "FR-009",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-001",
+      "source": "COMP-001",
+      "target": "COMP-003",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authentication tokens, authorization requests for protected resources",
+      "traced_requirements": [
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "The API Gateway enforces authentication and authorization policies by consulting the AuthNAuthZService for incoming requests to protected resources."
+    },
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009",
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to APAFWebApp"
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-003",
+      "target": "COMP-004",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "NFR-002",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "AuthNAuthZService persists data to dedicated datastore AuthNAuthZDB"
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-001",
+      "target": "COMP-005",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to TelemetryAcquisitionService"
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-002",
+      "target": "COMP-006",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore RawTelemetryDB"
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-001",
+      "target": "COMP-007",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-010",
+        "FR-013",
+        "FR-014",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to ProcessingOrchestratorService"
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-002",
+      "target": "COMP-008",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore SagaStateDB"
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-001",
+      "target": "COMP-009",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-004",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to TelemetryCleaningService"
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-002",
+      "target": "COMP-010",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore CleanedTelemetryDB"
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-001",
+      "target": "COMP-011",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-002",
+        "FR-003",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to IDFSProcessingService"
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-002",
+      "target": "COMP-012",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-002",
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore IDFSDataDB"
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-001",
+      "target": "COMP-013",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-014",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to CalibrationValidationService"
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-013",
+      "target": "COMP-014",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-014"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "CalibrationValidationService persists data to dedicated datastore CalibrationValidationDB"
+    },
+    {
+      "edge_id": "EDGE-014",
+      "source": "COMP-001",
+      "target": "COMP-015",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to SwRILocalArchiveService"
+    },
+    {
+      "edge_id": "EDGE-015",
+      "source": "COMP-002",
+      "target": "COMP-016",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore ArchiveMetadataDB"
+    },
+    {
+      "edge_id": "EDGE-016",
+      "source": "COMP-001",
+      "target": "COMP-017",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to PublicDataDisplayService"
+    },
+    {
+      "edge_id": "EDGE-017",
+      "source": "COMP-002",
+      "target": "COMP-018",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFWebApp persists data to dedicated datastore PublicDisplayCacheDB"
+    },
+    {
+      "edge_id": "EDGE-018",
+      "source": "COMP-001",
+      "target": "COMP-019",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-009",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APAFAPIGateway routes requests to ScienceDataAccessService"
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: ASPERA-3 Processing and Archiving Facility (APAF) (Microservices Architecture)\n\npackage \"Presentation\" {\n  [APAFAPIGateway] as COMP-001 <<gateway>>\n  [APAFWebApp] as COMP-002 <<module>>\n}\n\npackage \"Application\" {\n  [AuthNAuthZService] as COMP-003 <<service>>\n  [TelemetryAcquisitionService] as COMP-005 <<service>>\n  [ProcessingOrchestratorService] as COMP-007 <<service>>\n  [TelemetryCleaningService] as COMP-009 <<service>>\n  [IDFSProcessingService] as COMP-011 <<service>>\n  [CalibrationValidationService] as COMP-013 <<service>>\n  [SwRILocalArchiveService] as COMP-015 <<service>>\n  [PublicDataDisplayService] as COMP-017 <<service>>\n  [ScienceDataAccessService] as COMP-019 <<service>>\n}\n\npackage \"Infrastructure\" {\n  [AuthNAuthZDB] as COMP-004 <<datastore>>\n  [RawTelemetryDB] as COMP-006 <<datastore>>\n  [SagaStateDB] as COMP-008 <<datastore>>\n  [CleanedTelemetryDB] as COMP-010 <<datastore>>\n  [IDFSDataDB] as COMP-012 <<datastore>>\n  [CalibrationValidationDB] as COMP-014 <<datastore>>\n  [ArchiveMetadataDB] as COMP-016 <<datastore>>\n  [PublicDisplayCacheDB] as COMP-018 <<datastore>>\n}\n\n\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-003 --> COMP-004 : PostgreSQL wire protocol\nCOMP-001 --> COMP-005 : HTTPS/REST\nCOMP-002 --> COMP-006 : PostgreSQL wire protocol\nCOMP-001 --> COMP-007 : HTTPS/REST\nCOMP-002 --> COMP-008 : PostgreSQL wire protocol\nCOMP-001 --> COMP-009 : HTTPS/REST\nCOMP-002 --> COMP-010 : PostgreSQL wire protocol\nCOMP-001 --> COMP-011 : HTTPS/REST\nCOMP-002 --> COMP-012 : PostgreSQL wire protocol\nCOMP-001 --> COMP-013 : HTTPS/REST\nCOMP-013 --> COMP-014 : PostgreSQL wire protocol\nCOMP-001 --> COMP-015 : HTTPS/REST\nCOMP-002 --> COMP-016 : PostgreSQL wire protocol\nCOMP-001 --> COMP-017 : HTTPS/REST\nCOMP-002 --> COMP-018 : PostgreSQL wire protocol\nCOMP-001 --> COMP-019 : HTTPS/REST\n\n@enduml"
+}

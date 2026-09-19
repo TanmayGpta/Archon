@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-DATABASE-PER-SERVICE",
+  "name": "Database per Service Pattern",
+  "catalog_source": "Richardson (microservices.io); Newman (2021)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Complete data isolation and loose coupling: services cannot access each other's databases directly",
+    "Independent schema migrations and database upgrades with zero cross-team blockers",
+    "Polyglot persistence: each service chooses the optimal data store (RDBMS, Document, Graph, Time-Series)"
+  ],
+  "forces_unresolved": [
+    "Loss of cross-domain ACID transactions and foreign key constraints",
+    "Complex distributed queries requiring API composition or CQRS view stores",
+    "Higher operational overhead of managing multiple database clusters or schemas"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": 0,
+    "Resource utilization": -1,
+    "Availability": 2,
+    "Fault tolerance": 2,
+    "Recoverability": 1,
+    "Confidentiality": 2,
+    "Integrity": -2,
+    "Modularity": 2,
+    "Reusability": 0,
+    "Analysability": -1,
+    "Modifiability": 2,
+    "Testability": -1,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 0
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 4,
+    "cost_factor": 3,
+    "max_scale_rps": 100000
+  },
+  "applicability_conditions": [
+    "True microservices deployments where independent service deployability is non-negotiable",
+    "Domains with differing storage paradigms (e.g., Relational for billing, MongoDB for product catalog)",
+    "Strict multi-tenant security boundaries requiring separate physical databases per service"
+  ],
+  "anti_requisites": [
+    "Strict requirement for immediate atomic relational joins across core business tables",
+    "Small engineering team without dedicated DBA / infrastructure support",
+    "Budget constraints unable to sustain multiple hosted database instances"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-SHARED-DATABASE"
+    ],
+    "companions": [
+      "PAT-MICROSERVICES",
+      "PAT-SAGA-ORCHESTRATED",
+      "PAT-CQRS"
+    ]
+  },
+  "pattern_role": "Companion"
+}

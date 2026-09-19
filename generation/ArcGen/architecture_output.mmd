@@ -1,0 +1,48 @@
+flowchart TD
+    subgraph Presentation["Presentation"]
+        COMP-001[" APAFAPIGateway "]
+        COMP-002[" APAFWebApp "]
+    end
+
+    subgraph Application["Application"]
+        COMP-003[" AuthNAuthZService "]
+        COMP-005[" TelemetryAcquisitionService "]
+        COMP-007[" ProcessingOrchestratorService "]
+        COMP-009[" TelemetryCleaningService "]
+        COMP-011[" IDFSProcessingService "]
+        COMP-013[" CalibrationValidationService "]
+        COMP-015[" SwRILocalArchiveService "]
+        COMP-017[" PublicDataDisplayService "]
+        COMP-019[" ScienceDataAccessService "]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        COMP-004[(" AuthNAuthZDB ")]
+        COMP-006[(" RawTelemetryDB ")]
+        COMP-008[(" SagaStateDB ")]
+        COMP-010[(" CleanedTelemetryDB ")]
+        COMP-012[(" IDFSDataDB ")]
+        COMP-014[(" CalibrationValidationDB ")]
+        COMP-016[(" ArchiveMetadataDB ")]
+        COMP-018[(" PublicDisplayCacheDB ")]
+    end
+
+
+    COMP-001 -->|"HTTPS/REST"| COMP-003
+    COMP-001 -->|"HTTPS/REST"| COMP-002
+    COMP-003 -->|"PostgreSQL wire protocol"| COMP-004
+    COMP-001 -->|"HTTPS/REST"| COMP-005
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-006
+    COMP-001 -->|"HTTPS/REST"| COMP-007
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-008
+    COMP-001 -->|"HTTPS/REST"| COMP-009
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-010
+    COMP-001 -->|"HTTPS/REST"| COMP-011
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-012
+    COMP-001 -->|"HTTPS/REST"| COMP-013
+    COMP-013 -->|"PostgreSQL wire protocol"| COMP-014
+    COMP-001 -->|"HTTPS/REST"| COMP-015
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-016
+    COMP-001 -->|"HTTPS/REST"| COMP-017
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-018
+    COMP-001 -->|"HTTPS/REST"| COMP-019

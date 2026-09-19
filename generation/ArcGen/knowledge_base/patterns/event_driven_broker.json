@@ -1,0 +1,65 @@
+{
+  "pattern_id": "PAT-EDA-BROKER",
+  "name": "Event-Driven Architecture (Broker Topology)",
+  "catalog_source": "Richards & Ford (2020), Ch. 14; Bass et al. (2021), Ch. 13",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Ultra-high throughput via asynchronous non-blocking event publishing",
+    "Extreme horizontal scalability with dynamic consumer scaling",
+    "High decoupling between event producers and consumers"
+  ],
+  "forces_unresolved": [
+    "Eventual consistency and race conditions across consumers",
+    "Distributed transaction failure recovery requires compensating sagas",
+    "Difficult end-to-end distributed tracing and testing"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": -1,
+    "Resource utilization": 1,
+    "Availability": 2,
+    "Fault tolerance": 2,
+    "Recoverability": 1,
+    "Confidentiality": 0,
+    "Integrity": -2,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": -2,
+    "Modifiability": 2,
+    "Testability": -2,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 2
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual",
+      "Causal"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 4,
+    "cost_factor": 3,
+    "max_scale_rps": 200000
+  },
+  "applicability_conditions": [
+    "Event streaming, IoT telemetry, high-throughput notifications, and async order processing",
+    "Workloads where consumer processes are independent and fire-and-forget",
+    "High peak burst capacity tolerance"
+  ],
+  "anti_requisites": [
+    "Strict immediate read-after-write ACID consistency across domains",
+    "Synchronous blocking request-reply interactions < 20ms",
+    "Teams lacking distributed observability and Kafka/RabbitMQ expertise"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-EDA-MEDIATOR",
+      "PAT-MICROSERVICES"
+    ],
+    "successors": [
+      "PAT-SAGA-CHOREO",
+      "PAT-CQRS"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

@@ -1,0 +1,543 @@
+{
+  "project_name": "FleetMonitor-IoT",
+  "style": "Service-Based Architecture",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "APIGateway",
+      "node_type": "gateway",
+      "layer": "Infrastructure",
+      "description": "Entry point for all external client traffic, routing requests to appropriate BFFs and enforcing security policies.",
+      "responsibilities": [
+        "Terminate TLS connections",
+        "Authenticate JWT tokens",
+        "Route requests to BFF services",
+        "Rate limiting and throttling"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-005",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "FleetManagerBFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend\u2011for\u2011Frontend that aggregates data for the Fleet Manager UI, providing a tailored API surface.",
+      "responsibilities": [
+        "Compose telemetry dashboards",
+        "Expose dispatch and trip\u2011log endpoints",
+        "Cache recent vehicle status",
+        "Forward alert notifications"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-BFF",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "DriverBFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend\u2011for\u2011Frontend for the driver mobile app, delivering low\u2011latency commands and alerts.",
+      "responsibilities": [
+        "Provide real\u2011time telemetry feed",
+        "Receive driver acknowledgements",
+        "Push emergency alerts",
+        "Synchronize offline data"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-BFF",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "VehicleTelemetryService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Ingests telemetry streams from edge agents, validates payloads, and persists events.",
+      "responsibilities": [
+        "Accept telemetry messages",
+        "Validate schema and device identity",
+        "Publish TelemetryReceived events",
+        "Store raw telemetry in Event Store"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-002",
+        "ASR-003",
+        "ASR-004",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-005",
+      "name": "AlertService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Processes telemetry to detect geofence violations, emergencies, and other alerts, then notifies relevant parties.",
+      "responsibilities": [
+        "Subscribe to TelemetryReceived events",
+        "Detect rule violations",
+        "Publish AlertCreated events",
+        "Trigger push notifications via BFFs"
+      ],
+      "traced_requirements": [
+        "ASR-002",
+        "ASR-004",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-006",
+      "name": "DispatchService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Handles creation, update, and cancellation of dispatch orders with strict ACID guarantees.",
+      "responsibilities": [
+        "Validate dispatch requests",
+        "Persist orders in SharedDatabase within transaction",
+        "Publish DispatchCreated events",
+        "Expose order APIs to BFFs"
+      ],
+      "traced_requirements": [
+        "ASR-003",
+        "ASR-005",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-007",
+      "name": "TripLogService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Records completed trips, ensuring durable, ACID\u2011consistent storage for audit and reporting.",
+      "responsibilities": [
+        "Aggregate telemetry into trip segments",
+        "Persist trip records in SharedDatabase",
+        "Publish TripCompleted events"
+      ],
+      "traced_requirements": [
+        "ASR-003",
+        "ASR-004",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "DeviceManagementService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Manages lifecycle of vehicle edge agents, connection health, and authentication.",
+      "responsibilities": [
+        "Register new devices",
+        "Rotate mTLS certificates",
+        "Track online/offline status",
+        "Notify EdgeAgent of configuration changes"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-005",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "EventStore",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Append\u2011only store for all domain events, enabling event sourcing and replay.",
+      "responsibilities": [
+        "Persist TelemetryReceived, AlertCreated, DispatchCreated, TripCompleted events",
+        "Provide event streams to consumers",
+        "Support snapshotting for performance"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-003",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-010",
+      "name": "MessageQueue",
+      "node_type": "queue",
+      "layer": "Infrastructure",
+      "description": "Durable broker (e.g., Kafka) that transports events between services.",
+      "responsibilities": [
+        "Topic per event type",
+        "Guarantee at\u2011least\u2011once delivery",
+        "Support replay for new consumers",
+        "Back\u2011pressure handling for high ingest rate"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING",
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-011",
+      "name": "SharedDatabase",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Monolithic relational database that stores dispatch orders, trip logs, and reference data with ACID guarantees.",
+      "responsibilities": [
+        "Transactional CRUD for orders and trips",
+        "Read\u2011optimized views for BFFs",
+        "Backup and point\u2011in\u2011time recovery"
+      ],
+      "traced_requirements": [
+        "ASR-003",
+        "ASR-004",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-012",
+      "name": "EdgeAgent",
+      "node_type": "service",
+      "layer": "Infrastructure",
+      "description": "Lightweight process running on each vehicle, collecting sensor data and communicating with the cloud.",
+      "responsibilities": [
+        "Capture GPS, engine, and sensor metrics",
+        "Batch and encrypt telemetry",
+        "Maintain local cache for offline periods",
+        "Reconnect and sync upon network restoration"
+      ],
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-004",
+        "ASR-005",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-013",
+      "name": "Cache",
+      "node_type": "cache",
+      "layer": "Infrastructure",
+      "description": "In\u2011memory cache (e.g., Redis) used by BFFs for fast retrieval of recent vehicle status and alerts.",
+      "responsibilities": [
+        "Store latest telemetry snapshot per vehicle",
+        "Expire entries after configurable TTL",
+        "Serve read\u2011through requests from BFFs"
+      ],
+      "traced_requirements": [
+        "ASR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-014",
+      "name": "CloudServiceProvider",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "AWS EKS cluster and managed services (IAM, ACM, etc.) hosting the backend services.",
+      "responsibilities": [
+        "Provide Kubernetes orchestration",
+        "Supply managed databases and message brokers",
+        "Handle scaling and high availability"
+      ],
+      "traced_requirements": [
+        "ASR-006",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-001",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "HTTP POST /dispatches, GET /dashboard with JWT auth",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED",
+        "PAT-SECURE-COMM"
+      ],
+      "justification": "API Gateway forwards authenticated fleet\u2011operator requests to FleetManagerBFF"
+    },
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-001",
+      "target": "COMP-003",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "HTTP GET /driver/telemetry, POST /driver/ack with JWT",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED",
+        "PAT-SECURE-COMM"
+      ],
+      "justification": "API Gateway routes driver\u2011portal calls to DriverBFF"
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-001",
+      "target": "COMP-008",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "POST /devices/register, PATCH /devices/certificates",
+      "traced_requirements": [
+        "ASR-005",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED",
+        "PAT-SECURE-COMM"
+      ],
+      "justification": "API Gateway exposes device\u2011management endpoints to external admin tools"
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-002",
+      "target": "COMP-013",
+      "edge_type": "cache_lookup",
+      "protocol": "In-process memory call",
+      "payload_description": "Lookup latest telemetry snapshot per vehicle ID",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CACHE"
+      ],
+      "justification": "FleetManagerBFF reads recent vehicle status from Cache for dashboards"
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-003",
+      "target": "COMP-013",
+      "edge_type": "cache_lookup",
+      "protocol": "In-process memory call",
+      "payload_description": "Lookup latest telemetry snapshot for driver view",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CACHE"
+      ],
+      "justification": "DriverBFF reads cached telemetry to provide low\u2011latency feed"
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-002",
+      "target": "COMP-006",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "POST /dispatches {order_id, vehicle_id, route}",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED",
+        "PAT-DB-ACCESS"
+      ],
+      "justification": "FleetManagerBFF invokes DispatchService to create dispatch orders"
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-002",
+      "target": "COMP-011",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "SELECT orders, trips for UI rendering",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-DB-ACCESS"
+      ],
+      "justification": "FleetManagerBFF reads aggregated order/trip data from SharedDatabase"
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-003",
+      "target": "COMP-011",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "SELECT driver\u2011specific trip logs",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-DB-ACCESS"
+      ],
+      "justification": "DriverBFF queries SharedDatabase for driver\u2011specific history"
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-012",
+      "target": "COMP-004",
+      "edge_type": "sync_grpc",
+      "protocol": "gRPC over HTTP/2 with mTLS",
+      "payload_description": "Stream TelemetryBatch {vehicle_id, timestamp, sensor_data}",
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-005",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-EDGE-COMPUTE",
+        "PAT-SECURE-COMM"
+      ],
+      "justification": "EdgeAgent streams encrypted telemetry batches to VehicleTelemetryService"
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-001",
+      "target": "COMP-005",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "ASR-002",
+        "ASR-004",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "APIGateway routes requests to AlertService"
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-001",
+      "target": "COMP-007",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "ASR-003",
+        "ASR-004",
+        "ASR-006"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "APIGateway routes requests to TripLogService"
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-002",
+      "target": "COMP-009",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-003",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "FleetManagerBFF persists data to dedicated datastore EventStore"
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-002",
+      "target": "COMP-010",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP / Kafka protocol",
+      "payload_description": "Asynchronous domain events",
+      "traced_requirements": [
+        "ASR-001",
+        "ASR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "FleetManagerBFF publishes asynchronous events to MessageQueue"
+    },
+    {
+      "edge_id": "EDGE-014",
+      "source": "COMP-014",
+      "target": "COMP-001",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "External incoming messages and telemetry",
+      "traced_requirements": [
+        "ASR-006",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "External system CloudServiceProvider exchanges data with APIGateway"
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: FleetMonitor-IoT (Service-Based Architecture)\n\npackage \"Infrastructure\" {\n  [APIGateway] as COMP-001 <<gateway>>\n  [EventStore] as COMP-009 <<datastore>>\n  [MessageQueue] as COMP-010 <<queue>>\n  [SharedDatabase] as COMP-011 <<datastore>>\n  [EdgeAgent] as COMP-012 <<service>>\n  [Cache] as COMP-013 <<cache>>\n  [CloudServiceProvider] as COMP-014 <<external>>\n}\n\npackage \"Presentation\" {\n  [FleetManagerBFF] as COMP-002 <<service>>\n  [DriverBFF] as COMP-003 <<service>>\n}\n\npackage \"Application\" {\n  [VehicleTelemetryService] as COMP-004 <<service>>\n  [AlertService] as COMP-005 <<service>>\n  [DispatchService] as COMP-006 <<service>>\n  [TripLogService] as COMP-007 <<service>>\n  [DeviceManagementService] as COMP-008 <<service>>\n}\n\n\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-001 --> COMP-008 : HTTPS/REST\nCOMP-002 --> COMP-013 : In-process memory call\nCOMP-003 --> COMP-013 : In-process memory call\nCOMP-002 --> COMP-006 : HTTPS/REST\nCOMP-002 --> COMP-011 : PostgreSQL wire protocol\nCOMP-003 --> COMP-011 : PostgreSQL wire protocol\nCOMP-012 --> COMP-004 : gRPC over HTTP/2 with mTLS\nCOMP-001 --> COMP-005 : HTTPS/REST\nCOMP-001 --> COMP-007 : HTTPS/REST\nCOMP-002 --> COMP-009 : PostgreSQL wire protocol\nCOMP-002 ..> COMP-010 : AMQP / Kafka protocol\nCOMP-014 --> COMP-001 : HTTPS/REST\n\n@enduml"
+}

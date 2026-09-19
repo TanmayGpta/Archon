@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-CLEAN-ARCH",
+  "name": "Clean Architecture (Onion / Concentric)",
+  "catalog_source": "Martin (2017), Clean Architecture; Palermo (2008), Onion Architecture",
+  "topology_type": "Monolithic",
+  "forces_resolved": [
+    "Strict Dependency Inversion Principle: dependencies point only inwards toward domain entities",
+    "Domain logic completely agnostic of database, web framework, and UI delivery mechanisms",
+    "High maintainability, modularity, and comprehensive testability with test doubles"
+  ],
+  "forces_unresolved": [
+    "Data transformation layer proliferation (Entities -> Domain Models -> Use Cases -> Presenters)",
+    "Significant ceremony and conceptual overhead for junior engineers",
+    "Single-unit deployment characteristics"
+  ],
+  "iso25010_impact": {
+    "Capacity": 0,
+    "Time behavior": 1,
+    "Resource utilization": 1,
+    "Availability": 0,
+    "Fault tolerance": 0,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 2,
+    "Modularity": 2,
+    "Reusability": 2,
+    "Analysability": 2,
+    "Modifiability": 2,
+    "Testability": 2,
+    "Scalability": 0,
+    "Adaptability": 2,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 2,
+    "operational_complexity": 2,
+    "cost_factor": 1,
+    "max_scale_rps": 20000
+  },
+  "applicability_conditions": [
+    "Enterprise backend systems with heavy business policies and compliance rules",
+    "Teams aiming for high code coverage (> 85%) and isolated domain testing",
+    "Projects with expected lifecycle > 5 years requiring framework independence"
+  ],
+  "anti_requisites": [
+    "Simple throwaway prototypes or MVPs with tight delivery deadlines (< 1 month)",
+    "High-throughput read-heavy event streaming systems",
+    "Flat data pipeline without complex domain rules"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-HEXAGONAL",
+      "PAT-MODULAR-MONOLITH"
+    ],
+    "successors": [
+      "PAT-CQRS",
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

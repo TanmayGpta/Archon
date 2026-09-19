@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-LAYERED",
+  "name": "Layered (N-Tier) Architecture",
+  "catalog_source": "Richards & Ford (2020), Ch. 10; Bass et al. (2021), Ch. 13",
+  "topology_type": "Monolithic",
+  "forces_resolved": [
+    "Simple development organization",
+    "Clear separation of concerns across presentation, business, and data",
+    "Ease of testing and debugging within layers"
+  ],
+  "forces_unresolved": [
+    "Monolithic deployment coupling",
+    "Sinkhole anti-pattern (requests passing through layers with no logic)",
+    "Limited horizontal scalability"
+  ],
+  "iso25010_impact": {
+    "Capacity": -1,
+    "Time behavior": 0,
+    "Resource utilization": 1,
+    "Availability": 0,
+    "Fault tolerance": -1,
+    "Recoverability": 0,
+    "Confidentiality": 1,
+    "Integrity": 2,
+    "Modularity": 1,
+    "Reusability": 1,
+    "Analysability": 2,
+    "Modifiability": 1,
+    "Testability": 2,
+    "Scalability": -1,
+    "Adaptability": 0,
+    "Interoperability": 0
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 1,
+    "operational_complexity": 1,
+    "cost_factor": 1,
+    "max_scale_rps": 5000
+  },
+  "applicability_conditions": [
+    "Small to medium applications with predictable workloads",
+    "Development teams requiring straightforward standard structure",
+    "Budget constraints favoring minimal infrastructure overhead"
+  ],
+  "anti_requisites": [
+    "Extreme scalability requirements (> 20,000 rps)",
+    "Independent micro-deployment required across business domains",
+    "Sub-millisecond latency budgets requiring direct memory sharing"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-HEXAGONAL"
+    ],
+    "successors": [
+      "PAT-SERVICE-BASED",
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}
