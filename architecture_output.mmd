@@ -1,0 +1,18 @@
+flowchart TD
+    subgraph Presentation["Presentation"]
+        COMP-001[" IntroMovieModule "]
+        COMP-002[" MainMenuModule "]
+    end
+
+    subgraph Application["Application"]
+        COMP-003[" QuestionQueryModule "]
+        COMP-004[" QuestionCommandModule "]
+    end
+
+
+    COMP-001 -->|"In-process memory call"| COMP-002
+    COMP-002 -->|"In-process memory call"| COMP-003
+    COMP-003 -->|"In-process memory call"| COMP-002
+    COMP-002 -->|"In-process memory call"| COMP-003
+    COMP-003 -->|"In-process memory call"| COMP-002
+    COMP-004 -->|"In-process memory call"| COMP-003

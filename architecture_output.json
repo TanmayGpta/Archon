@@ -1,0 +1,184 @@
+{
+  "project_name": "Space Fractions",
+  "style": "Modular Monolith Architecture",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "IntroMovieModule",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "Plays the introductory movie, detects mouse click to skip, and transitions to the main menu.",
+      "responsibilities": [
+        "Play intro movie",
+        "Detect skip click",
+        "Trigger transition to MainMenu"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "MainMenuModule",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "Renders the main menu with help, team summary, website link, start button, and Denominators link.",
+      "responsibilities": [
+        "Display menu UI",
+        "Handle navigation actions",
+        "Open external links"
+      ],
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "QuestionQueryModule",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Provides read\u2011only access to fraction questions for gameplay, supporting CQRS query side.",
+      "responsibilities": [
+        "Fetch current question set",
+        "Supply question data to GameplayEngine",
+        "Cache read\u2011only question data"
+      ],
+      "traced_requirements": [
+        "FR-003",
+        "FR-006"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH",
+        "PAT-CQRS"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "QuestionCommandModule",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Handles administrative updates to fraction questions, implementing CQRS command side and persisting changes.",
+      "responsibilities": [
+        "Validate admin input",
+        "Authenticate administrator",
+        "Write updated questions to datastore"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "FR-009"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH",
+        "PAT-CQRS",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-001",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "TransitionEvent {source: 'IntroMovie', trigger: 'skip_click' | 'completion'}",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "IntroMovieModule triggers a state transition to MainMenuModule upon user skip or movie completion."
+    },
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-002",
+      "target": "COMP-003",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "StartGameRequest {user_session_id}",
+      "traced_requirements": [
+        "FR-002",
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "MainMenuModule initiates the gameplay sequence by requesting the initial question set from QuestionQueryModule."
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-003",
+      "target": "COMP-002",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "QuestionData {question_id, text, options[], hint, critical_point_flag}",
+      "traced_requirements": [
+        "FR-003",
+        "FR-005",
+        "FR-006"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "QuestionQueryModule supplies the current question data and hints to the Presentation layer for display and gameplay logic."
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-002",
+      "target": "COMP-003",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "PlayerInput {question_id, numerator, denominator}",
+      "traced_requirements": [
+        "FR-004",
+        "FR-005"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "MainMenuModule (acting as the active gameplay view) forwards player fraction inputs to QuestionQueryModule for validation and processing."
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-003",
+      "target": "COMP-002",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "FeedbackResult {is_valid, is_correct, error_message, next_question_id, score_delta}",
+      "traced_requirements": [
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "QuestionQueryModule returns validation status, correctness feedback, and adaptive storyline branching data to the Presentation layer."
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-004",
+      "target": "COMP-003",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "DataUpdateNotification {version_id, updated_question_ids[]}",
+      "traced_requirements": [
+        "FR-008",
+        "FR-009"
+      ],
+      "kb_citations": [
+        "PAT-MODULAR-MONOLITH"
+      ],
+      "justification": "QuestionCommandModule notifies QuestionQueryModule of data changes to ensure the query module serves the latest question data without restart."
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: Space Fractions (Modular Monolith Architecture)\n\npackage \"Presentation\" {\n  [IntroMovieModule] as COMP-001 <<module>>\n  [MainMenuModule] as COMP-002 <<module>>\n}\n\npackage \"Application\" {\n  [QuestionQueryModule] as COMP-003 <<module>>\n  [QuestionCommandModule] as COMP-004 <<module>>\n}\n\n\nCOMP-001 --> COMP-002 : In-process memory call\nCOMP-002 --> COMP-003 : In-process memory call\nCOMP-003 --> COMP-002 : In-process memory call\nCOMP-002 --> COMP-003 : In-process memory call\nCOMP-003 --> COMP-002 : In-process memory call\nCOMP-004 --> COMP-003 : In-process memory call\n\n@enduml"
+}

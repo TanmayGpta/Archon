@@ -1,0 +1,24 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: Space Fractions (Modular Monolith Architecture)
+
+package "Presentation" {
+  [IntroMovieModule] as COMP-001 <<module>>
+  [MainMenuModule] as COMP-002 <<module>>
+}
+
+package "Application" {
+  [QuestionQueryModule] as COMP-003 <<module>>
+  [QuestionCommandModule] as COMP-004 <<module>>
+}
+
+
+COMP-001 --> COMP-002 : In-process memory call
+COMP-002 --> COMP-003 : In-process memory call
+COMP-003 --> COMP-002 : In-process memory call
+COMP-002 --> COMP-003 : In-process memory call
+COMP-003 --> COMP-002 : In-process memory call
+COMP-004 --> COMP-003 : In-process memory call
+
+@enduml

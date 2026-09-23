@@ -38,3 +38,8 @@ build/
 
 # Test caches
 .pytest_cache/
+
+
+
+#Gaurav's failed experiments 
+generation/obselete/
