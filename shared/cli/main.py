@@ -19,7 +19,6 @@ load_dotenv()
 from conformance.extraction import extract_project_dependencies
 from conformance.graph import build_dependency_graph
 from conformance.checker import check_architecture, ConformanceReport
-from conformance.classifier_agent import classify_modules
 from shared.schema import ArchitectureRuleset
 
 
@@ -75,6 +74,7 @@ def resolve_layer_mapping(
     if unresolved and provider and provider != "none":
         click.echo(f"🤖 Invoking AI Classifier ({provider}) for {len(unresolved)} ambiguous module(s)...")
         try:
+            from conformance.classifier_agent import classify_modules
             ai_result = classify_modules(
                 modules=unresolved,
                 ruleset_path=ruleset_path,

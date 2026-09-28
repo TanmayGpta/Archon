@@ -28,6 +28,7 @@ dependency_graph.html
 *.zip
 audit_report.*
 test_report.*
+compliance_report.*
 
 # Build, Packaging & Egg Info
 *.egg-info/

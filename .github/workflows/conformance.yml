@@ -31,6 +31,7 @@ jobs:
       - name: Run Archon Self-Audit (Dogfooding)
         run: |
           archon self-check -o audit_report.md
+          archon self-check -o compliance_report.pdf
 
       - name: Publish Report to GitHub Step Summary
         if: always()
@@ -39,10 +40,12 @@ jobs:
             cat audit_report.md >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload Conformance Report Artifact
+      - name: Upload Conformance Report Artifacts (Markdown & PDF)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: archon-conformance-report
-          path: audit_report.md
+          path: |
+            audit_report.md
+            compliance_report.pdf
           retention-days: 14
