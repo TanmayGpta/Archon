@@ -1,0 +1,218 @@
+openapi: 3.0.3
+info:
+  title: Order Management API
+  version: 1.0.0
+  description: Internal microservice for order placement and refund initiation. Integrates
+    with Stripe payments and SendGrid receipts.
+servers:
+- url: https://api.archon.internal/v1
+paths:
+  /orders:
+    post:
+      summary: Place a new order
+      description: Creates a new order in pending status and records customer purchase
+        details.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - customer_id
+              - items
+              - total_amount
+              properties:
+                customer_id:
+                  type: string
+                  description: Unique customer identifier
+                  example: cus_98412
+                items:
+                  type: array
+                  description: List of items purchased in the order
+                  items:
+                    type: object
+                    required:
+                    - item_id
+                    - quantity
+                    - unit_price
+                    properties:
+                      item_id:
+                        type: string
+                      quantity:
+                        type: integer
+                      unit_price:
+                        type: integer
+                total_amount:
+                  type: integer
+                  description: Total order amount in cents (e.g. 5000 = $50.00)
+                  example: 5000
+                notification_email:
+                  type: string
+                  description: Customer email address for SendGrid receipt notification
+                  example: customer@example.com
+      responses:
+        '201':
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                    example: ord_102938
+                  status:
+                    type: string
+                    example: pending
+                  customer_id:
+                    type: string
+                  total_amount:
+                    type: integer
+                  notification_email:
+                    type: string
+  /orders/{order_id}:
+    get:
+      summary: Retrieve order status
+      description: Fetches full details and current lifecycle status for an existing
+        order.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Unique identifier of the order
+      responses:
+        '200':
+          description: Order details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - pending
+                    - paid
+                    - fulfilled
+                    - refunded
+                    - failed
+                  charge_id:
+                    type: string
+                    description: The associated Stripe charge identifier
+                  total_amount:
+                    type: integer
+                  notification_email:
+                    type: string
+  /orders/{order_id}/refund:
+    post:
+      summary: Initiate an order refund
+      description: Initiates a refund for an existing order by delegating to Stripe.
+        Requires Idempotency-Key header.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Unique identifier of the order to refund
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+        description: Unique idempotency key to prevent double-refunds on network retries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - charge_id
+              - amount
+              - reason
+              properties:
+                charge_id:
+                  type: string
+                  description: The Stripe charge ID associated with the original payment
+                  example: ch_3Mtw9K2eZvKYlo2C0Vv
+                amount:
+                  type: integer
+                  description: Amount in cents to refund
+                  example: 5000
+                reason:
+                  type: string
+                  enum:
+                  - duplicate
+                  - fraudulent
+                  - requested_by_customer
+                  description: Reason for issuing the refund
+      responses:
+        '200':
+          description: Refund initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refund_id:
+                    type: string
+                  order_id:
+                    type: string
+                  charge_id:
+                    type: string
+                  amount:
+                    type: integer
+                  status:
+                    type: string
+                    example: refunded
+  /orders/{order_id}/status:
+    get:
+      summary: Poll fulfilment status
+      description: Polls the asynchronous warehouse fulfilment and shipping status
+        for an order.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: order_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Order identifier to query fulfilment status for
+      responses:
+        '200':
+          description: Fulfilment status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  fulfilment_status:
+                    type: string
+                    enum:
+                    - unfulfilled
+                    - processing
+                    - shipped
+                    - delivered
+                    - cancelled
+                  updated_at:
+                    type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

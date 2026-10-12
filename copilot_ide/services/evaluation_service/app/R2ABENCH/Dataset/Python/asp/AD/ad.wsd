@@ -1,0 +1,102 @@
+@startuml
+' --- Configuration ---
+top to bottom direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+
+' --- Styling ---
+skinparam rectangle<<ClientLayer>> {
+    BackgroundColor #f9f
+    BorderColor #333
+}
+skinparam rectangle<<NetworkLayer>> {
+    BackgroundColor #b2ebf2
+    BorderColor #00838f
+}
+skinparam rectangle<<ServiceLayer>> {
+    BackgroundColor #c8e6c9
+    BorderColor #2e7d32
+}
+skinparam database<<StorageLayer>> {
+    BackgroundColor #fff9c4
+    BorderColor #fbc02d
+}
+
+' --- Layer 1: Frontend / Client Layer ---
+rectangle "Client Layer" <<ClientLayer>> {
+    component [Client Terminal] as Client
+    component [Cloud DNS] as DNS
+}
+
+' --- Layer 2: Network / Gateway Layer ---
+rectangle "Network / Gateway Layer" <<NetworkLayer>> {
+    rectangle "Machine 01" {
+        component [LVS - Linux Virtual Server] as LVS01
+        component [Nginx] as Nginx01
+    }
+    rectangle "Machine 02" {
+        component [LVS - Linux Virtual Server] as LVS02
+        component [Nginx] as Nginx02_A
+        component [Nginx] as Nginx02_B
+    }
+    rectangle "Machine 03" {
+        component [LVS - Linux Virtual Server] as LVS03
+        component [Nginx] as Nginx03
+    }
+}
+
+' --- Layer 3: Service / Backend Layer ---
+rectangle "Service / Backend Layer" <<ServiceLayer>> {
+    component [Django Service Clusters] as Django
+    component [Socializing Service] as Social
+    component [User Information Service] as UserInfo
+    component [Literature Service] as Literature
+    component [Back-office Management] as BackOffice
+}
+
+' --- Layer 4: Storage / Database Layer ---
+rectangle "Storage / Database Layer" <<StorageLayer>> {
+    database "Redis Cache" as Redis
+    database "Elasticsearch" as ES
+    database "MySQL Database" as MySQL
+}
+
+' --- Connection Relationships ---
+Client --> DNS
+Client --> LVS01
+Client --> LVS02
+Client --> LVS03
+
+LVS01 --> Nginx01
+LVS02 --> Nginx02_A
+LVS02 --> Nginx02_B
+LVS03 --> Nginx03
+
+Nginx01 --> Django
+Nginx02_A --> Django
+Nginx02_B --> Django
+Nginx03 --> Django
+
+Django --> Social
+Django --> UserInfo
+Django --> Literature
+Django --> BackOffice
+
+Social --> Redis
+Social --> ES
+Social --> MySQL
+
+UserInfo --> Redis
+UserInfo --> ES
+UserInfo --> MySQL
+
+Literature --> Redis
+Literature --> ES
+Literature --> MySQL
+
+BackOffice --> Redis
+BackOffice --> ES
+BackOffice --> MySQL
+
+@enduml

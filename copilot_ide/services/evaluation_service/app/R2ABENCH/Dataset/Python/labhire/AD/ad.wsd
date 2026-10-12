@@ -1,0 +1,101 @@
+@startuml
+' --- Configuration ---
+skinparam TitleFontSize 20
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam ranksep 50
+skinparam nodesep 20
+
+' --- Styling ---
+skinparam rectangle<<UI>> {
+    BackgroundColor #e1f5fe
+    BorderColor #01579b
+    RoundCorner 10
+}
+
+skinparam rectangle<<Business>> {
+    BackgroundColor #e8f5e9
+    BorderColor #1b5e20
+    RoundCorner 10
+}
+
+skinparam rectangle<<DAL>> {
+    BackgroundColor #e3f2fd
+    BorderColor #0d47a1
+    RoundCorner 10
+}
+
+skinparam database<<Storage>> {
+    BackgroundColor #eceff1
+    BorderColor #263238
+}
+
+' --- Layout Direction ---
+top to bottom direction
+
+' --- UI Layer ---
+package "User Interface Layer - WeChat Mini Program / Vue.js" as UI_Layer {
+    rectangle "Project Info" as ProjectInfo <<UI>>
+    rectangle "File Transfer" as FileTrans <<UI>>
+    rectangle "Message Notification" as MsgNotif <<UI>>
+    rectangle "Personal Info" as PersonalInfo <<UI>>
+    rectangle "Project Registration" as ProjectReg <<UI>>
+    rectangle "Post Information" as PostInfo <<UI>>
+}
+
+' --- Business Logic Layer ---
+package "Business Logic Layer - Django" as Business_Logic_Layer {
+    
+    package "Project Module" as Project_Module {
+        rectangle "Project Recommendation" as ProjRec <<Business>>
+        rectangle "Project Info View" as ProjView <<Business>>
+        rectangle "Publish Project" as ProjPub <<Business>>
+        rectangle "Teacher-Student Interaction" as TutorComm <<Business>>
+        rectangle "Project Search" as ProjSearch <<Business>>
+        rectangle "Project Management" as ProjMgmt <<Business>>
+        rectangle "Project Enrollment" as ProjEnroll <<Business>>
+        rectangle "Project Message Reminder" as ProjMsgRem <<Business>>
+        rectangle "Favorite Project" as ProjFav <<Business>>
+    }
+
+    package "User Module" as User_Module {
+        rectangle "Login/Registration" as Auth <<Business>>
+        rectangle "Resume Maintenance" as ResumeMaint <<Business>>
+        rectangle "Student/Enterprise Verification" as Verification <<Business>>
+        rectangle "Personal Info Maintenance" as ProfileMaint <<Business>>
+        rectangle "User Search & Favorite" as UserSearch <<Business>>
+    }
+
+    package "Community Module" as Community_Module {
+        rectangle "Post/Comment Display" as PostDisplay <<Business>>
+        rectangle "Publish Post/Comment" as PostPub <<Business>>
+        rectangle "Like/Favorite" as LikeCollect <<Business>>
+    }
+
+    package "Management Module" as Admin_Module {
+        rectangle "Admin Info Maintenance" as AdminMaint <<Business>>
+        rectangle "User Qualification Audit" as Audit <<Business>>
+        rectangle "Post/Comment Audit" as ContentAudit <<Business>>
+    }
+}
+
+' --- Data Access Layer ---
+package "Data Access Layer - PyMySQL" as Data_Access_Layer {
+    rectangle "File Data Parsing" as DataParsing <<DAL>>
+    rectangle "Database Connection" as DBConnection <<DAL>>
+}
+
+' --- Storage Layer ---
+package "Storage Layer - MySQL" as Storage_Layer {
+    database "User Info DB" as UserDB <<Storage>>
+    database "Project Data DB" as ProjectDB <<Storage>>
+    database "Community Data DB" as CommunityDB <<Storage>>
+    database "Other Data DB" as OtherDB <<Storage>>
+}
+
+' --- Relationships ---
+UI_Layer --> Business_Logic_Layer
+Business_Logic_Layer --> Data_Access_Layer
+Data_Access_Layer --> Storage_Layer
+
+@enduml

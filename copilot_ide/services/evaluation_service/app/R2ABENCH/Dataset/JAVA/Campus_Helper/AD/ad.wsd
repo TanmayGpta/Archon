@@ -1,0 +1,125 @@
+@startuml
+' --- Configuration & Styles ---
+skinparam topboxSelection true
+skinparam Direction top to bottom
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+' Define Styles based on original ClassDefs
+<style>
+    .ui {
+        BackgroundColor #ccff90
+        LineColor #33691e
+        LineThickness 2
+    }
+    .display {
+        BackgroundColor #fff3e0
+        LineColor #e65100
+        LineThickness 2
+    }
+    .business {
+        BackgroundColor #b2dfdb
+        LineColor #004d40
+        LineThickness 2
+    }
+    .dataLogic {
+        BackgroundColor #e1bee7
+        LineColor #4a148c
+        LineThickness 2
+    }
+    .storage {
+        BackgroundColor #bbdefb
+        LineColor #0d47a1
+        LineThickness 2
+    }
+    .env {
+        BackgroundColor #cfd8dc
+        LineColor #37474f
+        LineThickness 2
+    }
+    .crosscut {
+        BackgroundColor #ffcdd2
+        LineColor #b71c1c
+        LineThickness 2
+    }
+</style>
+
+' --- Layer 1: UI Layer ---
+package "Mini-program UI" as UI_Layer <<ui>> {
+    rectangle "Wxml" as WXML <<ui>>
+    rectangle "Wxss" as WXSS <<ui>>
+    rectangle "JavaScript" as JS <<ui>>
+}
+
+' --- Layer 2: Display Layer ---
+package "Display Layer" as Display_Layer <<display>> {
+    rectangle "Template Engine Rendering\n(pages)" as Render <<display>>
+    rectangle "wx.request Interaction" as Interact <<display>>
+    rectangle "POST Request" as ReqPost <<display>>
+    rectangle "GET Request" as ReqGet <<display>>
+}
+
+' --- Layer 3: Business Layer ---
+package "Business Layer" as Business_Layer <<business>> {
+    package "Core Services" as Main_Services {
+        rectangle "Help Goods Service" as Svc_Goods <<business>>
+        rectangle "Order Mgmt Service" as Svc_Order <<business>>
+        rectangle "Personal Center Service" as Svc_User <<business>>
+        rectangle "Admin Mgmt Service" as Svc_Admin <<business>>
+    }
+
+    package "Functional Modules" as Modules {
+        rectangle "Hot Items Module" as Mod_Hot <<business>>
+        rectangle "Create Order Module" as Mod_CreateOrder <<business>>
+        rectangle "Favorites Module" as Mod_Fav <<business>>
+        rectangle "Modify User Info Module" as Mod_UserInfo <<business>>
+        rectangle "Goods Category Module" as Mod_Cat <<business>>
+        rectangle "Order Record Module" as Mod_OrderRec <<business>>
+        rectangle "Platform Mgmt Module" as Mod_Platform <<business>>
+        rectangle "......" as Mod_More <<business>>
+    }
+}
+
+' --- Cross-Cutting Concerns ---
+rectangle "Log Recording" as Logs <<crosscut>>
+rectangle "Permission Control" as Auth <<crosscut>>
+
+' --- Layer 4: Data Layer ---
+package "Data Layer" as Data_Logic_Layer <<dataLogic>> {
+    rectangle "Stored Procedures" as StoredProc <<dataLogic>>
+    rectangle "Custom Functions" as CustomFunc <<dataLogic>>
+    rectangle "Data Cache" as DataCache <<dataLogic>>
+    rectangle "Data Backup" as Backup <<dataLogic>>
+    rectangle "Data Recovery" as Recovery <<dataLogic>>
+    rectangle "Read/Write Database" as RW_DB <<dataLogic>>
+}
+
+' --- Layer 5: Database ---
+package "Database" as Database_Storage <<storage>> {
+    database "MySQL" as MySQL_Main <<storage>>
+}
+
+' --- Layer 6: Runtime Environment ---
+package "Runtime Environment" as Runtime_Env <<env>> {
+    node "Tencent Cloud\nLightweight App Server" as Server <<env>>
+    node "MySQL 106.55.224.139\n2 Cores 4GB" as ServerSpec <<env>>
+}
+
+' --- Relationships ---
+UI_Layer --> Display_Layer
+Display_Layer --> Business_Layer
+Interact -- ReqPost
+Interact -- ReqGet
+
+Business_Layer --> Data_Logic_Layer
+Data_Logic_Layer --> Database_Storage
+Runtime_Env --> Database_Storage
+
+' Cross Cutting Links (Dotted)
+Business_Layer .. Logs
+Business_Layer .. Auth
+Data_Logic_Layer .. Logs
+Data_Logic_Layer .. Auth
+Display_Layer .. Logs
+
+@enduml

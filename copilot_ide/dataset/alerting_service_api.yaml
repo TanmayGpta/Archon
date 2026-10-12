@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: Alerting Service API
+  version: 1.0.0
+  description: Internal alerting microservice consumed by monitoring tools to fire
+    incident notifications across multiple channels.
+servers:
+- url: https://api.archon.internal/v1
+paths:
+  /alerts:
+    post:
+      summary: Trigger a new alert
+      description: Evaluates and dispatches a monitoring alert to configured channels
+        based on severity level.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+        description: Optional idempotency key to prevent duplicate alert generation
+          on retry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - severity
+              - message
+              - service_name
+              properties:
+                severity:
+                  type: string
+                  enum:
+                  - critical
+                  - warning
+                  - info
+                  description: Severity classification determining notification channels
+                  example: critical
+                message:
+                  type: string
+                  description: Human-readable alert summary text
+                  example: Database connection pool exhausted on checkout-service
+                service_name:
+                  type: string
+                  description: Name of the originating service
+                  example: order-management-service
+      responses:
+        '201':
+          description: Alert triggered and dispatched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_id:
+                    type: string
+                    example: alt_77192
+                  status:
+                    type: string
+                    example: open
+                  channels_notified:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                    - twilio_sms
+                    - slack_channel
+  /alerts/{alert_id}:
+    get:
+      summary: Fetch alert delivery status
+      description: Retrieves the current status, notification logs, and acknowledgement
+        state of an alert.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Unique identifier of the alert
+      responses:
+        '200':
+          description: Alert status details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_id:
+                    type: string
+                  severity:
+                    type: string
+                    enum:
+                    - critical
+                    - warning
+                    - info
+                  message:
+                    type: string
+                  service_name:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - open
+                    - acknowledged
+                    - resolved
+                  channels_notified:
+                    type: array
+                    items:
+                      type: string
+  /alerts/{alert_id}/escalate:
+    post:
+      summary: Escalate an unacknowledged alert
+      description: Re-evaluates and escalates an unacknowledged alert after SLA breach,
+        re-notifying all emergency channels.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: alert_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Unique identifier of the alert to escalate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - escalation_reason
+              properties:
+                escalation_reason:
+                  type: string
+                  example: On-call engineer did not acknowledge alert within 15 minutes
+      responses:
+        '200':
+          description: Alert successfully escalated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alert_id:
+                    type: string
+                  escalated:
+                    type: boolean
+                    example: true
+                  channels_notified:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                    - twilio_sms
+                    - slack_channel
+  /alerts/test:
+    post:
+      summary: Send a test notification
+      description: Dispatches a synthetic test notification across all configured
+        notification providers to verify connectivity.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - message
+              properties:
+                message:
+                  type: string
+                  example: Synthetic end-to-end ping test
+      responses:
+        '200':
+          description: Test ping dispatched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  channels_notified:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                    - twilio_sms
+                    - slack_channel
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

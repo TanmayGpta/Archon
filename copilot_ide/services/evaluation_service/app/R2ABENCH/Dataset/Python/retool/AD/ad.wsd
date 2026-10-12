@@ -1,0 +1,80 @@
+@startuml
+' Configuration for Layout and Styling
+top to bottom direction
+skinparam docker {
+    BackgroundColor White
+}
+
+' Style Definitions (Matching Mermaid Classes)
+skinparam rectangle<<frontend>> {
+    BackgroundColor #42b983
+    BorderColor #35495e
+    FontColor White
+    BorderThickness 2
+}
+
+skinparam rectangle<<gateway>> {
+    BackgroundColor #e1f5fe
+    BorderColor #01579b
+    FontColor Black
+}
+
+skinparam rectangle<<service>> {
+    BackgroundColor #dcedc8
+    BorderColor #558b2f
+    FontColor Black
+}
+
+skinparam database<<database>> {
+    BackgroundColor #ffe0b2
+    BorderColor #e65100
+    FontColor Black
+}
+
+skinparam interface<<protocol>> {
+    BorderColor #333333
+}
+
+' --- Layer 1: Frontend ---
+rectangle "Frontend (Vue.js 2.0)" as Frontend {
+    rectangle "Browser / Client" as Browser <<frontend>>
+}
+
+' --- Layer 2: Network / Gateway ---
+rectangle "Network & Gateway Layer" as NetworkGateway {
+    interface "HTTP Protocol" as HTTP1 <<protocol>>
+    
+    rectangle "API Gateway" as Gateway <<gateway>> {
+        rectangle "Identity Verification" as Auth
+        rectangle "Request Forwarding" as Forward
+        rectangle "Return Response" as Resp
+    }
+}
+
+' --- Layer 3: Service / Backend ---
+rectangle "Backend (Flask Microservices)" as Backend {
+    rectangle "Microservices" as Microservices {
+        rectangle "User Management Service" as UserSvc <<service>>
+        rectangle "Requirement Management Service" as ReqSvc <<service>>
+        rectangle "Project Management Service" as ProjSvc <<service>>
+        rectangle "Algorithm Service" as AlgoSvc <<service>>
+    }
+    interface "Internal HTTP" as HTTP2 <<protocol>>
+}
+
+' --- Layer 4: Storage ---
+rectangle "Storage Layer (MongoDB)" as Storage {
+    database "User Collection" as UserDB <<database>>
+    database "Project Collection" as ProjDB <<database>>
+    database "Requirement Collection" as ReqDB <<database>>
+}
+
+' --- Relationships ---
+Browser --> HTTP1
+HTTP1 --> Gateway
+Gateway --> Microservices
+Microservices --> HTTP2
+
+Backend --> Storage
+
+@enduml

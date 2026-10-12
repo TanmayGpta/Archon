@@ -1,0 +1,62 @@
+{
+  "pattern_id": "PAT-STRANGLER-FIG",
+  "name": "Strangler Fig Pattern",
+  "catalog_source": "Fowler (2004); Richardson (microservices.io); Newman (2021)",
+  "topology_type": "Hybrid",
+  "forces_resolved": [
+    "Incremental, low-risk migration of legacy monolith to microservices or modern architecture",
+    "Eliminates high-risk 'big-bang' complete system rewrites",
+    "Continuous delivery of business value during migration: new features go to new services immediately"
+  ],
+  "forces_unresolved": [
+    "Temporary increase in system architectural complexity while both legacy and new systems run in parallel",
+    "Routing proxy overhead and ongoing data synchronization between legacy and new databases",
+    "Risk of stalled migration leaving the system in a perpetual hybrid state"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": 0,
+    "Resource utilization": -1,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 0,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": 0,
+    "Modifiability": 2,
+    "Testability": 1,
+    "Scalability": 1,
+    "Adaptability": 2,
+    "Interoperability": 2
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong",
+      "Eventual"
+    ],
+    "min_team_size": 3,
+    "operational_complexity": 3,
+    "cost_factor": 2,
+    "max_scale_rps": 50000
+  },
+  "applicability_conditions": [
+    "Modernizing large, mission-critical legacy monoliths where downtime or rewrite failure is unacceptable",
+    "Teams needing to carve out high-value or high-scale capabilities one by one",
+    "Organizations transitioning to cloud-native architectures incrementally"
+  ],
+  "anti_requisites": [
+    "Greenfield new software applications with no legacy codebase",
+    "Small codebases (< 10,000 LOC) where a direct refactor is cheaper and faster",
+    "Teams lacking API gateway / reverse proxy routing infrastructure"
+  ],
+  "related_patterns": {
+    "companions": [
+      "PAT-API-GATEWAY",
+      "PAT-MICROSERVICES",
+      "PAT-MODULAR-MONOLITH"
+    ]
+  },
+  "pattern_role": "Companion"
+}

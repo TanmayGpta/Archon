@@ -1,0 +1,888 @@
+{
+  "project_name": "Enterprise B2B Payment Gateway",
+  "style": "Clean Architecture (Onion / Concentric)",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "APIGatewayModule",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "Entry point for all external requests, handling routing, authentication, and initial request validation including idempotency key checks before forwarding to specific BFFs or application services.",
+      "responsibilities": [
+        "Route incoming requests",
+        "Authenticate and authorize users",
+        "Validate idempotency keys to prevent duplicate processing",
+        "Apply rate limiting and security policies"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "B2BUserBFFModule",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "Backend-for-Frontend module tailored specifically for B2B user interfaces, providing optimized API endpoints and data transformations for B2B user experiences.",
+      "responsibilities": [
+        "Expose B2B user-specific payment initiation APIs",
+        "Aggregate and transform data for B2B user dashboards and reports",
+        "Handle B2B user-specific presentation logic"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-BFF"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "MerchantBFFModule",
+      "node_type": "module",
+      "layer": "Presentation",
+      "description": "Backend-for-Frontend module tailored specifically for merchant interfaces, providing optimized API endpoints and data transformations for merchant experiences.",
+      "responsibilities": [
+        "Expose merchant-specific payment and reconciliation APIs",
+        "Aggregate and transform data for merchant dashboards and reports",
+        "Handle merchant-specific presentation logic"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-BFF"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "PaymentProcessingUseCase",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Orchestrates the creation and processing of payment transactions, including bank ACH and credit card transfers, applying application-specific business rules.",
+      "responsibilities": [
+        "Validate payment requests against business rules",
+        "Initiate payment workflows (ACH, Credit Card)",
+        "Interact with PaymentTransactionAggregate to apply changes",
+        "Handle idempotency key validation and state management"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-005",
+      "name": "ReconciliationUseCase",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Manages the automated reconciliation process, comparing internal payment records with external statements to ensure zero balance leakage.",
+      "responsibilities": [
+        "Fetch internal payment transaction data",
+        "Retrieve external payment statements from gateways",
+        "Generate reconciliation reports and identify discrepancies",
+        "Ensure zero balance leakage through reconciliation logic"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-006",
+      "name": "PaymentQueryUseCase",
+      "node_type": "module",
+      "layer": "Application",
+      "description": "Provides read operations for payment transactions, reconciliation reports, and related data, serving the presentation layer (BFFs).",
+      "responsibilities": [
+        "Retrieve detailed payment transaction information",
+        "Query and filter reconciliation reports",
+        "Provide aggregated payment statistics"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-007",
+      "name": "PaymentTransactionAggregate",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Represents the core business logic and state for a payment transaction, including ACH and Credit Card transfers, managed via Event Sourcing to ensure strict ACID consistency.",
+      "responsibilities": [
+        "Enforce core business rules for payment lifecycle (e.g., state transitions)",
+        "Generate domain events (e.g., PaymentInitiated, PaymentCompleted)",
+        "Validate transaction data and states",
+        "Maintain strict immediate ACID consistency for its state changes"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "ReconciliationReportEntity",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Represents the domain model for a reconciliation report, encapsulating its state and business rules for accurate discrepancy identification.",
+      "responsibilities": [
+        "Define the structure and content of reconciliation reports",
+        "Enforce business rules for report generation and discrepancy handling",
+        "Track reconciliation status and outcomes"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "IdempotencyKeyService",
+      "node_type": "module",
+      "layer": "Domain",
+      "description": "Domain service responsible for managing and validating idempotency keys to prevent duplicate processing of payment transactions.",
+      "responsibilities": [
+        "Generate and validate idempotency keys",
+        "Ensure uniqueness of idempotency keys for transactions",
+        "Manage the lifecycle and state of idempotency keys"
+      ],
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-010",
+      "name": "PaymentEventStoreRepository",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Adapter for persisting and retrieving events related to PaymentTransactionAggregate from the EventStoreDatabase, ensuring ACID properties for event persistence.",
+      "responsibilities": [
+        "Append new events to the event stream for PaymentTransactionAggregate",
+        "Load aggregate state by replaying events from the event stream",
+        "Ensure transactional integrity (ACID) when persisting events"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ]
+    },
+    {
+      "node_id": "COMP-011",
+      "name": "ReconciliationReportRepository",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Adapter for persisting and retrieving ReconciliationReportEntity instances to and from the ReconciliationDatabase.",
+      "responsibilities": [
+        "Store generated reconciliation reports",
+        "Retrieve reports for querying and auditing"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-012",
+      "name": "IdempotencyKeyRepository",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Adapter for persisting and retrieving idempotency keys and their associated transaction states from the IdempotencyKeyDatabase.",
+      "responsibilities": [
+        "Store and retrieve idempotency keys",
+        "Update idempotency key states (e.g., pending, completed)"
+      ],
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-013",
+      "name": "ACHProcessorGateway",
+      "node_type": "gateway",
+      "layer": "Infrastructure",
+      "description": "Interface/adapter for interacting with external Bank ACH Networks, abstracting away external API details.",
+      "responsibilities": [
+        "Translate internal payment requests to ACH network format",
+        "Send ACH transfer requests to the external network",
+        "Process and translate ACH network responses and callbacks"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-014",
+      "name": "CreditCardProcessorGateway",
+      "node_type": "gateway",
+      "layer": "Infrastructure",
+      "description": "Interface/adapter for interacting with external Credit Card Processors, abstracting away external API details.",
+      "responsibilities": [
+        "Translate internal payment requests to credit card processor format",
+        "Send credit card authorization and capture requests",
+        "Process and translate credit card processor responses and webhooks"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-015",
+      "name": "EventStoreDatabase",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "The persistent storage for all domain events, serving as the single source of truth for payment transactions. Must support ACID properties for event append operations.",
+      "responsibilities": [
+        "Store event streams for PaymentTransactionAggregate",
+        "Ensure data integrity, durability, and strict immediate ACID consistency for event writes",
+        "Provide an immutable audit log for PCI-DSS compliance"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING"
+      ]
+    },
+    {
+      "node_id": "COMP-016",
+      "name": "ReconciliationDatabase",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Database for storing reconciliation reports and potentially read models/projections derived from the Event Store for efficient querying.",
+      "responsibilities": [
+        "Store generated reconciliation reports",
+        "Provide optimized queryable access to reconciliation data"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-017",
+      "name": "IdempotencyKeyDatabase",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Database for storing idempotency keys and their associated transaction states to prevent duplicate processing.",
+      "responsibilities": [
+        "Store idempotency keys and their current processing status",
+        "Provide fast lookup for idempotency key validation"
+      ],
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-018",
+      "name": "PCIComplianceModule",
+      "node_type": "module",
+      "layer": "Infrastructure",
+      "description": "Cross-cutting module providing services for PCI-DSS compliance, such as data encryption, tokenization, secure logging, and access control.",
+      "responsibilities": [
+        "Encrypt and decrypt sensitive payment data",
+        "Tokenize credit card numbers",
+        "Implement secure logging and auditing mechanisms",
+        "Enforce access control policies for sensitive data"
+      ],
+      "traced_requirements": [
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-019",
+      "name": "BankACHNetwork",
+      "node_type": "external",
+      "layer": null,
+      "description": "External banking network for processing Automated Clearing House (ACH) transfers.",
+      "responsibilities": [
+        "Process ACH debits and credits between bank accounts",
+        "Provide transaction status updates and settlement information"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    },
+    {
+      "node_id": "COMP-020",
+      "name": "CreditCardProcessors",
+      "node_type": "external",
+      "layer": null,
+      "description": "External third-party services for authorizing, capturing, and settling credit card transactions.",
+      "responsibilities": [
+        "Authorize and capture credit card payments",
+        "Handle refunds, voids, and chargebacks",
+        "Provide transaction details and settlement reports"
+      ],
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "B2B user payment requests, dashboard query parameters",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY",
+        "PAT-BFF",
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "API Gateway routes B2B user-specific requests to the B2B User BFF for payment initiation and dashboard data retrieval."
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-001",
+      "target": "COMP-003",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Merchant payment requests, reconciliation report query parameters",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY",
+        "PAT-BFF",
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "API Gateway routes merchant-specific requests to the Merchant BFF for payment initiation and reconciliation report access."
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-002",
+      "target": "COMP-004",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Payment initiation command {payment_type, amount, details, idempotency_key}",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "B2B User BFF delegates payment processing requests to the Payment Processing Use Case."
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-003",
+      "target": "COMP-004",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Payment initiation command {payment_type, amount, details, idempotency_key}",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Merchant BFF delegates payment processing requests to the Payment Processing Use Case."
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-002",
+      "target": "COMP-006",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Query parameters {user_id, date_range, status}",
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "B2B User BFF retrieves payment and reconciliation data for dashboards from the Payment Query Use Case."
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-003",
+      "target": "COMP-006",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Query parameters {merchant_id, date_range, status, report_type}",
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Merchant BFF retrieves payment and reconciliation data for reports from the Payment Query Use Case."
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-004",
+      "target": "COMP-009",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Idempotency key, transaction context for validation",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-DDD"
+      ],
+      "justification": "Payment Processing Use Case utilizes the Idempotency Key Service to validate and manage idempotency keys for transactions."
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-009",
+      "target": "COMP-012",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Idempotency key data (read/write)",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Idempotency Key Service interacts with the Idempotency Key Repository to persist and retrieve idempotency key states."
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-012",
+      "target": "COMP-017",
+      "edge_type": "db_read",
+      "protocol": "SQL wire protocol",
+      "payload_description": "Idempotency key records for lookup",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Idempotency Key Repository reads idempotency key states from the database for validation."
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-012",
+      "target": "COMP-017",
+      "edge_type": "db_write",
+      "protocol": "SQL wire protocol",
+      "payload_description": "Idempotency key records for storage and state updates",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Idempotency Key Repository writes and updates idempotency key states in the database."
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-004",
+      "target": "COMP-007",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Payment command data for aggregate state change",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-DDD"
+      ],
+      "justification": "Payment Processing Use Case interacts with the Payment Transaction Aggregate to apply business rules and state changes, ensuring ACID consistency."
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-007",
+      "target": "COMP-010",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Domain events (e.g., PaymentInitiated, PaymentCompleted)",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Payment Transaction Aggregate persists its state changes as domain events via the Payment Event Store Repository, ensuring ACID and auditability."
+    },
+    {
+      "edge_id": "EDGE-014",
+      "source": "COMP-010",
+      "target": "COMP-015",
+      "edge_type": "db_write",
+      "protocol": "Database wire protocol",
+      "payload_description": "Event stream data for PaymentTransactionAggregate",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ],
+      "justification": "Payment Event Store Repository appends new events to the Event Store Database, ensuring transactional integrity and an immutable audit log."
+    },
+    {
+      "edge_id": "EDGE-015",
+      "source": "COMP-010",
+      "target": "COMP-015",
+      "edge_type": "db_read",
+      "protocol": "Database wire protocol",
+      "payload_description": "Event stream data for replaying aggregate state",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ],
+      "justification": "Payment Event Store Repository loads aggregate state by replaying events from the Event Store Database and provides data for queries and reconciliation."
+    },
+    {
+      "edge_id": "EDGE-016",
+      "source": "COMP-004",
+      "target": "COMP-013",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "ACH payment request details",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "Payment Processing Use Case delegates ACH payment requests to the ACH Processor Gateway."
+    },
+    {
+      "edge_id": "EDGE-017",
+      "source": "COMP-004",
+      "target": "COMP-014",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Credit card payment request details",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "Payment Processing Use Case delegates credit card payment requests to the Credit Card Processor Gateway."
+    },
+    {
+      "edge_id": "EDGE-018",
+      "source": "COMP-013",
+      "target": "COMP-019",
+      "edge_type": "sync_rest",
+      "protocol": "SFTP/Batch or proprietary API",
+      "payload_description": "ACH transaction files/requests, status updates",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "ACH Processor Gateway communicates with the external Bank ACH Network to process transfers."
+    },
+    {
+      "edge_id": "EDGE-019",
+      "source": "COMP-014",
+      "target": "COMP-020",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Credit card authorization/capture requests, responses",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "Credit Card Processor Gateway communicates with external Credit Card Processors."
+    },
+    {
+      "edge_id": "EDGE-020",
+      "source": "COMP-013",
+      "target": "COMP-018",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Sensitive payment data for encryption/tokenization",
+      "traced_requirements": [
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "ACH Processor Gateway uses the PCI Compliance Module for secure handling and tokenization of sensitive payment data."
+    },
+    {
+      "edge_id": "EDGE-021",
+      "source": "COMP-014",
+      "target": "COMP-018",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Sensitive payment data for encryption/tokenization",
+      "traced_requirements": [
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH"
+      ],
+      "justification": "Credit Card Processor Gateway uses the PCI Compliance Module for secure handling and tokenization of sensitive payment data."
+    },
+    {
+      "edge_id": "EDGE-022",
+      "source": "COMP-005",
+      "target": "COMP-010",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Query for payment events/transactions for reconciliation",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ],
+      "justification": "Reconciliation Use Case fetches internal transaction data from the Payment Event Store Repository for reconciliation."
+    },
+    {
+      "edge_id": "EDGE-023",
+      "source": "COMP-005",
+      "target": "COMP-013",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Request for ACH settlement reports/statements",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "Reconciliation Use Case retrieves external ACH statements from the ACH Processor Gateway."
+    },
+    {
+      "edge_id": "EDGE-024",
+      "source": "COMP-005",
+      "target": "COMP-014",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Request for credit card settlement reports/statements",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EXTERNAL-GATEWAY"
+      ],
+      "justification": "Reconciliation Use Case retrieves external credit card statements from the Credit Card Processor Gateway."
+    },
+    {
+      "edge_id": "EDGE-025",
+      "source": "COMP-005",
+      "target": "COMP-008",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Reconciliation data for report generation and discrepancy handling",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-DDD"
+      ],
+      "justification": "Reconciliation Use Case interacts with the Reconciliation Report Entity to generate and manage reconciliation reports and discrepancies."
+    },
+    {
+      "edge_id": "EDGE-026",
+      "source": "COMP-005",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Reconciliation report data (write)",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Reconciliation Use Case persists generated reconciliation reports via the Reconciliation Report Repository."
+    },
+    {
+      "edge_id": "EDGE-027",
+      "source": "COMP-011",
+      "target": "COMP-016",
+      "edge_type": "db_write",
+      "protocol": "SQL wire protocol",
+      "payload_description": "Reconciliation report records for storage",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-004"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Reconciliation Report Repository stores generated reconciliation reports in the Reconciliation Database."
+    },
+    {
+      "edge_id": "EDGE-028",
+      "source": "COMP-011",
+      "target": "COMP-016",
+      "edge_type": "db_read",
+      "protocol": "SQL wire protocol",
+      "payload_description": "Reconciliation report records for querying",
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Reconciliation Report Repository retrieves reports from the Reconciliation Database for querying and auditing."
+    },
+    {
+      "edge_id": "EDGE-029",
+      "source": "COMP-006",
+      "target": "COMP-010",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Query for payment transaction events",
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-EVENT-SOURCING"
+      ],
+      "justification": "Payment Query Use Case queries the Payment Event Store Repository to retrieve detailed payment transaction information."
+    },
+    {
+      "edge_id": "EDGE-030",
+      "source": "COMP-006",
+      "target": "COMP-011",
+      "edge_type": "direct_call",
+      "protocol": "In-process memory call",
+      "payload_description": "Query for reconciliation reports",
+      "traced_requirements": [
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-CLEAN-ARCH",
+        "PAT-REPOSITORY"
+      ],
+      "justification": "Payment Query Use Case queries the Reconciliation Report Repository to retrieve reconciliation reports."
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: Enterprise B2B Payment Gateway (Clean Architecture (Onion / Concentric))\n\npackage \"Presentation\" {\n  [APIGatewayModule] as COMP-001 <<module>>\n  [B2BUserBFFModule] as COMP-002 <<module>>\n  [MerchantBFFModule] as COMP-003 <<module>>\n}\n\npackage \"Application\" {\n  [PaymentProcessingUseCase] as COMP-004 <<module>>\n  [ReconciliationUseCase] as COMP-005 <<module>>\n  [PaymentQueryUseCase] as COMP-006 <<module>>\n}\n\npackage \"Domain\" {\n  [PaymentTransactionAggregate] as COMP-007 <<module>>\n  [ReconciliationReportEntity] as COMP-008 <<module>>\n  [IdempotencyKeyService] as COMP-009 <<module>>\n}\n\npackage \"Infrastructure\" {\n  [PaymentEventStoreRepository] as COMP-010 <<module>>\n  [ReconciliationReportRepository] as COMP-011 <<module>>\n  [IdempotencyKeyRepository] as COMP-012 <<module>>\n  [ACHProcessorGateway] as COMP-013 <<gateway>>\n  [CreditCardProcessorGateway] as COMP-014 <<gateway>>\n  [EventStoreDatabase] as COMP-015 <<datastore>>\n  [ReconciliationDatabase] as COMP-016 <<datastore>>\n  [IdempotencyKeyDatabase] as COMP-017 <<datastore>>\n  [PCIComplianceModule] as COMP-018 <<module>>\n}\n\n[BankACHNetwork] as COMP-019 <<external>>\n[CreditCardProcessors] as COMP-020 <<external>>\n\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-002 --> COMP-004 : In-process memory call\nCOMP-003 --> COMP-004 : In-process memory call\nCOMP-002 --> COMP-006 : In-process memory call\nCOMP-003 --> COMP-006 : In-process memory call\nCOMP-004 --> COMP-009 : In-process memory call\nCOMP-009 --> COMP-012 : In-process memory call\nCOMP-012 --> COMP-017 : SQL wire protocol\nCOMP-012 --> COMP-017 : SQL wire protocol\nCOMP-004 --> COMP-007 : In-process memory call\nCOMP-007 --> COMP-010 : In-process memory call\nCOMP-010 --> COMP-015 : Database wire protocol\nCOMP-010 --> COMP-015 : Database wire protocol\nCOMP-004 --> COMP-013 : In-process memory call\nCOMP-004 --> COMP-014 : In-process memory call\nCOMP-013 --> COMP-019 : SFTP/Batch or proprietary API\nCOMP-014 --> COMP-020 : HTTPS/REST\nCOMP-013 --> COMP-018 : In-process memory call\nCOMP-014 --> COMP-018 : In-process memory call\nCOMP-005 --> COMP-010 : In-process memory call\nCOMP-005 --> COMP-013 : In-process memory call\nCOMP-005 --> COMP-014 : In-process memory call\nCOMP-005 --> COMP-008 : In-process memory call\nCOMP-005 --> COMP-011 : In-process memory call\nCOMP-011 --> COMP-016 : SQL wire protocol\nCOMP-011 --> COMP-016 : SQL wire protocol\nCOMP-006 --> COMP-010 : In-process memory call\nCOMP-006 --> COMP-011 : In-process memory call\n\n@enduml",
+  "mermaid": "flowchart TD\n    subgraph Presentation[\"Presentation\"]\n        COMP-001[\" APIGatewayModule \"]\n        COMP-002[\" B2BUserBFFModule \"]\n        COMP-003[\" MerchantBFFModule \"]\n    end\n\n    subgraph Application[\"Application\"]\n        COMP-004[\" PaymentProcessingUseCase \"]\n        COMP-005[\" ReconciliationUseCase \"]\n        COMP-006[\" PaymentQueryUseCase \"]\n    end\n\n    subgraph Domain[\"Domain\"]\n        COMP-007[\" PaymentTransactionAggregate \"]\n        COMP-008[\" ReconciliationReportEntity \"]\n        COMP-009[\" IdempotencyKeyService \"]\n    end\n\n    subgraph Infrastructure[\"Infrastructure\"]\n        COMP-010[\" PaymentEventStoreRepository \"]\n        COMP-011[\" ReconciliationReportRepository \"]\n        COMP-012[\" IdempotencyKeyRepository \"]\n        COMP-013[\" ACHProcessorGateway \"]\n        COMP-014[\" CreditCardProcessorGateway \"]\n        COMP-015[(\" EventStoreDatabase \")]\n        COMP-016[(\" ReconciliationDatabase \")]\n        COMP-017[(\" IdempotencyKeyDatabase \")]\n        COMP-018[\" PCIComplianceModule \"]\n    end\n\n    COMP-019[\" BankACHNetwork \"]\n    COMP-020[\" CreditCardProcessors \"]\n\n    COMP-001 -->|\"HTTPS/REST\"| COMP-002\n    COMP-001 -->|\"HTTPS/REST\"| COMP-003\n    COMP-002 -->|\"In-process memory call\"| COMP-004\n    COMP-003 -->|\"In-process memory call\"| COMP-004\n    COMP-002 -->|\"In-process memory call\"| COMP-006\n    COMP-003 -->|\"In-process memory call\"| COMP-006\n    COMP-004 -->|\"In-process memory call\"| COMP-009\n    COMP-009 -->|\"In-process memory call\"| COMP-012\n    COMP-012 -->|\"SQL wire protocol\"| COMP-017\n    COMP-012 -->|\"SQL wire protocol\"| COMP-017\n    COMP-004 -->|\"In-process memory call\"| COMP-007\n    COMP-007 -->|\"In-process memory call\"| COMP-010\n    COMP-010 -->|\"Database wire protocol\"| COMP-015\n    COMP-010 -->|\"Database wire protocol\"| COMP-015\n    COMP-004 -->|\"In-process memory call\"| COMP-013\n    COMP-004 -->|\"In-process memory call\"| COMP-014\n    COMP-013 -->|\"SFTP/Batch or proprietary API\"| COMP-019\n    COMP-014 -->|\"HTTPS/REST\"| COMP-020\n    COMP-013 -->|\"In-process memory call\"| COMP-018\n    COMP-014 -->|\"In-process memory call\"| COMP-018\n    COMP-005 -->|\"In-process memory call\"| COMP-010\n    COMP-005 -->|\"In-process memory call\"| COMP-013\n    COMP-005 -->|\"In-process memory call\"| COMP-014\n    COMP-005 -->|\"In-process memory call\"| COMP-008\n    COMP-005 -->|\"In-process memory call\"| COMP-011\n    COMP-011 -->|\"SQL wire protocol\"| COMP-016\n    COMP-011 -->|\"SQL wire protocol\"| COMP-016\n    COMP-006 -->|\"In-process memory call\"| COMP-010\n    COMP-006 -->|\"In-process memory call\"| COMP-011",
+  "tradeoff_table": "| Requirement / Driver | Priority | ISO Sub-Characteristic | Clean Architecture (Onion / Concentric) (Rank 1) | Hexagonal (Ports and Adapters) Architecture (Rank 2) | Layered (N-Tier) Architecture (Rank 3) | Modular Monolith Architecture (Rank 4) |\n| :--- | :--- | :--- | :---: | :---: | :---: | :---: |\n| **ASR-001**: The system shall maintain strict immedia... | Critical | Integrity | +2 | +2 | +2 | +2 |\n| **ASR-002**: The system shall be compliant with PCI-D... | Critical | Confidentiality | +1 | +1 | +1 | +1 |\n| **ASR-003**: The system shall utilize idempotency key... | High | Fault tolerance | 0 | 0 | **-1** | **-1** |\n| **ASR-004**: The automated reconciliation process sha... | Critical | Integrity | +2 | +2 | +2 | +2 |\n| **RAW COMPOSITE SCORE** | - | - | **+25.0** | **+25.0** | **+21.0** | **+21.0** |\n| **OCCAM ADJUSTED SCORE** | - | - | **+23.5** | **+23.5** | **+20.0** | **+19.5** |\n| **STATUS** | - | - | **Rank 1** | **Rank 2** | **Rank 3** | **Rank 4** |\n\n**Recommended Companion Building Blocks:**\n- **Event Sourcing** (Score: +29.5) \u2014 *Fowler (2005); Young (2010); Richardson (microservices.io)*\n- **API Gateway Pattern** (Score: +21.5) \u2014 *Richardson (microservices.io); Newman (2021); Bass et al. (2021)*\n- **Backend for Frontend (BFF)** (Score: +16.5) \u2014 *Newman (2015, 2021); Richardson (microservices.io)*",
+  "validation_report": {
+    "total_nodes": 20,
+    "total_edges": 29,
+    "valid_edges_count": 29,
+    "rejected_edges_count": 0,
+    "rejected_reasons": [],
+    "orphan_nodes": [],
+    "orphan_ratio": 0,
+    "covered_requirement_ids": [
+      "ASR-002",
+      "FR-001",
+      "ASR-001",
+      "ASR-004",
+      "FR-002",
+      "ASR-003"
+    ],
+    "uncovered_requirement_ids": [],
+    "requirement_coverage_pct": 100,
+    "is_valid": true
+  }
+}

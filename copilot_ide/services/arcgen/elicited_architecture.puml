@@ -1,0 +1,42 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: ASPERA-3 Processing and Archiving Facility (APAF) (Service-Based Architecture)
+
+package "Presentation" {
+  [APAF-API-Gateway] as COMP-001 <<gateway>>
+  [Public-BFF] as COMP-002 <<service>>
+  [Science-Team-BFF] as COMP-003 <<service>>
+}
+
+package "Application" {
+  [Telemetry-Acquisition-Service] as COMP-004 <<service>>
+  [Data-Archival-Service] as COMP-006 <<service>>
+  [PDS-Integration-Service] as COMP-007 <<service>>
+}
+
+package "Domain" {
+  [Data-Processing-Service] as COMP-005 <<service>>
+}
+
+package "Infrastructure" {
+  [APAF-Event-Bus] as COMP-008 <<queue>>
+  [APAF-Shared-Database] as COMP-009 <<datastore>>
+}
+
+
+COMP-001 --> COMP-002 : HTTPS/REST
+COMP-001 --> COMP-003 : HTTPS/REST
+COMP-004 ..> COMP-008 : AMQP topic
+COMP-008 ..> COMP-005 : AMQP topic
+COMP-005 --> COMP-006 : HTTPS/REST
+COMP-005 --> COMP-007 : HTTPS/REST
+COMP-006 --> COMP-009 : PostgreSQL wire protocol
+COMP-007 --> COMP-009 : PostgreSQL wire protocol
+COMP-009 --> COMP-002 : PostgreSQL wire protocol
+COMP-009 --> COMP-003 : PostgreSQL wire protocol
+COMP-005 ..> COMP-008 : AMQP topic
+COMP-006 ..> COMP-008 : AMQP topic
+COMP-007 ..> COMP-008 : AMQP topic
+
+@enduml

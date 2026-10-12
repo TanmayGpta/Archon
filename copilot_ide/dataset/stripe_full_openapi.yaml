@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Stripe Full API
+  version: v1
+  description: Comprehensive B2B Payment processing API.
+servers:
+- url: https://api.stripe.com/v1
+paths:
+  /customers:
+    post:
+      summary: Create a customer
+      description: Creates a new customer object.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+    get:
+      summary: List all customers
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+  /payment_intents:
+    post:
+      summary: Create a PaymentIntent
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                currency:
+                  type: string
+                customer:
+                  type: string
+  /subscriptions:
+    post:
+      summary: Create a Subscription
+      description: Subscribes a customer to a specific price plan.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                customer:
+                  type: string
+                items[0][price]:
+                  type: string
+  /invoices:
+    get:
+      summary: List all invoices
+      parameters:
+      - name: customer
+        in: query
+        schema:
+          type: string

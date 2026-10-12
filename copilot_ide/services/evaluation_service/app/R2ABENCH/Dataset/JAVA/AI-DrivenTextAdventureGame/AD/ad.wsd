@@ -1,0 +1,114 @@
+@startuml
+' --- Styling and Configuration ---
+skinparam componentStyle rectangle
+top to bottom direction
+
+skinparam package {
+    BackgroundColor White
+    BorderColor #333333
+}
+
+' Defining styles based on Mermaid classDefs
+skinparam rectangle<<frontend>> {
+    BackgroundColor #d4e6f1
+    BorderColor #2874a6
+    BorderThickness 2
+}
+
+skinparam rectangle<<present>> {
+    BackgroundColor #f9e79f
+    BorderColor #d4ac0d
+    BorderThickness 2
+}
+
+skinparam rectangle<<business>> {
+    BackgroundColor #abebc6
+    BorderColor #1d8348
+    BorderThickness 2
+}
+
+skinparam rectangle<<data>> {
+    BackgroundColor #d7bde2
+    BorderColor #884ea0
+    BorderThickness 2
+}
+
+skinparam database<<db>> {
+    BackgroundColor #fdfefe
+    BorderColor #333333
+    BorderThickness 2
+}
+
+skinparam rectangle<<sidebar>> {
+    BackgroundColor #f1948a
+    BorderColor #cb4335
+    BorderThickness 2
+}
+
+skinparam rectangle<<logbar>> {
+    BackgroundColor #a9cce3
+    BorderColor #2471a3
+    BorderThickness 2
+}
+
+' --- Architecture Layers ---
+
+package "Frontend UI Layer" as FrontendUI {
+    rectangle "TypeScript" as TS <<frontend>>
+    rectangle "Vite2" as Vite <<frontend>>
+    rectangle "Vue3" as Vue <<frontend>>
+    rectangle "element-plus" as Elem <<frontend>>
+}
+
+package "Presentation Layer" as Presentation {
+    rectangle "Template Rendering" as Render <<present>>
+    
+    rectangle "Ajax Interaction" as AjaxGroup <<present>> {
+        rectangle "POST Request" as PostReq <<present>>
+        rectangle "GET Request" as GetReq <<present>>
+    }
+}
+
+package "Business Layer" as BusinessLayer {
+    rectangle "Spring Boot" as SB_Container <<business>> {
+        rectangle "Community Management" as CommMgmt <<business>>
+        rectangle "User Management" as UserMgmt <<business>>
+        rectangle "Game System" as GameSys <<business>>
+        rectangle "Favorites Module" as FavMod <<business>>
+        rectangle "Notification Module" as NotifMod <<business>>
+
+    }
+}
+
+' Side Components
+rectangle "Log Recording" as LogRec <<logbar>>
+rectangle "Permission Control" as AuthCtrl <<sidebar>>
+
+package "Data Layer" as DataLayer {
+    rectangle "Data Caching" as Cache <<data>>
+    rectangle "Read/Write Database" as RWDB <<data>>
+    rectangle "Storage" as Storage <<data>>
+    
+}
+
+package "Database Layer" as DatabaseLayer {
+    database "MySQL" as MySQL <<db>>
+}
+
+' --- Relationships ---
+
+FrontendUI --> Presentation
+BusinessLayer --> Render
+BusinessLayer --> DataLayer
+DataLayer --> MySQL
+
+AjaxGroup --> BusinessLayer
+
+' Dotted relationships for cross-cutting concerns
+BusinessLayer .. LogRec
+BusinessLayer .. AuthCtrl
+DataLayer .. LogRec
+DataLayer .. AuthCtrl
+Presentation .. AuthCtrl
+
+@enduml

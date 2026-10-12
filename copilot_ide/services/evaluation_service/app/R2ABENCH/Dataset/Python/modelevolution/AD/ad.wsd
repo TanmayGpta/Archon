@@ -1,0 +1,57 @@
+@startuml
+' Directional setting (Top to Down)
+top to bottom direction
+
+' Styling for different layers
+skinparam rectangle {
+    BackgroundColor<<Frontend>> #e1f5fe
+    BorderColor<<Frontend>> #01579b
+    
+    BackgroundColor<<Presentation>> #f3e5f5
+    BorderColor<<Presentation>> #4a148c
+    
+    BackgroundColor<<Backend>> #fff3e0
+    BorderColor<<Backend>> #e65100
+}
+
+skinparam database {
+    BackgroundColor<<Storage>> #e8f5e9
+    BorderColor<<Storage>> #1b5e20
+}
+
+' Layers / Subgraphs
+package "Frontend Layer" {
+    rectangle "React Framework" as React <<Frontend>>
+    rectangle "React-Router: Page Navigation" as Router <<Frontend>>
+    rectangle "Netron: Node Drawing Features" as NetronFE <<Frontend>>
+}
+
+package "Data Presentation Layer" {
+    rectangle "RESTful API Design" as RESTAPI <<Presentation>>
+    rectangle "Netron: Graph Representation Language" as GraphLang <<Presentation>>
+}
+
+package "Backend Layer" {
+    rectangle "Flask: Backend Framework" as Flask <<Backend>>
+    rectangle "SQLAlchemy: ORM Framework" as SQLAlchemy <<Backend>>
+    rectangle "Netron: Model Conversion & Parsing" as NetronBE <<Backend>>
+}
+
+package "Storage / Database Layer" {
+    database "MySQL: Relational Database" as MySQL <<Storage>>
+    database "Neo4j: Graph Database" as Neo4j <<Storage>>
+}
+
+' Relationships
+React --> Router
+React --> NetronFE
+React --> RESTAPI
+NetronFE --> GraphLang
+RESTAPI --> Flask
+GraphLang --> Flask
+Flask --> SQLAlchemy
+Flask --> NetronBE
+SQLAlchemy --> MySQL
+Flask --> Neo4j
+
+@enduml

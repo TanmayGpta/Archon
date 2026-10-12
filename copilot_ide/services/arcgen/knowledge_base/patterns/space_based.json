@@ -1,0 +1,63 @@
+{
+  "pattern_id": "PAT-SPACE-BASED",
+  "name": "Space-Based Architecture",
+  "catalog_source": "Richards & Ford (2020), Ch. 15",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Elimination of the central database as a runtime bottleneck via in-memory replicated data grids",
+    "Sub-10ms read and write latency at massive concurrency",
+    "Extreme elasticity and auto-scaling processing units"
+  ],
+  "forces_unresolved": [
+    "Extremely high RAM hosting costs for distributed in-memory data caches",
+    "Complex cache replication and synchronization collision management",
+    "Eventual asynchronous writes to persistent storage risk data loss during abrupt cluster dropouts"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": 2,
+    "Resource utilization": -2,
+    "Availability": 2,
+    "Fault tolerance": 2,
+    "Recoverability": -1,
+    "Confidentiality": 1,
+    "Integrity": -1,
+    "Modularity": 0,
+    "Reusability": 0,
+    "Analysability": -2,
+    "Modifiability": 0,
+    "Testability": -2,
+    "Scalability": 2,
+    "Adaptability": 0,
+    "Interoperability": 0
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual"
+    ],
+    "min_team_size": 5,
+    "operational_complexity": 5,
+    "cost_factor": 5,
+    "max_scale_rps": 500000
+  },
+  "applicability_conditions": [
+    "High-frequency algorithmic trading, online gaming leaderboards, ticketing surges",
+    "Workloads with extreme variable traffic spikes and strict sub-20ms SLA",
+    "Sufficient cloud budget to sustain large multi-node memory clusters"
+  ],
+  "anti_requisites": [
+    "Low infrastructure budget (< $5,000/mo)",
+    "Small engineering team without dedicated cluster operations specialists",
+    "Strict immediate synchronous relational durability requirements"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-EDA-BROKER",
+      "PAT-MICROSERVICES"
+    ],
+    "successors": [
+      "PAT-CQRS"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

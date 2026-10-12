@@ -1,0 +1,63 @@
+@startuml
+' Configuration for Top-Down Direction
+top to bottom direction
+
+' Styling - Matching your Mermaid class colors
+skinparam rectangle {
+    BackgroundColor<<User>> #f9f
+    BackgroundColor<<Presentation>> #bbf
+    BackgroundColor<<Application>> #dfd
+    BackgroundColor<<Storage>> #fdd
+    BorderColor #333
+    BorderThickness 2
+}
+
+skinparam database {
+    BackgroundColor #fdd
+    BorderColor #333
+}
+
+' Layer 1: User Layer
+rectangle "User Layer / Client Layer" as UserLayer <<User>> {
+    component "PC Browser" as PC
+    component "Mobile Browser" as Mobile
+}
+
+' Layer 2: Presentation Layer
+rectangle "Presentation Layer / Frontend" as PresentationLayer <<Presentation>> {
+    component "Registration & Login Interface" as AuthUI
+    component "File Upload Interface" as UploadUI
+    component "LaTeX Rendering Interface" as LatexUI
+    component "Workspace Interface" as WorkspaceUI
+}
+
+' Layer 3: Application Layer
+rectangle "Application Layer / Backend Services" as ApplicationLayer <<Application>> {
+    component "User Management Service" as UserSvc
+    component "File Processing Service" as FileSvc
+    
+    rectangle "AI Module" as AI_Module {
+        component "Image Pre-processing Module" as PreProcess
+        component "LaTeX Generation Module" as LatexGen
+        component "Result Processing Module" as ResultProcess
+    }
+    
+    rectangle "Project Management Service" as ProjectSvc {
+        component "Project Basic Services" as BaseSvc
+        component "Collaboration & Permissions Service" as CollabSvc
+    }
+}
+
+' Layer 4: Data Layer
+rectangle "Data Layer / Storage" as DataLayer <<Storage>> {
+    database "User Information" as UserDB
+    database "Project & Article Info" as ProjectDB
+    database "Team Learning Data" as TeamDB
+}
+
+' Structural Relationships
+UserLayer --> PresentationLayer
+PresentationLayer --> ApplicationLayer
+ApplicationLayer --> DataLayer
+
+@enduml

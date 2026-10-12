@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-CQRS",
+  "name": "Command Query Responsibility Segregation (CQRS)",
+  "catalog_source": "Young (2010); Fowler (2011); Richardson (microservices.io)",
+  "topology_type": "Hybrid",
+  "forces_resolved": [
+    "Independent optimization of write (command) models and read (query) models",
+    "Extreme query performance via denormalized read-optimized projections",
+    "Elimination of complex multi-table joins on high-traffic read paths"
+  ],
+  "forces_unresolved": [
+    "Eventual consistency lag between command updates and query projections",
+    "Code duplication between command and query domain models",
+    "Dual data store synchronization failure modes"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": 2,
+    "Resource utilization": 0,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": -1,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": -1,
+    "Modifiability": 1,
+    "Testability": -1,
+    "Scalability": 2,
+    "Adaptability": 1,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual",
+      "Causal"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 4,
+    "cost_factor": 3,
+    "max_scale_rps": 100000
+  },
+  "applicability_conditions": [
+    "Massive read/write traffic asymmetry (e.g., 100:1 read-to-write ratio)",
+    "Complex search queries requiring denormalized views (e.g. Elasticsearch alongside Postgres)",
+    "Domain models where business update rules differ heavily from read DTO requirements"
+  ],
+  "anti_requisites": [
+    "Symmetric low-traffic CRUD applications",
+    "Strict requirement for immediate read-after-write consistency on query models",
+    "Single engineer maintenance without event streaming experience"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH"
+    ],
+    "successors": [
+      "PAT-EVENT-SOURCING",
+      "PAT-EDA-BROKER"
+    ]
+  },
+  "pattern_role": "Companion"
+}

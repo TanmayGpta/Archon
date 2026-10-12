@@ -1,0 +1,58 @@
+@startuml
+!theme plain
+skinparam defaultTextAlignment center
+
+skinparam package {
+    BorderThickness 1.5
+}
+
+package "Annotation Models" as AM #F8F0FA {
+    rectangle "Entity Model - ChatGPT/\nLLM" as entity
+    rectangle "Paragraph Model - Google\nBERT" as para
+}
+
+package "Infrastructure Layer" as Infra #EEF1F3 {
+    rectangle "Tencent Cloud Server" as tencent
+    rectangle "Docker Containerization" as docker
+    rectangle "RabbitMQ Message Queue" as rabbitmq
+}
+
+package "Application Layer-Ant\nDesign / Vue.js" as App #FFA6FF {
+    rectangle "Preset Sharing" as preset
+    rectangle "Text Annotation" as annotation
+    rectangle "Intelligent Mining" as mining
+}
+
+package "Gateway Layer" as Gateway #FFF5D6 {
+    rectangle "Nginx Gateway" as nginx
+}
+
+package "Business Service Layer-\nSpring Boot" as Biz #E6F3FA {
+    rectangle "Management Service" as mgmt
+    rectangle "Annotation Service" as ann_svc
+    rectangle "Mining Service" as mine_svc
+}
+
+package "Data Storage Layer" as Storage #EAF3EA {
+    rectangle "MinIO Object Storage" as minio
+    rectangle "MySQL Structured\nDatabase" as mysql
+    rectangle "Redis Cache" as redis
+}
+
+
+App --> Gateway
+Gateway --> Biz
+Biz --> Storage
+
+
+AM ...> App : Supports
+AM ...> Gateway : Supports
+AM ...> Biz : Supports
+
+Infra ...> App : Supports
+Infra ...> Gateway : Supports
+Infra ...> Biz : Supports
+Infra ...> Storage : Supports
+
+
+@enduml

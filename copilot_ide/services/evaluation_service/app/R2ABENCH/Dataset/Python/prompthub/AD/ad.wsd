@@ -1,0 +1,124 @@
+@startuml
+' Configuration for layout and styling
+skinparam linetype ortho
+top to bottom direction
+
+' Define Colors and Styles
+skinparam rectangle {
+    BackgroundColor<<frontend>> #e1f5fe
+    BorderColor<<frontend>> #01579b
+    
+    BackgroundColor<<service>> #fff9c4
+    BorderColor<<service>> #fbc02d
+    
+    BackgroundColor<<framework>> #ede7f6
+    BorderColor<<framework>> #512da8
+    
+    BackgroundColor<<algo>> #f1f8e9
+    BorderColor<<algo>> #558b2f
+    
+    BackgroundColor<<infra>> #e8eaf6
+    BorderColor<<infra>> #3f51b5
+    BorderStyle<<infra>> dashed
+}
+
+skinparam database {
+    BackgroundColor #f3e5f5
+    BorderColor #7b1fa2
+}
+
+' =========================
+' Frontend Layer
+' =========================
+rectangle "Frontend / Client Layer" as Frontend <<frontend>> {
+    rectangle "User System" as UserSys <<frontend>> {
+        node "User Login" as UL
+        node "View Home Page" as VHP
+        node "Follow Others" as FO
+        node "Browse History" as BH
+    }
+
+    rectangle "Admin System" as AdminSys <<frontend>> {
+        node "Admin Login" as AL
+        node "View User List" as VUL
+        node "View Works List" as VWL
+        node "Audit / Review Works" as ARW
+    }
+
+    rectangle "Display System" as DisplaySys <<frontend>> {
+        node "Upload Works" as UW
+        node "Query Works" as QW
+        node "View Works" as VW
+        node "Query Upload Progress" as QU
+    }
+
+    rectangle "Collection System" as CollectionSys <<frontend>> {
+        node "Add Collection" as AC
+        node "Collection Category" as CC
+        node "Query Collection" as QC
+        node "Edit Collection" as EC
+    }
+
+    rectangle "Comment System" as CommentSys <<frontend>> {
+        node "Comment on Works" as CW
+        node "Delete Comment" as DC
+        node "Reply to Comment" as RC
+        node "Delete Reply" as DR
+    }
+
+    rectangle "Notification System" as NotifySys <<frontend>> {
+        node "Comment Notification" as CN
+        node "Reply Notification" as RN
+        node "Audit Notification" as AN
+        node "Private Message - TBD" as PM
+    }
+
+    rectangle "Recommendation System" as RecommendSys <<frontend>> {
+        node "Hot Recommendations" as HR
+        node "Personalized Recommendations" as PR
+        node "Close Recommendations" as OR
+    }
+}
+
+' =========================
+' Service / Backend Layer
+' =========================
+rectangle "Service / Backend Layer" as ServiceLayer <<service>> {
+    
+    rectangle "Backend Framework: Django" as Django <<framework>>
+
+    rectangle "Business Services" as CoreServices <<service>> {
+        node "Account Service" as AccountSvc
+        node "Authentication Service" as AuthSvc
+        node "Resource Service" as ResourceSvc
+        node "Works Service" as WorksSvc
+        node "Audit Service" as AuditSvc
+        node "Notification Service" as NotifySvc
+    }
+
+    rectangle "Recommendation Algorithms" as RecommendAlgo <<algo>> {
+        node "Content Heat / Popularity Based" as Algo1
+        node "User Collection / History Based" as Algo2
+        node "Social Relation Based" as Algo3
+    }
+
+    database "SQLite Database" as DB
+}
+
+' =========================
+' Deployment Layer
+' =========================
+rectangle "Infrastructure" as Deployment <<infra>> {
+    node "Docker Deployment" as Docker
+}
+
+' =========================
+' Relationships
+' =========================
+Frontend --> CoreServices
+CoreServices --> RecommendAlgo
+RecommendAlgo --> Django
+RecommendAlgo --> DB
+ServiceLayer ..> Docker : "deploys to"
+
+@enduml

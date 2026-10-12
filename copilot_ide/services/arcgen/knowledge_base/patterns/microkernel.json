@@ -1,0 +1,63 @@
+{
+  "pattern_id": "PAT-MICROKERNEL",
+  "name": "Microkernel (Plugin) Architecture",
+  "catalog_source": "Richards & Ford (2020), Ch. 12; Buschmann et al. (POSA 1)",
+  "topology_type": "Monolithic",
+  "forces_resolved": [
+    "High extensibility via hot-swappable plugins",
+    "Separation of core domain logic from variable customer/workflow features",
+    "Simplicity and high portability"
+  ],
+  "forces_unresolved": [
+    "Complex plugin contract versioning and governance",
+    "Single-process scalability limits",
+    "Core system changes risk breaking multiple external plugins"
+  ],
+  "iso25010_impact": {
+    "Capacity": 0,
+    "Time behavior": 1,
+    "Resource utilization": 1,
+    "Availability": 0,
+    "Fault tolerance": -1,
+    "Recoverability": 0,
+    "Confidentiality": 0,
+    "Integrity": 1,
+    "Modularity": 2,
+    "Reusability": 2,
+    "Analysability": 1,
+    "Modifiability": 2,
+    "Testability": 1,
+    "Scalability": -1,
+    "Adaptability": 2,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 1,
+    "operational_complexity": 2,
+    "cost_factor": 1,
+    "max_scale_rps": 10000
+  },
+  "applicability_conditions": [
+    "Applications with customizable product lines, IDEs, or rule engines",
+    "Workflows requiring frequent addition of third-party integrations or rules",
+    "Packaged software or desktop / single-tenant enterprise deployments"
+  ],
+  "anti_requisites": [
+    "Massive horizontal scaling across cloud regions (> 30,000 rps)",
+    "Distributed asynchronous data pipeline architectures",
+    "High frequency micro-redeployments of independent data stores"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-PIPELINE"
+    ],
+    "successors": [
+      "PAT-SERVICE-BASED"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

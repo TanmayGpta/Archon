@@ -1,0 +1,36 @@
+flowchart TD
+    subgraph Presentation["Presentation"]
+        COMP-001[" APAF-API-Gateway "]
+        COMP-002[" Public-BFF "]
+        COMP-003[" Science-Team-BFF "]
+    end
+
+    subgraph Application["Application"]
+        COMP-004[" Telemetry-Acquisition-Service "]
+        COMP-006[" Data-Archival-Service "]
+        COMP-007[" PDS-Integration-Service "]
+    end
+
+    subgraph Domain["Domain"]
+        COMP-005[" Data-Processing-Service "]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        COMP-008{" APAF-Event-Bus "}
+        COMP-009[(" APAF-Shared-Database ")]
+    end
+
+
+    COMP-001 -->|"HTTPS/REST"| COMP-002
+    COMP-001 -->|"HTTPS/REST"| COMP-003
+    COMP-004 -.->|"AMQP topic"| COMP-008
+    COMP-008 -.->|"AMQP topic"| COMP-005
+    COMP-005 -->|"HTTPS/REST"| COMP-006
+    COMP-005 -->|"HTTPS/REST"| COMP-007
+    COMP-006 -->|"PostgreSQL wire protocol"| COMP-009
+    COMP-007 -->|"PostgreSQL wire protocol"| COMP-009
+    COMP-009 -->|"PostgreSQL wire protocol"| COMP-002
+    COMP-009 -->|"PostgreSQL wire protocol"| COMP-003
+    COMP-005 -.->|"AMQP topic"| COMP-008
+    COMP-006 -.->|"AMQP topic"| COMP-008
+    COMP-007 -.->|"AMQP topic"| COMP-008

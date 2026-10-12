@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: Zendesk Support Tickets API
+  version: 2.0.0
+  description: Mock Zendesk ticketing microservice for support management, refund
+    triage, and customer communication.
+servers:
+- url: https://api.archon.internal/zendesk
+paths:
+  /api/v2/tickets:
+    post:
+      summary: Create a support ticket
+      description: Creates a new customer support ticket in the ticketing queue.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - subject
+              - comment
+              - requester
+              properties:
+                subject:
+                  type: string
+                  example: Requesting refund for order 102938
+                comment:
+                  type: object
+                  required:
+                  - body
+                  properties:
+                    body:
+                      type: string
+                      example: Customer requested full refund due to defective item.
+                requester:
+                  type: object
+                  required:
+                  - name
+                  - email
+                  properties:
+                    name:
+                      type: string
+                      example: Jane Doe
+                    email:
+                      type: string
+                      example: jane.doe@example.com
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                  - refund_request
+                  - ecommerce
+                custom_fields:
+                  type: object
+                  properties:
+                    charge_id:
+                      type: string
+                      example: ch_3Mtw9K2eZvKYlo2C0Vv
+      responses:
+        '201':
+          description: Ticket created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 94102
+                      subject:
+                        type: string
+                      status:
+                        type: string
+                        example: new
+                      tags:
+                        type: array
+                        items:
+                          type: string
+  /api/v2/tickets/{ticket_id}:
+    get:
+      summary: Retrieve ticket details
+      description: Fetches ticket metadata, requester information, custom fields,
+        tags, and status.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Unique Zendesk ticket ID
+      responses:
+        '200':
+          description: Ticket details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  subject:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - new
+                    - open
+                    - pending
+                    - solved
+                    - closed
+                  tags:
+                    type: array
+                    items:
+                      type: string
+                  requester:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      email:
+                        type: string
+                  custom_fields:
+                    type: object
+                    properties:
+                      charge_id:
+                        type: string
+    put:
+      summary: Update a ticket
+      description: Updates ticket status, assigns agents, or appends public/internal
+        comments.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Unique Zendesk ticket ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                  - new
+                  - open
+                  - pending
+                  - solved
+                  - closed
+                comment:
+                  type: object
+                  properties:
+                    body:
+                      type: string
+                    public:
+                      type: boolean
+      responses:
+        '200':
+          description: Ticket updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  status:
+                    type: string
+  /api/v2/tickets/{ticket_id}/comments:
+    get:
+      summary: List ticket comments
+      description: Retrieves all public and private comments associated with a support
+        ticket.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Unique Zendesk ticket ID
+      responses:
+        '200':
+          description: Comment history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        body:
+                          type: string
+                        public:
+                          type: boolean
+                        author_id:
+                          type: integer
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

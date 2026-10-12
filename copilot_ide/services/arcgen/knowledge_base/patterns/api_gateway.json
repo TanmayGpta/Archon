@@ -1,0 +1,65 @@
+{
+  "pattern_id": "PAT-API-GATEWAY",
+  "name": "API Gateway Pattern",
+  "catalog_source": "Richardson (microservices.io); Newman (2021); Bass et al. (2021)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Single unified entry point for external client applications",
+    "Centralizes cross-cutting concerns: authentication, SSL termination, rate limiting, and metrics",
+    "Insulates external clients from internal microservice decomposition and address changes",
+    "Protocol translation (e.g. external REST/JSON to internal gRPC)"
+  ],
+  "forces_unresolved": [
+    "Gateway can become a performance bottleneck and single point of failure if not clustered",
+    "Risk of business logic creeping into the routing gateway (anti-pattern)",
+    "Additional network hop added to all incoming external requests"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": -1,
+    "Resource utilization": 0,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 2,
+    "Integrity": 1,
+    "Modularity": 2,
+    "Reusability": 2,
+    "Analysability": 2,
+    "Modifiability": 1,
+    "Testability": 1,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 2
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong",
+      "Eventual"
+    ],
+    "min_team_size": 2,
+    "operational_complexity": 3,
+    "cost_factor": 2,
+    "max_scale_rps": 100000
+  },
+  "applicability_conditions": [
+    "Microservice systems exposed to public internet clients (web, mobile, third-party APIs)",
+    "Systems requiring centralized OAuth2 / JWT authentication validation",
+    "Architectures needing rate limiting and DDoS protection at the edge"
+  ],
+  "anti_requisites": [
+    "Simple monolithic applications with direct frontend-backend coupling",
+    "Purely internal offline batch data processing systems",
+    "Sub-millisecond internal latency requirements where edge proxy hop is unacceptable"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-BFF"
+    ],
+    "companions": [
+      "PAT-MICROSERVICES",
+      "PAT-SERVICE-BASED"
+    ]
+  },
+  "pattern_role": "Companion"
+}

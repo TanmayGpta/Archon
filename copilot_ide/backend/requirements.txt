@@ -1,0 +1,10 @@
+fastapi>=0.110.0
+uvicorn>=0.29.0
+httpx>=0.27.0
+pydantic>=2.7.0
+sentence-transformers>=3.0.0
+chromadb>=0.4.24
+rank-bm25>=0.2.2
+pyyaml>=6.0.1
+python-multipart>=0.0.9
+numpy>=1.26.0

@@ -1,0 +1,51 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: C2C-TxDOT (Microservices Architecture)
+
+package "Infrastructure" {
+  [APIGateway] as COMP-001 <<gateway>>
+  [AuthService] as COMP-007 <<service>>
+  [TrafficDataDB] as COMP-008 <<datastore>>
+  [DeviceControlDB] as COMP-009 <<datastore>>
+  [NetworkDB] as COMP-010 <<datastore>>
+  [ConfigDB] as COMP-011 <<datastore>>
+  [EventQueue] as COMP-012 <<queue>>
+  [ExistingTrafficManagementSystems] as COMP-013 <<external>>
+  [NCTCOGGeoDataWarehouse] as COMP-014 <<external>>
+  [InternetWWWServer] as COMP-015 <<external>>
+}
+
+package "Presentation" {
+  [WebMapBFF] as COMP-002 <<service>>
+}
+
+package "Domain" {
+  [TrafficDataService] as COMP-003 <<service>>
+  [DeviceControlService] as COMP-004 <<service>>
+  [NetworkManagementService] as COMP-005 <<service>>
+}
+
+package "Application" {
+  [ConfigurationService] as COMP-006 <<service>>
+}
+
+
+COMP-013 --> COMP-001 : gRPC over HTTP/2 (DATEX/ASN TMDD payload)
+COMP-001 --> COMP-003 : gRPC over HTTP/2
+COMP-001 --> COMP-004 : gRPC over HTTP/2
+COMP-001 --> COMP-007 : HTTPS/REST
+COMP-004 --> COMP-007 : HTTPS/REST
+COMP-003 --> COMP-008 : PostgreSQL wire protocol
+COMP-003 --> COMP-008 : PostgreSQL wire protocol
+COMP-001 --> COMP-002 : HTTPS/REST
+COMP-001 --> COMP-005 : HTTPS/REST
+COMP-001 --> COMP-006 : HTTPS/REST
+COMP-004 --> COMP-009 : PostgreSQL wire protocol
+COMP-005 --> COMP-010 : PostgreSQL wire protocol
+COMP-006 --> COMP-011 : PostgreSQL wire protocol
+COMP-002 ..> COMP-012 : AMQP / Kafka protocol
+COMP-014 --> COMP-001 : HTTPS/REST
+COMP-015 --> COMP-001 : HTTPS/REST
+
+@enduml
