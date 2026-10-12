@@ -4,8 +4,9 @@ Interactively questions the user to elicit missing Architecturally Significant
 Requirements (ASRs) without interrogation fatigue.
 """
 
+import re
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 
 logger = logging.getLogger(__name__)
 from generation.ArcGen.schemas.requirements import (
@@ -33,8 +34,9 @@ RULES:
    - Do NOT ask generic product-management questions (e.g., "What user features do you want?", "What colors?").
    - Focus strictly on technical and architectural drivers: scale, latency budgets, data consistency, uptime, cloud/hosting target, or budget.
 2. PREVENT INTERROGATION FATIGUE:
-   - Provide a 1-sentence "why_it_matters" explaining the architectural trade-off at stake (e.g., "Whether you need immediate ACID consistency dictates whether we can use an event-driven broker or require a relational database").
+   - Provide a 1-sentence "why_it_matters" explaining the architectural trade-off at stake.
    - Offer 2 to 3 concrete, realistic options/benchmarks to make answering effortless.
+   - CRITICAL: "suggested_options" MUST be an array of separate, distinct strings. Do NOT lump or concatenate options together into a single string.
 
 OUTPUT MUST BE VALID JSON:
 {{
@@ -111,6 +113,59 @@ DIMENSION_DEFAULT_OPTIONS = {
         "Performance-first / Budget is secondary to reliability & throughput",
     ],
 }
+
+
+def normalize_suggested_options(raw_options: Any) -> List[str]:
+    """Ensures suggested_options is always a clean list of individual options.
+
+    Splits multi-line strings, numbered items (1. ... 2. ...), or 'Option X:' markers
+    so options never collapse into a single monolithic block.
+    """
+    if not raw_options:
+        return []
+
+    candidates: List[str] = []
+    if isinstance(raw_options, str):
+        candidates = [raw_options]
+    elif isinstance(raw_options, list):
+        candidates = [str(x) for x in raw_options if x]
+    elif isinstance(raw_options, dict):
+        candidates = [str(v) for v in raw_options.values() if v]
+    else:
+        candidates = [str(raw_options)]
+
+    result: List[str] = []
+    for item in candidates:
+        item = item.strip()
+        if not item:
+            continue
+
+        # 1. Handle newlines
+        if "\n" in item:
+            lines = [line.strip() for line in item.split("\n") if line.strip()]
+            for line in lines:
+                cleaned = re.sub(r"^[-*•\d.)\s]+", "", line).strip()
+                if cleaned:
+                    result.append(cleaned)
+            continue
+
+        # 2. Handle embedded numbered items or Option 1... Option 2...
+        split_pattern = r"(?:\s+|^)(?:(?:Option\s+\d+:?)|(?:\d+[\.\)]))\s*"
+        splits = [s.strip(" ;,.-") for s in re.split(split_pattern, item, flags=re.IGNORECASE) if s.strip(" ;,.-")]
+        if len(splits) > 1:
+            result.extend(splits)
+            continue
+
+        # 3. Handle semicolon separation if multiple choices
+        if ";" in item:
+            semi_splits = [s.strip(" ;,.-") for s in item.split(";") if s.strip(" ;,.-")]
+            if len(semi_splits) > 1:
+                result.extend(semi_splits)
+                continue
+
+        result.append(item)
+
+    return [r for r in result if len(r) > 1]
 
 
 class ElicitationAgent:
@@ -215,7 +270,7 @@ OUTPUT MUST BE A JSON OBJECT:
                 user_prompt=prompt,
                 temperature=0.2,
             )
-            options = data.get("suggested_options") or []
+            options = normalize_suggested_options(data.get("suggested_options"))
             if not options:
                 options = DIMENSION_DEFAULT_OPTIONS.get(target_dim, [])
             return QuestionItem(

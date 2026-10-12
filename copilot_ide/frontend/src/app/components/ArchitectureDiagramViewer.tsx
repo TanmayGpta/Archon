@@ -90,7 +90,7 @@ async function encodePlantUML(pumlText: string): Promise<string> {
     merged.set(c, off);
     off += c.length;
   }
-  return '~1' + encode64(merged);
+  return encode64(merged);
 }
 
 export function ArchitectureDiagramViewer({
@@ -176,10 +176,17 @@ export function ArchitectureDiagramViewer({
 
   // Synthesize fallback PlantUML if not pre-rendered in JSON
   const effectivePlantUML = useMemo(() => {
-    if (plantuml && plantuml.trim()) return plantuml;
+    const sanitizePuml = (code: string) => {
+      // Replace unquoted aliases containing hyphens with underscores so PlantUML parser doesn't break
+      return code.replace(/\b([A-Za-z0-9]+)-([A-Za-z0-9]+)\b/g, '$1_$2');
+    };
+
+    if (plantuml && plantuml.trim()) return sanitizePuml(plantuml);
     if (!nodes || nodes.length === 0) return '';
     const lines = ['@startuml', 'skinparam componentStyle uml2', ''];
     lines.push(`title Architecture: ${projectName || 'System'} (${style || 'Component Architecture'})\n`);
+
+    const safeId = (id: string) => (id || '').replace(/-/g, '_');
 
     const layers: Record<string, ArchNode[]> = {};
     const noLayer: ArchNode[] = [];
@@ -192,21 +199,21 @@ export function ArchitectureDiagramViewer({
     Object.entries(layers).forEach(([layerName, layerNodes]) => {
       lines.push(`package "${layerName}" {`);
       layerNodes.forEach(node => {
-        lines.push(`  [${node.name}] as ${node.node_id} <<${node.node_type}>>`);
+        lines.push(`  [${node.name}] as ${safeId(node.node_id)} <<${node.node_type}>>`);
       });
       lines.push('}');
       lines.push('');
     });
 
     noLayer.forEach(node => {
-      lines.push(`[${node.name}] as ${node.node_id} <<${node.node_type}>>`);
+      lines.push(`[${node.name}] as ${safeId(node.node_id)} <<${node.node_type}>>`);
     });
 
     lines.push('');
     edges.forEach(e => {
       const arrow = e.edge_type === 'async_pubsub' ? '..>' : '-->';
       const label = `: ${e.protocol || e.edge_type}`;
-      lines.push(`${e.source} ${arrow} ${e.target} ${label}`);
+      lines.push(`${safeId(e.source)} ${arrow} ${safeId(e.target)} ${label}`);
     });
 
     lines.push('');
