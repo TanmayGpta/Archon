@@ -122,17 +122,20 @@ class ArchitectureGraph(BaseModel):
             else:
                 no_layer.append(n)
 
+        def _safe_id(val: str) -> str:
+            return str(val).replace("-", "_")
+
         for layer_name, layer_nodes in layers.items():
             lines.append(f'package "{layer_name}" {{')
             for node in layer_nodes:
                 type_tag = f"<<{node.node_type.value}>>"
-                lines.append(f'  [{node.name}] as {node.node_id} {type_tag}')
+                lines.append(f'  [{node.name}] as {_safe_id(node.node_id)} {type_tag}')
             lines.append("}")
             lines.append("")
 
         for node in no_layer:
             type_tag = f"<<{node.node_type.value}>>"
-            lines.append(f'[{node.name}] as {node.node_id} {type_tag}')
+            lines.append(f'[{node.name}] as {_safe_id(node.node_id)} {type_tag}')
 
         lines.append("")
         for e in self.edges:
@@ -140,7 +143,7 @@ class ArchitectureGraph(BaseModel):
             if e.edge_type in (EdgeType.ASYNC_PUBSUB,):
                 arrow = "..>"
             label = f": {e.protocol or e.edge_type.value}"
-            lines.append(f"{e.source} {arrow} {e.target} {label}")
+            lines.append(f"{_safe_id(e.source)} {arrow} {_safe_id(e.target)} {label}")
 
         lines.append("")
         lines.append("@enduml")

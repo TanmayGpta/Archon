@@ -146,6 +146,46 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
     return apiBase || 'http://localhost:8000';
   }, [apiBase]);
 
+  // Defensive parser for options so multiple benchmark targets never collapse into one single button
+  const currentOptions = useMemo(() => {
+    if (!currentQuestion?.suggested_options) return [];
+    const raw = Array.isArray(currentQuestion.suggested_options)
+      ? currentQuestion.suggested_options
+      : [String(currentQuestion.suggested_options)];
+
+    const list: string[] = [];
+    raw.forEach(entry => {
+      if (!entry) return;
+      const text = String(entry).trim();
+      if (!text) return;
+
+      // 1. If contains newlines, split each line
+      if (text.includes('\n')) {
+        text
+          .split('\n')
+          .map(l => l.replace(/^[-*•\d.)\s]+/, '').trim())
+          .filter(Boolean)
+          .forEach(l => list.push(l));
+        return;
+      }
+
+      // 2. If contains numbered markers (e.g. "1. ... 2. ..." or "Option 1: ... Option 2: ...")
+      const splitPattern = /(?:\s+|^)(?:(?:Option\s+\d+:?)|(?:\d+[\.\)]))\s*/gi;
+      const parts = text
+        .split(splitPattern)
+        .map(s => s.trim().replace(/^[,;.-]+/, '').replace(/[,;.-]+$/, ''))
+        .filter(Boolean);
+
+      if (parts.length > 1) {
+        list.push(...parts);
+      } else {
+        list.push(text);
+      }
+    });
+
+    return list.filter(opt => opt.length > 1);
+  }, [currentQuestion?.suggested_options]);
+
   const loadData = React.useCallback(async () => {
     try {
       const pRes = await fetch(`${effectiveApiBase}/api/arcgen/patterns`);
@@ -639,13 +679,13 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                 )}
 
                 {/* Suggested options chips */}
-                {currentQuestion.suggested_options && currentQuestion.suggested_options.length > 0 && (
+                {currentOptions.length > 0 && (
                   <div className="mb-3">
                     <span className="text-[10px] font-mono text-[#64748b] block mb-1.5 uppercase tracking-wider">
                       Suggested benchmark targets:
                     </span>
                     <div className="flex flex-col gap-1.5">
-                      {currentQuestion.suggested_options.map((opt, i) => {
+                      {currentOptions.map((opt, i) => {
                         const isSelected = selectedOption === opt;
                         return (
                           <button

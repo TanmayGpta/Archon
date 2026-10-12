@@ -73,7 +73,9 @@ services:
       - RAG_SERVICE_URL=http://rag-service:8001
       - INGESTION_SERVICE_URL=http://ingestion-service:8002
       - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - DEFAULT_MODEL=gemma3:4b
+      - OLLAMA_MODEL=gemma3:4b
       - DEFAULT_WORKSPACE_DIR=/workspace
       - PYTHONUNBUFFERED=1
     extra_hosts:
