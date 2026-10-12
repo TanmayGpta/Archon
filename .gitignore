@@ -42,5 +42,15 @@ build/
 
 
 
-#Gaurav's failed experiments 
+# Gaurav's failed experiments 
 generation/obselete/
+
+# Frontend, Node & Copilot IDE artifacts
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.playwright-mcp/
+slides_export/
+**/data/chroma_db/
+**/server.log
