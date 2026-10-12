@@ -1,0 +1,35 @@
+openapi: "3.0.3"
+info:
+  title: Example Logistics API
+  version: "1.0"
+  description: API for managing shipments and tracking packages.
+servers:
+  - url: "https://api.example-logistics.com/v1"
+paths:
+  /shipments:
+    post:
+      summary: Create a new shipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                destination: { type: string }
+                weight: { type: number }
+      responses:
+        '200':
+          description: Shipment created successfully
+  /track/{tracking_id}:
+    get:
+      summary: Track a shipment
+      parameters:
+        - name: tracking_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current location of the package

@@ -1,0 +1,443 @@
+{
+  "ablation_id": "d76c0822-e7d3-4941-9451-b0e3c704bf67",
+  "created_at": "2026-09-14T07:48:05.337791+00:00",
+  "model": "gemma3:4b",
+  "question_count": 10,
+  "corpus_stats": {
+    "baseline": {
+      "total": 645,
+      "scip_chunks": 0,
+      "dataset_chunks": 645
+    },
+    "with_scip": {
+      "total": 936,
+      "scip_chunks": 281,
+      "dataset_chunks": 655
+    }
+  },
+  "aggregate_deltas": {
+    "correctness": {
+      "baseline": 0.25,
+      "with_scip": 0.58,
+      "delta": 0.33,
+      "percent_improvement": 132.0
+    },
+    "prompt_tokens": {
+      "baseline": 1775.7,
+      "with_scip": 780.4,
+      "delta": -995.3,
+      "tokens_saved": 995.3
+    },
+    "completion_tokens": {
+      "baseline": 523.4,
+      "with_scip": 510.7,
+      "delta": -12.7
+    },
+    "total_tokens": {
+      "baseline": 2299.1,
+      "with_scip": 1291.1,
+      "delta": -1008.0
+    },
+    "latency_seconds": {
+      "baseline": 36.8614,
+      "with_scip": 35.205,
+      "delta": -1.6564,
+      "speedup_seconds": 1.6564
+    },
+    "context_relevance": {
+      "baseline": 0.1022,
+      "with_scip": 0.2071,
+      "delta": 0.1049
+    },
+    "context_chars": {
+      "baseline": 74672.3,
+      "with_scip": 2369.5,
+      "delta": -72302.8
+    }
+  },
+  "retrieval_distribution": {
+    "baseline": {
+      "correct": 0,
+      "partial": 0,
+      "wrong": 9
+    },
+    "with_scip": {
+      "correct": 6,
+      "partial": 1,
+      "wrong": 3
+    }
+  },
+  "question_comparisons": [
+    {
+      "question_id": "CQ1",
+      "category": "Architecture & Flow",
+      "tag": "[FLOW][CERTIFICATES]",
+      "question": "How do the students receive their certificates?",
+      "expected_sources": [
+        "backend/src/services/email/email.service.js",
+        "backend/src/services/email/templates/certificate.template.js",
+        "backend/src/modules/feedback/certificateRecipients.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 410,
+        "total_tokens": 2461,
+        "latency_seconds": 28.3794,
+        "relevance": 0.0459,
+        "context_chars": 127028,
+        "response_snippet": "Okay, let's break down how a warning alert and a critical alert are handled, end to end, including which external APIs are invoked.\n\n**Critical Alerts:**\n\n*   **Endpoint:** `POST /alerts`\n*   **Severity:** `critical`\n*   **Action:** Trigger..."
+      },
+      "with_scip": {
+        "correctness": 0.8,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 674,
+        "completion_tokens": 321,
+        "total_tokens": 995,
+        "latency_seconds": 33.0313,
+        "relevance": 0.1373,
+        "context_chars": 2153,
+        "response_snippet": "The students receive their certificates via email. The `processFeedback` function retrieves the recipient's details, fetches the certificate buffer from a cloud storage bucket (using `getCertificateBuffer`), and then uses an email service (..."
+      },
+      "deltas": {
+        "correctness_delta": 0.8,
+        "latency_delta_seconds": 4.6519,
+        "prompt_tokens_delta": -1377,
+        "completion_tokens_delta": -89
+      }
+    },
+    {
+      "question_id": "CQ2",
+      "category": "Architecture & Flow",
+      "tag": "[FLOW][FEEDBACK]",
+      "question": "What is the complete flow when a user submits feedback on the website?",
+      "expected_sources": [
+        "backend/src/modules/feedback/feedback.service.js",
+        "src/lib/api.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 1691,
+        "completion_tokens": 753,
+        "total_tokens": 2444,
+        "latency_seconds": 46.9066,
+        "relevance": 0.2538,
+        "context_chars": 5559,
+        "response_snippet": "Okay, let's outline the full flow for submitting feedback within this diagnostic system, based on the provided API documentation. This flow will cover starting a session, potentially providing initial symptoms, answering questions iterative..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "partial",
+        "prompt_tokens": 999,
+        "completion_tokens": 406,
+        "total_tokens": 1405,
+        "latency_seconds": 33.7265,
+        "relevance": 0.2908,
+        "context_chars": 3324,
+        "response_snippet": "Okay, here\u2019s the complete flow for submitting feedback as described in the documentation:\n\n1.  **User Action:** The user submits their feedback via the `/feedback` endpoint. This includes details like name, email, phone number, rating, and ..."
+      },
+      "deltas": {
+        "correctness_delta": 0.5,
+        "latency_delta_seconds": -13.1801,
+        "prompt_tokens_delta": -692,
+        "completion_tokens_delta": -347
+      }
+    },
+    {
+      "question_id": "CQ3",
+      "category": "Architecture & Flow",
+      "tag": "[FLOW][PAYMENT]",
+      "question": "How does payment verification work after a ticket checkout?",
+      "expected_sources": [
+        "src/lib/api.js"
+      ],
+      "baseline": {
+        "correctness": 0.5,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 411,
+        "completion_tokens": 778,
+        "total_tokens": 1189,
+        "latency_seconds": 38.6116,
+        "relevance": 0.2324,
+        "context_chars": 1275,
+        "response_snippet": "Okay, let's break down how payment verification works following a Zendesk ticket closure, as described in the documentation.\n\n**Process Overview:**\n\n1.  **Stripe Charge Creation (POST /charges):** After an order is created via the Order Man..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 411,
+        "completion_tokens": 621,
+        "total_tokens": 1032,
+        "latency_seconds": 36.1097,
+        "relevance": 0.3421,
+        "context_chars": 1275,
+        "response_snippet": "Okay, here's how payment verification works after a ticket checkout, based on the provided API documentation:\n\n**Process Overview:**\n\n1.  **Order Payment via Stripe:** After an order is created (as described in the `checkout_architecture_gu..."
+      },
+      "deltas": {
+        "correctness_delta": 0.0,
+        "latency_delta_seconds": -2.5019,
+        "prompt_tokens_delta": 0,
+        "completion_tokens_delta": -157
+      }
+    },
+    {
+      "question_id": "CQ4",
+      "category": "Architecture & Flow",
+      "tag": "[FLOW][ATTENDANCE]",
+      "question": "What happens when an admin marks attendance using a QR code?",
+      "expected_sources": [
+        "src/lib/api.js"
+      ],
+      "baseline": {
+        "correctness": 0.7,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 833,
+        "total_tokens": 2884,
+        "latency_seconds": 44.3481,
+        "relevance": 0.0912,
+        "context_chars": 150711,
+        "response_snippet": "Okay, let's break down the troubleshooting process for this developer query based on the provided documentation.\n\n**1. Initial Assessment & Problem Identification:**\n\nThe query \"What happens when an admin marks attendance using a QR code?\" ..."
+      },
+      "with_scip": {
+        "correctness": 1.0,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 1062,
+        "completion_tokens": 473,
+        "total_tokens": 1535,
+        "latency_seconds": 35.3148,
+        "relevance": 0.1992,
+        "context_chars": 3130,
+        "response_snippet": "Here\u2019s what happens when an admin marks attendance using a QR code, based on the provided API documentation:\n\n1.  **QR Data Parsing:** The `markAttendance` function first receives the QR data (as a JSON string) from the request body (`req.b..."
+      },
+      "deltas": {
+        "correctness_delta": 0.3,
+        "latency_delta_seconds": -9.0333,
+        "prompt_tokens_delta": -989,
+        "completion_tokens_delta": -360
+      }
+    },
+    {
+      "question_id": "CQ5",
+      "category": "Code Symbol Lookup",
+      "tag": "[SYMBOL][TEMPLATE]",
+      "question": "What parameters does the generateCertificateEmail function accept and what does it return?",
+      "expected_sources": [
+        "backend/src/services/email/templates/certificate.template.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 46,
+        "total_tokens": 2097,
+        "latency_seconds": 31.3189,
+        "relevance": 0.0143,
+        "context_chars": 134223,
+        "response_snippet": "I don't have enough information to answer this question. The provided data only contains responses for a series of questions about alert handling, not details about a `generateCertificateEmail` function or its parameters/return values.\n..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 835,
+        "completion_tokens": 157,
+        "total_tokens": 992,
+        "latency_seconds": 30.2741,
+        "relevance": 0.1828,
+        "context_chars": 2610,
+        "response_snippet": "The `generateCertificateEmailText` function accepts two parameters:\n\n*   `name`: The recipient's name.\n*   `designation`: The recipient\u2019s designation or role (defaults to \"Organising Committee\" if not provided).\n\nIt returns a string contain..."
+      },
+      "deltas": {
+        "correctness_delta": 0.5,
+        "latency_delta_seconds": -1.0448,
+        "prompt_tokens_delta": -1216,
+        "completion_tokens_delta": 111
+      }
+    },
+    {
+      "question_id": "CQ6",
+      "category": "Code Symbol Lookup",
+      "tag": "[SYMBOL][EMAIL_SERVICE]",
+      "question": "What methods and configuration does the EmailService class implement?",
+      "expected_sources": [
+        "backend/src/services/email/email.service.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 1298,
+        "completion_tokens": 516,
+        "total_tokens": 1814,
+        "latency_seconds": 35.9369,
+        "relevance": 0.1039,
+        "context_chars": 4146,
+        "response_snippet": "The SendGrid Mail Send API (vv3) allows you to send email over its Web API by making a POST request to `/mail/send`.  Here's how you would construct the request body based on the documentation:\n\n```json\n{\n  \"personalizations\": [\n    {\n     ..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 810,
+        "completion_tokens": 833,
+        "total_tokens": 1643,
+        "latency_seconds": 40.2003,
+        "relevance": 0.1946,
+        "context_chars": 2410,
+        "response_snippet": "The `EmailService` class initializes itself with a configured transporter using `getEmailConfig()` and its client. It includes an internal method `_validateEmail` for email format validation, along with logging utilities (`info`, `error`, `..."
+      },
+      "deltas": {
+        "correctness_delta": 0.5,
+        "latency_delta_seconds": 4.2634,
+        "prompt_tokens_delta": -488,
+        "completion_tokens_delta": 317
+      }
+    },
+    {
+      "question_id": "CQ7",
+      "category": "Code Symbol Lookup",
+      "tag": "[SYMBOL][ADMIN_OPS]",
+      "question": "What API endpoints and functions are available for administrator operations?",
+      "expected_sources": [
+        "src/lib/api.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 922,
+        "total_tokens": 2973,
+        "latency_seconds": 41.983,
+        "relevance": 0.1189,
+        "context_chars": 21235,
+        "response_snippet": "Okay, let's break down how this query should be handled, drawing on the provided documentation.  This is a complex multi-hop question, requiring careful navigation of several documents to arrive at the correct answer.\n\n**1. Initial Assessme..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 852,
+        "completion_tokens": 1125,
+        "total_tokens": 1977,
+        "latency_seconds": 43.1457,
+        "relevance": 0.2564,
+        "context_chars": 2479,
+        "response_snippet": "Here's a breakdown of the available administrator APIs based on the provided documentation:\n\n**Functions:**\n\n*   `getAdminFeedback(token, { page = 1, limit = 10 } = {})`:  Retrieves admin feedback data.\n    *   Endpoint: `/api/admin/feedbac..."
+      },
+      "deltas": {
+        "correctness_delta": 0.5,
+        "latency_delta_seconds": 1.1627,
+        "prompt_tokens_delta": -1199,
+        "completion_tokens_delta": 203
+      }
+    },
+    {
+      "question_id": "CQ8",
+      "category": "Cross-File Dependency",
+      "tag": "[CROSS][RECIPIENTS]",
+      "question": "How is certificate recipient information normalized and matched?",
+      "expected_sources": [
+        "backend/src/modules/feedback/certificateRecipients.js"
+      ],
+      "baseline": {
+        "correctness": 0.0,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 433,
+        "total_tokens": 2484,
+        "latency_seconds": 35.9759,
+        "relevance": 0.043,
+        "context_chars": 255979,
+        "response_snippet": "```text\nThe Alerting Service API doesn't explicitly document how certificate recipient information is normalized or matched. However, based on the provided documentation and context, we can infer some details about this process:\n\n**Inferenc..."
+      },
+      "with_scip": {
+        "correctness": 1.0,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 859,
+        "completion_tokens": 513,
+        "total_tokens": 1372,
+        "latency_seconds": 35.0944,
+        "relevance": 0.1881,
+        "context_chars": 2667,
+        "response_snippet": "The `findCertificateRecipient` function normalizes both email and name fields before searching for a matching certificate recipient. Here's a breakdown:\n\n1.  **Normalization:**\n    *   `normalizeEmail(email)`: Converts the email to lowercas..."
+      },
+      "deltas": {
+        "correctness_delta": 1.0,
+        "latency_delta_seconds": -0.8815,
+        "prompt_tokens_delta": -1192,
+        "completion_tokens_delta": 80
+      }
+    },
+    {
+      "question_id": "CQ9",
+      "category": "Cross-File Dependency",
+      "tag": "[CROSS][CONTACT]",
+      "question": "How are contact form submissions handled and sent via the client API?",
+      "expected_sources": [
+        "src/lib/api.js"
+      ],
+      "baseline": {
+        "correctness": 0.5,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 2051,
+        "completion_tokens": 387,
+        "total_tokens": 2438,
+        "latency_seconds": 34.3169,
+        "relevance": 0.0786,
+        "context_chars": 26103,
+        "response_snippet": "Okay, let's analyze this developer query and determine the correct response based on the provided documentation.\n\n**Understanding the Query:** The developer is asking about how contact form submissions (presumably through a client applicati..."
+      },
+      "with_scip": {
+        "correctness": 0.5,
+        "retrieval_quality": "wrong",
+        "prompt_tokens": 748,
+        "completion_tokens": 584,
+        "total_tokens": 1332,
+        "latency_seconds": 35.9313,
+        "relevance": 0.1474,
+        "context_chars": 2062,
+        "response_snippet": "The `submitContactMessage` route handles contact form submissions using the following process:\n\n1.  **Body Construction:** It uses the `buildTextBody` function to construct a text-based email body for the submission. This function takes `fi..."
+      },
+      "deltas": {
+        "correctness_delta": 0.0,
+        "latency_delta_seconds": 1.6144,
+        "prompt_tokens_delta": -1303,
+        "completion_tokens_delta": 197
+      }
+    },
+    {
+      "question_id": "CQ10",
+      "category": "Hard Negative",
+      "tag": "[DECOY][BILLING]",
+      "question": "What billing invoice reconciliation system or accounting ledger does TedxBMU use?",
+      "expected_sources": [],
+      "baseline": {
+        "correctness": 0.8,
+        "retrieval_quality": "decoy_surfaced",
+        "prompt_tokens": 2051,
+        "completion_tokens": 156,
+        "total_tokens": 2207,
+        "latency_seconds": 30.837,
+        "relevance": 0.0399,
+        "context_chars": 20464,
+        "response_snippet": "Okay, let's analyze the provided documentation and determine how to best answer this query.\n\n**Understanding the Challenge:** The question asks about a \"billing invoice reconciliation system or accounting ledger.\" This clearly falls outside..."
+      },
+      "with_scip": {
+        "correctness": 0.0,
+        "retrieval_quality": "correct",
+        "prompt_tokens": 554,
+        "completion_tokens": 74,
+        "total_tokens": 628,
+        "latency_seconds": 29.2221,
+        "relevance": 0.1321,
+        "context_chars": 1585,
+        "response_snippet": "The provided API documentation doesn't detail the specific billing invoice reconciliation system or accounting ledger used by TedxBMU. It only describes an email service integration using the Resend API, including features like environment ..."
+      },
+      "deltas": {
+        "correctness_delta": -0.8,
+        "latency_delta_seconds": -1.6149,
+        "prompt_tokens_delta": -1497,
+        "completion_tokens_delta": -82
+      }
+    }
+  ]
+}
