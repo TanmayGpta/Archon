@@ -43,6 +43,10 @@ def generate_architecture_from_srs(
     t_start = time.time()
 
     # Step 1: Normalize requirements (or use pre-synthesized document from Phase A)
+    if isinstance(raw_srs_text, SRSDocument):
+        srs_document = raw_srs_text
+        raw_srs_text = None
+
     if srs_document is not None:
         srs = srs_document
         print(f" -> [1/4] Requirements: Using pre-synthesized document ({len(srs.asrs)} ASRs, {len(srs.all_requirements)} total)")

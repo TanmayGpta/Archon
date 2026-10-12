@@ -5,6 +5,7 @@ Performs hard anti-requisite filtering, weighted ISO 25010 scoring,
 and tradeoff point identification without LLM randomness.
 """
 
+import re
 from typing import List, Dict, Optional, Tuple
 from generation.ArcGen.schemas.requirements import (
     SRSDocument,
@@ -63,13 +64,28 @@ def _check_disqualifications(
 
         # 2. Scale limits check
         if asr.arch_dimension == ArchitectureDriverDimension.THROUGHPUT_SCALE:
-            if asr.target_value and isinstance(asr.target_value, (int, float)):
-                if pattern.limits.max_scale_rps and asr.target_value > pattern.limits.max_scale_rps:
-                    disqualified = True
-                    reasons.append(
-                        f"Requires {asr.target_value} rps, which exceeds {pattern.name} ceiling of "
-                        f"{pattern.limits.max_scale_rps} rps"
-                    )
+            scale_val = None
+            if asr.target_value is not None:
+                if isinstance(asr.target_value, (int, float)):
+                    scale_val = float(asr.target_value)
+                elif isinstance(asr.target_value, str):
+                    val_str = asr.target_value.strip().lower()
+                    m = re.search(r"(\d+(?:\.\d+)?)", val_str)
+                    if m:
+                        try:
+                            scale_val = float(m.group(1))
+                            if "k" in val_str:
+                                scale_val *= 1000
+                            elif "m" in val_str:
+                                scale_val *= 1000000
+                        except ValueError:
+                            pass
+            if scale_val and pattern.limits.max_scale_rps and scale_val > pattern.limits.max_scale_rps:
+                disqualified = True
+                reasons.append(
+                    f"Requires {scale_val:.0f} rps, which exceeds {pattern.name} ceiling of "
+                    f"{pattern.limits.max_scale_rps} rps"
+                )
 
         # 3. Cost / operational complexity checks
         if asr.arch_dimension == ArchitectureDriverDimension.COST_CONSTRAINT:

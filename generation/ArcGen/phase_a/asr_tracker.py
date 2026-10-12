@@ -4,7 +4,7 @@ Implements the computed mathematical stopping criterion for Phase A Elicitation.
 Tracks slot-filling across the 7 core architectural driver dimensions.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from pydantic import BaseModel, Field
 from generation.ArcGen.schemas.requirements import ArchitectureDriverDimension
 

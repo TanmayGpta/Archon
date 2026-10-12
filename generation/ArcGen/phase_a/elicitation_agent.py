@@ -235,6 +235,12 @@ OUTPUT MUST BE A JSON OBJECT:
                 suggested_options=DIMENSION_DEFAULT_OPTIONS.get(target_dim, []),
             )
 
+    def formulate_next_question(
+        self, tracker: ASRTracker, project_context: str = ""
+    ) -> Optional[QuestionItem]:
+        """Alias for generate_question."""
+        return self.generate_question(tracker, project_context)
+
     def process_answer(
         self,
         question: QuestionItem,

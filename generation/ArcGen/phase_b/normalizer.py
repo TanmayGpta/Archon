@@ -113,8 +113,11 @@ def normalize_srs(
     use_cache: bool = True,
 ) -> SRSDocument:
     """Extracts and normalizes requirements from raw text with caching."""
+    if isinstance(raw_text, SRSDocument):
+        return raw_text
+
     # Check cache
-    cache_key = hashlib.sha256(raw_text.strip().encode("utf-8")).hexdigest()[:16]
+    cache_key = hashlib.sha256(str(raw_text).strip().encode("utf-8")).hexdigest()[:16]
     cache_file = CACHE_DIR / f"srs_{cache_key}.json"
 
     if use_cache and cache_file.exists():
