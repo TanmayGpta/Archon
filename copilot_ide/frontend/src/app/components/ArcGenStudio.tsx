@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArchitectureDiagramViewer } from './ArchitectureDiagramViewer';
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
+import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
 
 interface ArcGenStudioProps {
   apiBase: string;
@@ -890,12 +891,13 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                               <td className="p-3 text-[#94a3b8]">{n.layer || '—'}</td>
                               <td className="p-3">
                                 <div className="flex flex-wrap gap-1">
-                                  {n.traced_requirements.map(r => (
-                                    <span key={r} className="px-1.5 py-0.5 rounded text-[9px] bg-[#0284c7]/15 text-[#38bdf8] border border-[#0284c7]/30">
+                                  {Array.from(new Set(n.traced_requirements || [])).map((r, rIdx) => (
+                                    <span key={`${n.node_id}-req-${r}-${rIdx}`} className="px-1.5 py-0.5 rounded text-[9px] bg-[#0284c7]/15 text-[#38bdf8] border border-[#0284c7]/30">
                                       {r}
                                     </span>
                                   ))}
                                 </div>
+
                               </td>
                               <td className="p-3 text-[#64748b] text-[10px]">
                                 {n.kb_citations.join(", ") || '—'}
@@ -946,20 +948,13 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
                 {/* TAB 4: ATAM TRADEOFF MATRIX */}
                 {activeOutputTab === 'atam_tradeoffs' && (
-                  <div className="flex-1 bg-[#090d14] border border-[#1e293b] rounded-xl p-5 overflow-y-auto">
-                    {generatedArch.tradeoff_table ? (
-                      <div className="prose prose-invert prose-sm max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {generatedArch.tradeoff_table}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 text-[#64748b] font-mono text-xs">
-                        No tradeoff table generated for this sample.
-                      </div>
-                    )}
-                  </div>
+                  <AtamTradeoffMatrixView
+                    tradeoffTableMarkdown={generatedArch.tradeoff_table}
+                    projectName={generatedArch.project_name}
+                    architectureStyle={generatedArch.style}
+                  />
                 )}
+
 
                 {/* TAB 5: CONFORMANCE AUDIT REPORT */}
                 {activeOutputTab === 'validation' && (
