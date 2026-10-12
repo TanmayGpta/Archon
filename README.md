@@ -35,15 +35,23 @@ SRS (text)
 
 ## Project Structure
 
+```text
 archon/
-├── shared/            # jointly-owned: schema, fixtures, CLI entry point
-├── generation/         # SRS -> architecture + ruleset
-├── conformance/        # codebase -> violation report
-└── docs/               # design decisions, evaluation results
+├── conformance/       # Codebase AST -> layer mapping -> architectural violation report
+├── generation/        # SRS -> architecture + ruleset (ArcGen multi-agent engine)
+│   └── ArcGen/        # Phase A elicitation, Phase B pattern matcher & ATAM tradeoff generator
+├── copilot_ide/       # Archon Copilot Pair-Programming Studio & Microservices RAG IDE
+│   ├── frontend/      # Next.js 14 web app (Agent IDE, ArcGen Studio, Qualitative Benchmark)
+│   ├── services/      # FastAPI microservices (RAG, Orchestrator, Ingestion, Eval, ArcGen)
+│   ├── dataset/       # 21 Ground-truth API specs & architecture guides
+│   └── docker-compose.yml
+├── shared/            # Jointly-owned: schema, fixtures, CLI entry point
+└── docs/              # Design decisions, evaluation results
+```
 
 ## Usage
 
-### 1. Web UI Dashboard
+### 1. Web UI Conformance Dashboard
 ```bash
 streamlit run app.py
 ```
@@ -61,6 +69,19 @@ archon check "C:\path\to\YourProject"
 archon check test_codebases/ecommerce_platform -o audit_report.html
 ```
 *(See `cli_commands.txt` for the complete cheat sheet of flags, LLM providers, and CI/CD threshold options).*
+
+### 3. Archon Copilot IDE & Microservices Studio
+Launch the full containerized pair-programming IDE and RAG stack:
+```bash
+cd copilot_ide
+docker compose up -d
+# Frontend Studio: http://localhost:3000
+# Orchestrator Gateway: http://localhost:8000
+# RAG Search Service: http://localhost:8001
+# Ingestion Service: http://localhost:8002
+# Evaluation Benchmark Service: http://localhost:8003
+```
+
 
 ## Status
 
