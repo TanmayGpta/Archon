@@ -1,0 +1,79 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: C2CTest (Clean Architecture (Onion / Concentric))
+
+package "Presentation" {
+  [C2C API Gateway] as COMP-001 <<gateway>>
+  [Incident Management BFF] as COMP-002 <<service>>
+  [Remote Control BFF] as COMP-003 <<service>>
+  [Web Map BFF] as COMP-004 <<service>>
+}
+
+package "Application" {
+  [Incident Management Use Cases] as COMP-005 <<module>>
+  [Device Management Use Cases] as COMP-006 <<module>>
+  [Network Data Use Cases] as COMP-007 <<module>>
+  [Map Generation Use Cases] as COMP-008 <<module>>
+  [Authentication Use Cases] as COMP-009 <<module>>
+  [Data Ingestion Use Cases] as COMP-010 <<module>>
+}
+
+package "Domain" {
+  [Traffic Domain Entities] as COMP-011 <<module>>
+  [User & Configuration Domain Entities] as COMP-012 <<module>>
+  [Domain Services] as COMP-013 <<module>>
+}
+
+package "Infrastructure" {
+  [C2C Main Database] as COMP-014 <<datastore>>
+  [User & Auth Database] as COMP-015 <<datastore>>
+  [Configuration Database] as COMP-016 <<datastore>>
+  [Persistence Adapters] as COMP-017 <<module>>
+  [TMDD/DATEX/ASN Adapter] as COMP-018 <<module>>
+  [ESRI Map Adapter] as COMP-019 <<module>>
+  [External System Connectors] as COMP-020 <<module>>
+  [Logging & Monitoring Module] as COMP-021 <<module>>
+  [Microsoft Windows NT Environment] as COMP-022 <<external>>
+  [TxDOT Traffic Management Centers (TMCs)] as COMP-023 <<external>>
+  [Existing Traffic Management Systems] as COMP-024 <<external>>
+  [NCTCOG GeoData Warehouse] as COMP-025 <<external>>
+  [ESRI ARC Internet Map Server (ARC IMS)] as COMP-026 <<external>>
+  [Internet WWW Server] as COMP-027 <<external>>
+}
+
+
+COMP-001 --> COMP-002 : HTTPS/REST
+COMP-001 --> COMP-003 : HTTPS/REST
+COMP-001 --> COMP-004 : HTTPS/REST
+COMP-002 --> COMP-005 : In-process memory call
+COMP-003 --> COMP-006 : In-process memory call
+COMP-004 --> COMP-008 : In-process memory call
+COMP-005 --> COMP-011 : In-process memory call
+COMP-006 --> COMP-011 : In-process memory call
+COMP-007 --> COMP-011 : In-process memory call
+COMP-008 --> COMP-011 : In-process memory call
+COMP-009 --> COMP-012 : In-process memory call
+COMP-010 --> COMP-018 : In-process memory call
+COMP-018 ..> COMP-020 : TCP/IP (DATEX/ASN over TCP)
+COMP-020 ..> COMP-023 : TCP/IP
+COMP-020 ..> COMP-024 : TCP/IP
+COMP-020 --> COMP-025 : HTTPS/REST
+COMP-019 --> COMP-026 : HTTP
+COMP-004 --> COMP-019 : In-process memory call
+COMP-005 --> COMP-017 : PostgreSQL wire protocol
+COMP-005 --> COMP-017 : PostgreSQL wire protocol
+COMP-006 --> COMP-017 : PostgreSQL wire protocol
+COMP-006 --> COMP-017 : PostgreSQL wire protocol
+COMP-007 --> COMP-017 : PostgreSQL wire protocol
+COMP-008 --> COMP-017 : PostgreSQL wire protocol
+COMP-009 --> COMP-015 : PostgreSQL wire protocol
+COMP-009 --> COMP-015 : PostgreSQL wire protocol
+COMP-001 --> COMP-013 : HTTPS/REST
+COMP-002 --> COMP-014 : PostgreSQL wire protocol
+COMP-012 --> COMP-016 : PostgreSQL wire protocol
+COMP-001 --> COMP-021 : HTTPS/REST
+COMP-022 --> COMP-001 : HTTPS/REST
+COMP-027 --> COMP-001 : HTTPS/REST
+
+@enduml

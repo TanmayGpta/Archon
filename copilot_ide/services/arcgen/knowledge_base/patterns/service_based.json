@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-SERVICE-BASED",
+  "name": "Service-Based Architecture",
+  "catalog_source": "Richards & Ford (2020), Ch. 13",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Coarse-grained domain segregation (4 to 10 domain services)",
+    "Shared monolithic database retains ACID transactions without distributed 2PC",
+    "Balanced deployability without extreme microservice orchestration overhead"
+  ],
+  "forces_unresolved": [
+    "Shared database remains a single point of failure and bottleneck",
+    "Database schema migrations require cross-service coordination",
+    "Coarser fault isolation compared to fine-grained microservices"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": 1,
+    "Resource utilization": 1,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 1,
+    "Modularity": 1,
+    "Reusability": 1,
+    "Analysability": 1,
+    "Modifiability": 1,
+    "Testability": 1,
+    "Scalability": 1,
+    "Adaptability": 1,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 3,
+    "operational_complexity": 2,
+    "cost_factor": 2,
+    "max_scale_rps": 30000
+  },
+  "applicability_conditions": [
+    "Stepping stone migration from monolith towards microservices",
+    "Medium-sized organizations needing moderate independent deployability",
+    "Teams requiring shared database ACID integrity without distributed sagas"
+  ],
+  "anti_requisites": [
+    "Completely isolated data stores per domain required by regulatory compliance",
+    "Ultra-high throughput (> 100,000 rps) requiring partitioned independent databases",
+    "Sub-10ms global multi-region latency requirements"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-MICROSERVICES"
+    ],
+    "successors": [
+      "PAT-MICROSERVICES",
+      "PAT-DATABASE-PER-SERVICE"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

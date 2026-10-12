@@ -1,0 +1,63 @@
+{
+  "pattern_id": "PAT-SHARED-DATABASE",
+  "name": "Shared Database Pattern",
+  "catalog_source": "Fowler (2003); Richardson (microservices.io); Richards & Ford (2020)",
+  "topology_type": "Hybrid",
+  "forces_resolved": [
+    "Retains full ACID transaction semantics across multiple application services",
+    "Familiar relational queries, joins, and declarative referential integrity",
+    "Low operational overhead with only a single database instance to manage and backup"
+  ],
+  "forces_unresolved": [
+    "Database schema changes become high-risk coordinating bottlenecks across teams",
+    "Database becomes a single point of failure and ultimate scalability ceiling",
+    "Hidden coupling between services through shared tables and stored procedures"
+  ],
+  "iso25010_impact": {
+    "Capacity": -1,
+    "Time behavior": 1,
+    "Resource utilization": 2,
+    "Availability": -1,
+    "Fault tolerance": -2,
+    "Recoverability": 1,
+    "Confidentiality": -1,
+    "Integrity": 2,
+    "Modularity": -1,
+    "Reusability": 0,
+    "Analysability": 1,
+    "Modifiability": -2,
+    "Testability": 1,
+    "Scalability": -1,
+    "Adaptability": -1,
+    "Interoperability": -1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 1,
+    "operational_complexity": 2,
+    "cost_factor": 1,
+    "max_scale_rps": 20000
+  },
+  "applicability_conditions": [
+    "Service-based architectures or modular monoliths with strict ACID financial requirements",
+    "Small teams seeking to separate codebases without taking on distributed database pain",
+    "Workloads where data integrity and relational integrity constraints are paramount"
+  ],
+  "anti_requisites": [
+    "Strict microservice autonomy with independent continuous deployments",
+    "Extreme write throughput (> 30,000 rps) that exhausts single-node database IOPS",
+    "Multi-region active-active deployments requiring distributed consensus"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-DATABASE-PER-SERVICE"
+    ],
+    "companions": [
+      "PAT-SERVICE-BASED",
+      "PAT-MODULAR-MONOLITH"
+    ]
+  },
+  "pattern_role": "Companion"
+}

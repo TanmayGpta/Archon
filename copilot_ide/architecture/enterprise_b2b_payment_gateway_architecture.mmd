@@ -1,0 +1,63 @@
+flowchart TD
+    subgraph Presentation["Presentation"]
+        COMP-001[" APIGatewayModule "]
+        COMP-002[" B2BUserBFFModule "]
+        COMP-003[" MerchantBFFModule "]
+    end
+
+    subgraph Application["Application"]
+        COMP-004[" PaymentProcessingUseCase "]
+        COMP-005[" ReconciliationUseCase "]
+        COMP-006[" PaymentQueryUseCase "]
+    end
+
+    subgraph Domain["Domain"]
+        COMP-007[" PaymentTransactionAggregate "]
+        COMP-008[" ReconciliationReportEntity "]
+        COMP-009[" IdempotencyKeyService "]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        COMP-010[" PaymentEventStoreRepository "]
+        COMP-011[" ReconciliationReportRepository "]
+        COMP-012[" IdempotencyKeyRepository "]
+        COMP-013[" ACHProcessorGateway "]
+        COMP-014[" CreditCardProcessorGateway "]
+        COMP-015[(" EventStoreDatabase ")]
+        COMP-016[(" ReconciliationDatabase ")]
+        COMP-017[(" IdempotencyKeyDatabase ")]
+        COMP-018[" PCIComplianceModule "]
+    end
+
+    COMP-019[" BankACHNetwork "]
+    COMP-020[" CreditCardProcessors "]
+
+    COMP-001 -->|"HTTPS/REST"| COMP-002
+    COMP-001 -->|"HTTPS/REST"| COMP-003
+    COMP-002 -->|"In-process memory call"| COMP-004
+    COMP-003 -->|"In-process memory call"| COMP-004
+    COMP-002 -->|"In-process memory call"| COMP-006
+    COMP-003 -->|"In-process memory call"| COMP-006
+    COMP-004 -->|"In-process memory call"| COMP-009
+    COMP-009 -->|"In-process memory call"| COMP-012
+    COMP-012 -->|"SQL wire protocol"| COMP-017
+    COMP-012 -->|"SQL wire protocol"| COMP-017
+    COMP-004 -->|"In-process memory call"| COMP-007
+    COMP-007 -->|"In-process memory call"| COMP-010
+    COMP-010 -->|"Database wire protocol"| COMP-015
+    COMP-010 -->|"Database wire protocol"| COMP-015
+    COMP-004 -->|"In-process memory call"| COMP-013
+    COMP-004 -->|"In-process memory call"| COMP-014
+    COMP-013 -->|"SFTP/Batch or proprietary API"| COMP-019
+    COMP-014 -->|"HTTPS/REST"| COMP-020
+    COMP-013 -->|"In-process memory call"| COMP-018
+    COMP-014 -->|"In-process memory call"| COMP-018
+    COMP-005 -->|"In-process memory call"| COMP-010
+    COMP-005 -->|"In-process memory call"| COMP-013
+    COMP-005 -->|"In-process memory call"| COMP-014
+    COMP-005 -->|"In-process memory call"| COMP-008
+    COMP-005 -->|"In-process memory call"| COMP-011
+    COMP-011 -->|"SQL wire protocol"| COMP-016
+    COMP-011 -->|"SQL wire protocol"| COMP-016
+    COMP-006 -->|"In-process memory call"| COMP-010
+    COMP-006 -->|"In-process memory call"| COMP-011

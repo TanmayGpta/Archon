@@ -1,0 +1,408 @@
+{
+  "project_name": "ASPERA-3 Processing and Archiving Facility (APAF)",
+  "style": "Service-Based Architecture",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "APAF-API-Gateway",
+      "node_type": "gateway",
+      "layer": "Presentation",
+      "description": "Central entry point for all external and internal API requests. Handles authentication, rate limiting, and routing to appropriate backend services.",
+      "responsibilities": [
+        "Authenticate users (Public, Co-I's, SwRI Team)",
+        "Route requests to BFF or Domain Services",
+        "Enforce security policies (NFR-002, NFR-003)"
+      ],
+      "traced_requirements": [
+        "NFR-002",
+        "NFR-003",
+        "FR-008",
+        "FR-009"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "Public-BFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend for Frontend service tailored for Public Users. Aggregates data for public-facing web displays of current instrument performance.",
+      "responsibilities": [
+        "Serve public web-based displays (FR-008)",
+        "Aggregate latest ASPERA-3 data for public view",
+        "Ensure no sensitive data is exposed to public"
+      ],
+      "traced_requirements": [
+        "FR-008",
+        "NFR-002"
+      ],
+      "kb_citations": [
+        "PAT-BFF"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "Science-Team-BFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend for Frontend service tailored for ASPERA-3 Science Team and Co-Investigators. Provides access to science analysis displays and data retrieval interfaces.",
+      "responsibilities": [
+        "Serve password-protected science analysis displays (FR-009)",
+        "Provide interface for IDFS data access software (FR-011)",
+        "Provide interface for science analysis software (FR-012)"
+      ],
+      "traced_requirements": [
+        "FR-009",
+        "FR-011",
+        "FR-012",
+        "NFR-003"
+      ],
+      "kb_citations": [
+        "PAT-BFF"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "Telemetry-Acquisition-Service",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Responsible for acquiring ASPERA-3 and MEX OA telemetry from ESOC on a daily basis. Handles initial data ingestion and validation.",
+      "responsibilities": [
+        "Acquire telemetry from ESOC (FR-001)",
+        "Validate incoming telemetry data integrity (NFR-001)",
+        "Trigger processing workflows upon successful acquisition"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-005",
+      "name": "Data-Processing-Service",
+      "node_type": "service",
+      "layer": "Domain",
+      "description": "Core domain service that processes raw telemetry into IDFS data sets and generates cleaned-up intermediate files. Handles calibration and validation logic.",
+      "responsibilities": [
+        "Process ASPERA-3 science data into IDFS (FR-002)",
+        "Process engineering/ancillary data into IDFS (FR-003)",
+        "Generate cleaned-up telemetry intermediate files (FR-004)",
+        "Calibrate and validate data prior to PDS deposit (FR-014)"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-014"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-006",
+      "name": "Data-Archival-Service",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Manages the storage of raw telemetry, intermediate files, and IDFS data sets to the local SwRI archive. Ensures data availability for re-processing and analysis.",
+      "responsibilities": [
+        "Store raw telemetry on local SwRI archive (FR-005)",
+        "Store IDFS data sets on local SwRI archive (FR-006)",
+        "Store intermediate cleaned-up telemetry files (FR-007)"
+      ],
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-007",
+      "name": "PDS-Integration-Service",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Handles the distribution of IDFS data and intermediate files to NASA PDS and Co-Investigators. Ensures PDS-compliant formatting and timely delivery.",
+      "responsibilities": [
+        "Provide IDFS data to NASA PDS (FR-013)",
+        "Provide data to Co-I's within 24 hours (ASR-002)",
+        "Ensure PDS-compliant form for data (ASR-005)",
+        "Integrate science analysis software into PDS repository (FR-016)"
+      ],
+      "traced_requirements": [
+        "FR-010",
+        "FR-013",
+        "FR-016",
+        "ASR-002",
+        "ASR-005"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "APAF-Event-Bus",
+      "node_type": "queue",
+      "layer": "Infrastructure",
+      "description": "Message broker that facilitates asynchronous communication between services. Used for event sourcing to track state changes of data processing workflows.",
+      "responsibilities": [
+        "Publish events for telemetry acquisition",
+        "Publish events for processing completion",
+        "Publish events for archival and distribution"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-005",
+        "FR-013"
+      ],
+      "kb_citations": [
+        "PAT-EVENT-SOURCING"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "APAF-Shared-Database",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Shared monolithic database that retains ACID transactions. Stores metadata, processing status, and event logs for all domain services.",
+      "responsibilities": [
+        "Store metadata for telemetry and IDFS data",
+        "Maintain strong consistency for PDS updates (ASR-003)",
+        "Support event sourcing logs"
+      ],
+      "traced_requirements": [
+        "ASR-003",
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED",
+        "PAT-EVENT-SOURCING"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-001",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "PublicWebDisplayRequest",
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "API Gateway routes public web-based display requests to Public-BFF"
+    },
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-001",
+      "target": "COMP-003",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "ScienceTeamDisplayRequest",
+      "traced_requirements": [
+        "FR-009",
+        "FR-011",
+        "FR-012"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "API Gateway routes password-protected science analysis requests to Science-Team-BFF"
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-004",
+      "target": "COMP-008",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP topic",
+      "payload_description": "TelemetryAcquisitionEvent",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Telemetry-Acquisition-Service publishes telemetry acquisition events to APAF-Event-Bus"
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-008",
+      "target": "COMP-005",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP topic",
+      "payload_description": "TelemetryAcquisitionEvent",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "APAF-Event-Bus routes telemetry acquisition events to Data-Processing-Service"
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-005",
+      "target": "COMP-006",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "ProcessedData",
+      "traced_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Data-Processing-Service sends processed data to Data-Archival-Service"
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-005",
+      "target": "COMP-007",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "ProcessedData",
+      "traced_requirements": [
+        "FR-013",
+        "FR-014",
+        "FR-016"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Data-Processing-Service sends processed data to PDS-Integration-Service"
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-006",
+      "target": "COMP-009",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "ArchivedData",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Data-Archival-Service writes archived data to APAF-Shared-Database"
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-007",
+      "target": "COMP-009",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "PDSData",
+      "traced_requirements": [
+        "FR-013",
+        "FR-014",
+        "FR-016"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "PDS-Integration-Service writes PDS data to APAF-Shared-Database"
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-009",
+      "target": "COMP-002",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "PublicDisplayData",
+      "traced_requirements": [
+        "FR-008"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Public-BFF reads public display data from APAF-Shared-Database"
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-009",
+      "target": "COMP-003",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "ScienceDisplayData",
+      "traced_requirements": [
+        "FR-009",
+        "FR-011",
+        "FR-012"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Science-Team-BFF reads science display data from APAF-Shared-Database"
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-005",
+      "target": "COMP-008",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP topic",
+      "payload_description": "ProcessingCompletionEvent",
+      "traced_requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Data-Processing-Service publishes processing completion events to APAF-Event-Bus"
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-006",
+      "target": "COMP-008",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP topic",
+      "payload_description": "ArchivalCompletionEvent",
+      "traced_requirements": [
+        "FR-005",
+        "FR-006",
+        "FR-007"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "Data-Archival-Service publishes archival completion events to APAF-Event-Bus"
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-007",
+      "target": "COMP-008",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP topic",
+      "payload_description": "DistributionCompletionEvent",
+      "traced_requirements": [
+        "FR-013",
+        "FR-014",
+        "FR-016"
+      ],
+      "kb_citations": [
+        "PAT-SERVICE-BASED"
+      ],
+      "justification": "PDS-Integration-Service publishes distribution completion events to APAF-Event-Bus"
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: ASPERA-3 Processing and Archiving Facility (APAF) (Service-Based Architecture)\n\npackage \"Presentation\" {\n  [APAF-API-Gateway] as COMP-001 <<gateway>>\n  [Public-BFF] as COMP-002 <<service>>\n  [Science-Team-BFF] as COMP-003 <<service>>\n}\n\npackage \"Application\" {\n  [Telemetry-Acquisition-Service] as COMP-004 <<service>>\n  [Data-Archival-Service] as COMP-006 <<service>>\n  [PDS-Integration-Service] as COMP-007 <<service>>\n}\n\npackage \"Domain\" {\n  [Data-Processing-Service] as COMP-005 <<service>>\n}\n\npackage \"Infrastructure\" {\n  [APAF-Event-Bus] as COMP-008 <<queue>>\n  [APAF-Shared-Database] as COMP-009 <<datastore>>\n}\n\n\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-001 --> COMP-003 : HTTPS/REST\nCOMP-004 ..> COMP-008 : AMQP topic\nCOMP-008 ..> COMP-005 : AMQP topic\nCOMP-005 --> COMP-006 : HTTPS/REST\nCOMP-005 --> COMP-007 : HTTPS/REST\nCOMP-006 --> COMP-009 : PostgreSQL wire protocol\nCOMP-007 --> COMP-009 : PostgreSQL wire protocol\nCOMP-009 --> COMP-002 : PostgreSQL wire protocol\nCOMP-009 --> COMP-003 : PostgreSQL wire protocol\nCOMP-005 ..> COMP-008 : AMQP topic\nCOMP-006 ..> COMP-008 : AMQP topic\nCOMP-007 ..> COMP-008 : AMQP topic\n\n@enduml"
+}

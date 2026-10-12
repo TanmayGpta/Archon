@@ -1,0 +1,61 @@
+@startuml
+' --- Configuration & Styles ---
+skinparam topboxSelection true
+skinparam Direction top to bottom
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+' Define Styles based on original ClassDefs
+<style>
+    .client {
+        BackgroundColor #e1f5fe
+        LineColor #01579b
+        LineThickness 2
+    }
+    .service {
+        BackgroundColor #e8f5e9
+        LineColor #2e7d32
+        LineThickness 2
+    }
+    .db {
+        BackgroundColor #fff9c4
+        LineColor #fbc02d
+        LineThickness 2
+    }
+</style>
+
+' --- Client Layer ---
+package "Browser / Client Layer" as Browser_Layer {
+    rectangle "Frontend Interface\n(Bootstrap-Vue)" as FE_Interface <<client>>
+}
+
+' --- Server Layer ---
+package "Server Layer\n(Spring Boot)" as Server_Layer {
+    
+    package "Core Modules" as Core_Modules {
+        ' Layout is TB within the package
+        rectangle "Account Management Module" as AccountMod <<service>>
+        rectangle "Q&A Community Module" as QAMod <<service>>
+        rectangle "Blog Sharing Module" as BlogMod <<service>>
+        rectangle "Model Management Module" as ModelMod <<service>>
+        rectangle "Dataset Management Module" as DatasetMod <<service>>
+        rectangle "Following Management Module" as FollowMod <<service>>
+        rectangle "Admin Module" as AdminMod <<service>>
+    }
+}
+
+' --- Database Layer ---
+package "Database Layer\n(MySQL)" as Database_Layer {
+    database "User Data" as UserDB <<db>>
+    database "Q&A Community Data" as QADB <<db>>
+    database "Blog Data" as BlogDB <<db>>
+    database "Model Data" as ModelDB <<db>>
+    database "Dataset Data" as DatasetDB <<db>>
+    database "Following Data" as FollowDB <<db>>
+}
+
+' --- Relationships ---
+FE_Interface --> Core_Modules
+Core_Modules --> Database_Layer
+
+@enduml

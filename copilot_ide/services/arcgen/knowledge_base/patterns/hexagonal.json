@@ -1,0 +1,65 @@
+{
+  "pattern_id": "PAT-HEXAGONAL",
+  "name": "Hexagonal (Ports and Adapters) Architecture",
+  "catalog_source": "Cockburn (2005); Evans (2003); Vernon (2013)",
+  "topology_type": "Monolithic",
+  "forces_resolved": [
+    "Complete isolation of core business logic from frameworks, UI, and databases",
+    "High testability via mockable ports (inbound and outbound interfaces)",
+    "Pluggable infrastructure adapters allowing database/UI swaps without business code changes"
+  ],
+  "forces_unresolved": [
+    "Indirection and mapping overhead between domain entities and DTOs",
+    "Higher initial structural code boilerplate",
+    "Does not inherently solve distributed horizontal scaling on its own"
+  ],
+  "iso25010_impact": {
+    "Capacity": 0,
+    "Time behavior": 1,
+    "Resource utilization": 1,
+    "Availability": 0,
+    "Fault tolerance": 0,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 2,
+    "Modularity": 2,
+    "Reusability": 2,
+    "Analysability": 2,
+    "Modifiability": 2,
+    "Testability": 2,
+    "Scalability": 0,
+    "Adaptability": 2,
+    "Interoperability": 2
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong",
+      "Eventual"
+    ],
+    "min_team_size": 2,
+    "operational_complexity": 2,
+    "cost_factor": 1,
+    "max_scale_rps": 25000
+  },
+  "applicability_conditions": [
+    "Domain-driven design (DDD) core applications with rich business rules",
+    "Long-lived enterprise software needing immunity against framework obsolescence",
+    "Systems requiring comprehensive unit and integration testing without database dependencies"
+  ],
+  "anti_requisites": [
+    "Simple CRUD-only applications where mapping layers add zero business value",
+    "Extreme high-throughput distributed message streaming as primary architecture",
+    "Sub-microsecond latency where port/adapter indirection is prohibitive"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-LAYERED",
+      "PAT-CLEAN-ARCH"
+    ],
+    "successors": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

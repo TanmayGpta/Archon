@@ -1,0 +1,69 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: Enterprise B2B Payment Gateway (Clean Architecture (Onion / Concentric))
+
+package "Presentation" {
+  [APIGatewayModule] as COMP-001 <<module>>
+  [B2BUserBFFModule] as COMP-002 <<module>>
+  [MerchantBFFModule] as COMP-003 <<module>>
+}
+
+package "Application" {
+  [PaymentProcessingUseCase] as COMP-004 <<module>>
+  [ReconciliationUseCase] as COMP-005 <<module>>
+  [PaymentQueryUseCase] as COMP-006 <<module>>
+}
+
+package "Domain" {
+  [PaymentTransactionAggregate] as COMP-007 <<module>>
+  [ReconciliationReportEntity] as COMP-008 <<module>>
+  [IdempotencyKeyService] as COMP-009 <<module>>
+}
+
+package "Infrastructure" {
+  [PaymentEventStoreRepository] as COMP-010 <<module>>
+  [ReconciliationReportRepository] as COMP-011 <<module>>
+  [IdempotencyKeyRepository] as COMP-012 <<module>>
+  [ACHProcessorGateway] as COMP-013 <<gateway>>
+  [CreditCardProcessorGateway] as COMP-014 <<gateway>>
+  [EventStoreDatabase] as COMP-015 <<datastore>>
+  [ReconciliationDatabase] as COMP-016 <<datastore>>
+  [IdempotencyKeyDatabase] as COMP-017 <<datastore>>
+  [PCIComplianceModule] as COMP-018 <<module>>
+}
+
+[BankACHNetwork] as COMP-019 <<external>>
+[CreditCardProcessors] as COMP-020 <<external>>
+
+COMP-001 --> COMP-002 : HTTPS/REST
+COMP-001 --> COMP-003 : HTTPS/REST
+COMP-002 --> COMP-004 : In-process memory call
+COMP-003 --> COMP-004 : In-process memory call
+COMP-002 --> COMP-006 : In-process memory call
+COMP-003 --> COMP-006 : In-process memory call
+COMP-004 --> COMP-009 : In-process memory call
+COMP-009 --> COMP-012 : In-process memory call
+COMP-012 --> COMP-017 : SQL wire protocol
+COMP-012 --> COMP-017 : SQL wire protocol
+COMP-004 --> COMP-007 : In-process memory call
+COMP-007 --> COMP-010 : In-process memory call
+COMP-010 --> COMP-015 : Database wire protocol
+COMP-010 --> COMP-015 : Database wire protocol
+COMP-004 --> COMP-013 : In-process memory call
+COMP-004 --> COMP-014 : In-process memory call
+COMP-013 --> COMP-019 : SFTP/Batch or proprietary API
+COMP-014 --> COMP-020 : HTTPS/REST
+COMP-013 --> COMP-018 : In-process memory call
+COMP-014 --> COMP-018 : In-process memory call
+COMP-005 --> COMP-010 : In-process memory call
+COMP-005 --> COMP-013 : In-process memory call
+COMP-005 --> COMP-014 : In-process memory call
+COMP-005 --> COMP-008 : In-process memory call
+COMP-005 --> COMP-011 : In-process memory call
+COMP-011 --> COMP-016 : SQL wire protocol
+COMP-011 --> COMP-016 : SQL wire protocol
+COMP-006 --> COMP-010 : In-process memory call
+COMP-006 --> COMP-011 : In-process memory call
+
+@enduml

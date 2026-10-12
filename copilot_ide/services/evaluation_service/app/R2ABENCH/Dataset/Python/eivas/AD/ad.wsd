@@ -1,0 +1,86 @@
+@startuml
+' --- Configuration & Styling ---
+skinparam componentStyle rectangle
+top to bottom direction
+
+skinparam rectangle {
+    BackgroundColor<<Frontend>> #e1f5fe
+    BorderColor<<Frontend>> #01579b
+    BackgroundColor<<Service>> #fff3e0
+    BorderColor<<Service>> #e65100
+    BackgroundColor<<Storage>> #f1f8e9
+    BorderColor<<Storage>> #33691e
+    BorderStyle dashed
+}
+
+skinparam database {
+    BackgroundColor #f1f8e9
+    BorderColor #33691e
+}
+
+' --- Layer 1: Frontend Layer ---
+package "Frontend Layer (React, Antd, AMap)" as FrontendLayer {
+    package "Epidemic Reporting" {
+        rectangle "Travel Visualization" as ER1 <<Frontend>>
+        rectangle "Information Trigger" as ER2 <<Frontend>>
+    }
+    package "Case Management" {
+        rectangle "Case Inquiry" as CM1 <<Frontend>>
+        rectangle "Filtering & Sorting" as CM2 <<Frontend>>
+    }
+    package "Individual Case Analysis" {
+        rectangle "Associated Location Inquiry" as IA1 <<Frontend>>
+        rectangle "Person Relationship Map" as IA2 <<Frontend>>
+    }
+    package "Overall Analysis" {
+        rectangle "Aggregate Transmission Viz" as OA1 <<Frontend>>
+        rectangle "Regional Flow Viz" as OA2 <<Frontend>>
+    }
+    package "Epidemic Overview" {
+        rectangle "Natural Characteristics" as EO1 <<Frontend>>
+        rectangle "Population Characteristics" as EO2 <<Frontend>>
+    }
+}
+
+' --- Layer 2: Service Layer ---
+package "Service Layer (Django)" as ServiceLayer {
+    package "Data Collection & Entry" as DataCollection {
+        rectangle "Metadata Standardization" as DC1 <<Service>>
+        rectangle "Map Data Interaction" as DC2 <<Service>>
+        rectangle "Auto-Brief Generation" as DC3 <<Service>>
+        rectangle "Fast Query Matching" as DC4 <<Service>>
+    }
+    
+    package "Epidemic Tracing & Analysis" as TracingAnalysis {
+        rectangle "Graph Matching & Generation" as TA1 <<Service>>
+        rectangle "Similarity Calculation" as TA2 <<Service>>
+        rectangle "Travel Risk Calculation" as TA3 <<Service>>
+        rectangle "Location Co-presence Query" as TA4 <<Service>>
+        rectangle "Aggregate Block Generation" as TA5 <<Service>>
+        rectangle "Transmission Relation Calculation" as TA6 <<Service>>
+    }
+}
+
+' --- Layer 3: Storage Layer ---
+package "Storage Layer (Neo4j, MongoDB)" as StorageLayer {
+    package "Epidemiological Database" as EpidemiologicalDB {
+        rectangle "Basic Info" as DB1 <<Storage>>
+        rectangle "Diagnosis Info" as DB2 <<Storage>>
+        rectangle "Travel Info" as DB3 <<Storage>>
+    }
+    
+    package "Graph Database" as GraphDB {
+        rectangle "Location Relations" as G1 <<Storage>>
+        rectangle "Close Contact Relations" as G2 <<Storage>>
+    }
+    
+    database "External Data" as ExternalData <<Storage>>
+}
+
+DataCollection --> EpidemiologicalDB
+TracingAnalysis --> GraphDB
+TracingAnalysis --> ExternalData
+TracingAnalysis --> DataCollection
+FrontendLayer --> TracingAnalysis
+
+@enduml

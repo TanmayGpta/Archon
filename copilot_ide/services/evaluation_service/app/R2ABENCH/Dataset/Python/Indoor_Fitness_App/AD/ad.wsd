@@ -1,0 +1,88 @@
+@startuml
+' --- Configuration & Styles ---
+skinparam ranksep 50
+skinparam nodesep 40
+skinparam packageStyle rectangle
+left to right direction
+
+' Styling for different layers
+skinparam rectangle {
+    BackgroundColor<<client>> #e1f5fe
+    BorderColor<<client>> #01579b
+    
+    BackgroundColor<<native>> #bbdefb
+    BorderColor<<native>> #0d47a1
+    
+    BackgroundColor<<react>> #c8e6c9
+    BorderColor<<react>> #1b5e20
+    
+    BackgroundColor<<bridge>> #00acc1
+    BorderColor<<bridge>> #006064
+    FontColor<<bridge>> white
+    
+    BackgroundColor<<infra>> #f5f5f5
+    BorderColor<<infra>> #212121
+    BorderStyle<<infra>> dashed
+}
+
+' --- Diagram Definitions ---
+
+' Layer 1: Client Layer
+package "Client / Platforms" as ClientLayer <<client>> {
+    rectangle "Mobile Device" as Mobile <<client>>
+    rectangle "Desktop PC" as Desktop <<client>>
+    rectangle "Web Browser" as Web <<client>>
+    rectangle "Android OS" as Android <<client>>
+    rectangle "iOS / Apple" as iOS <<client>>
+    rectangle "Smart Watch / Wearables" as IoT <<client>>
+}
+
+' Layer 2: Native Module Layer
+package "Native Modules" as NativeLayer <<native>> {
+    rectangle "Camera Call" as Camera <<native>>
+    rectangle "Model Loading / TensorFlow" as ModelLoad <<native>>
+    rectangle "Linear Algebra Library" as LinearAlgebra <<native>>
+    rectangle "Voice Library Call" as Voice <<native>>
+    rectangle "GPU Computing" as GPU <<native>>
+    rectangle "Screen Recording" as ScreenRec <<native>>
+    rectangle "Socket Communication" as Socket <<native>>
+    rectangle "Data Processing" as DataProc <<native>>
+    rectangle "Permission Requests" as Permissions <<native>>
+}
+
+' Layer 3: Cross-Platform Framework Layer
+package "React Native Framework" as RNLayer <<react>> {
+    rectangle "Native Module Bridge" as NativeBridge <<bridge>>
+    rectangle "Data Caching" as DataCaching <<react>>
+    rectangle "Server Access" as ServerAccess <<react>>
+    rectangle "Redux State Management" as Redux <<react>>
+    rectangle "Interface Packaging" as APIPkg <<react>>
+    rectangle "Data Interception" as DataIntercept <<react>>
+    rectangle "End-to-End Communication" as P2P <<react>>
+}
+
+' Sidebar: Infrastructure
+package "Infrastructure & Support" as InfraLayer <<infra>> {
+    rectangle "Data Exchange" as DataExchange <<infra>>
+    rectangle "Performance Optimization" as Performance <<infra>>
+    rectangle "Stability Construction" as Stability <<infra>>
+}
+
+' --- Relationships ---
+
+ClientLayer --> NativeLayer
+NativeLayer <--> NativeBridge
+
+' Directing bridge to RN components
+NativeBridge --- DataCaching
+NativeBridge --- ServerAccess
+NativeBridge --- Redux
+NativeBridge --- APIPkg
+NativeBridge --- DataIntercept
+NativeBridge --- P2P
+
+' Infrastructure interaction (dashed as per original)
+NativeLayer ..> InfraLayer
+RNLayer ..> InfraLayer
+
+@enduml

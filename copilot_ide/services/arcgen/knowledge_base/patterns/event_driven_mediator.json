@@ -1,0 +1,64 @@
+{
+  "pattern_id": "PAT-EDA-MEDIATOR",
+  "name": "Event-Driven Architecture (Mediator Topology)",
+  "catalog_source": "Richards & Ford (2020), Ch. 14; Hohpe & Woolf (2003)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Centralized orchestration and coordination of complex multi-step workflows",
+    "Visibility into step-by-step transaction lifecycle state",
+    "Better error compensation handling than pure fire-and-forget broker"
+  ],
+  "forces_unresolved": [
+    "Mediator acts as a potential performance bottleneck and single point of coordination",
+    "Tighter coupling to the mediator/orchestrator",
+    "Lower throughput compared to decentralized broker topology"
+  ],
+  "iso25010_impact": {
+    "Capacity": 1,
+    "Time behavior": -1,
+    "Resource utilization": 1,
+    "Availability": 1,
+    "Fault tolerance": 1,
+    "Recoverability": 2,
+    "Confidentiality": 1,
+    "Integrity": 0,
+    "Modularity": 1,
+    "Reusability": 1,
+    "Analysability": 1,
+    "Modifiability": 1,
+    "Testability": -1,
+    "Scalability": 1,
+    "Adaptability": 1,
+    "Interoperability": 1
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual",
+      "Causal"
+    ],
+    "min_team_size": 4,
+    "operational_complexity": 3,
+    "cost_factor": 3,
+    "max_scale_rps": 50000
+  },
+  "applicability_conditions": [
+    "Multi-step e-commerce checkout, payment clearing, or insurance claims workflows",
+    "Complex business processes requiring compensation on failure",
+    "Workflows requiring audit trails of state transitions"
+  ],
+  "anti_requisites": [
+    "Ultra-low latency requirements (< 15ms) incompatible with orchestrator state hops",
+    "Strict single-database ACID guarantees",
+    "Simple linear non-branching event streams (prefer broker or pipeline)"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-EDA-BROKER",
+      "PAT-SAGA-ORCHESTRATED"
+    ],
+    "successors": [
+      "PAT-SAGA-ORCHESTRATED"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

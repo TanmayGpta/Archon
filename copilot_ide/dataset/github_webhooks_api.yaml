@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: GitHub Webhooks Receiver API
+  version: 1.0.0
+  description: Internal webhook receiver microservice that listens for GitHub push
+    and pull request events to drive automated deployment pipelines.
+servers:
+- url: https://api.archon.internal/webhooks
+paths:
+  /webhooks/github/push:
+    post:
+      summary: Receive GitHub push event
+      description: Ingests Git push webhook notifications from GitHub repository events
+        to initiate continuous integration and deployment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - ref
+              - repository
+              - pusher
+              - commits
+              properties:
+                ref:
+                  type: string
+                  description: Git reference branch name (e.g. refs/heads/main)
+                  example: refs/heads/main
+                repository:
+                  type: object
+                  required:
+                  - name
+                  - full_name
+                  properties:
+                    name:
+                      type: string
+                      example: apiCopilot
+                    full_name:
+                      type: string
+                      example: ArchonCorp/apiCopilot
+                pusher:
+                  type: object
+                  required:
+                  - name
+                  - email
+                  properties:
+                    name:
+                      type: string
+                      example: octocat
+                    email:
+                      type: string
+                      example: deployer@archon.corp
+                commits:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      message:
+                        type: string
+      responses:
+        '200':
+          description: Webhook push event accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: received
+                  event_id:
+                    type: string
+                    example: evt_push_88123
+  /webhooks/github/pull_request:
+    post:
+      summary: Receive GitHub pull request event
+      description: Ingests GitHub pull request activity (opened, merged, closed) for
+        build automation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - action
+              - pull_request
+              - repository
+              properties:
+                action:
+                  type: string
+                  enum:
+                  - opened
+                  - merged
+                  - closed
+                  example: merged
+                pull_request:
+                  type: object
+                  required:
+                  - number
+                  - title
+                  - merged
+                  properties:
+                    number:
+                      type: integer
+                      example: 42
+                    title:
+                      type: string
+                      example: Release v2.4.0 payment fixes
+                    merged:
+                      type: boolean
+                      example: true
+                repository:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    full_name:
+                      type: string
+      responses:
+        '200':
+          description: PR event processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: received
+                  event_id:
+                    type: string
+  /webhooks/github/deliveries:
+    get:
+      summary: List webhook delivery attempts
+      description: Fetches a historical log of webhook delivery payloads received
+        by the receiver service.
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+        description: Maximum number of delivery records to return
+      responses:
+        '200':
+          description: Delivery records retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deliveries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        delivery_id:
+                          type: string
+                        event:
+                          type: string
+                        delivered_at:
+                          type: string
+                        status_code:
+                          type: integer
+  /webhooks/github/ping:
+    post:
+      summary: Initial GitHub webhook ping handshake
+      description: Responds to initial GitHub repository webhook configuration validation
+        pings.
+      responses:
+        '200':
+          description: Webhook receiver online and ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  zen:
+                    type: string
+                    example: Responsive is better than fast.

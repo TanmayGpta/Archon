@@ -1,0 +1,95 @@
+@startuml
+' --- Configuration & Styles ---
+skinparam TitleFontSize 20
+skinparam Nodesep 50
+skinparam Ranksep 50
+left to right direction
+
+' Style Definitions (Mapping Mermaid classDef)
+skinparam rectangle {
+    BackgroundColor<<security>> #ffebee
+    BorderColor<<security>> #c62828
+    BackgroundColor<<gateway>> #e8f5e9
+    BorderColor<<gateway>> #2e7d32
+    BackgroundColor<<static>> #fce4ec
+    BorderColor<<static>> #880e4f
+    BackgroundColor<<microservice>> #e3f2fd
+    BorderColor<<microservice>> #1565c0
+    BackgroundColor<<infra>> #fff3e0
+    BorderColor<<infra>> #ef6c00
+}
+
+skinparam database {
+    BackgroundColor<<infra>> #fff3e0
+    BorderColor<<infra>> #ef6c00
+}
+
+title Awesome Music System
+
+package "Awesome Music System" {
+
+    ' Zone 1: Security Critical Zone
+    rectangle "Security Critical Zone" as Security_Zone {
+        
+        rectangle "Nginx Cluster" as Nginx_Cluster {
+            rectangle "Nginx1" as Nginx1 <<security>>
+            rectangle "Nginx2" as Nginx2 <<security>>
+            rectangle "Nginx3" as Nginx3 <<security>>
+        }
+
+        rectangle "Static Resource Server" as Static_Server {
+            rectangle "Static Server1" as Static1 <<static>>
+            rectangle "Static Server2" as Static2 <<static>>
+            rectangle "Static Server3" as Static3 <<static>>
+        }
+
+        rectangle "Spring Cloud Gateway" as Gateway_Cluster {
+            rectangle "gateway1" as GW1 <<gateway>>
+            rectangle "gateway2" as GW2 <<gateway>>
+            rectangle "gateway3" as GW3 <<gateway>>
+        }
+    }
+
+    ' Zone 2: Micro Service Layer
+    rectangle "Micro Service Layer" as Micro_Service_Layer {
+        
+        rectangle "service-auth" as Svc_Auth {
+            rectangle "auth1" as Auth1 <<microservice>>
+            rectangle "auth2" as Auth2 <<microservice>>
+            rectangle "auth3" as Auth3 <<microservice>>
+        }
+
+        rectangle "service-web" as Svc_Web {
+            rectangle "web1" as Web1 <<microservice>>
+            rectangle "web2" as Web2 <<microservice>>
+            rectangle "web3" as Web3 <<microservice>>
+        }
+
+        rectangle "service-scheduler" as Svc_Sched {
+            rectangle "scheduler1" as Sch1 <<microservice>>
+            rectangle "scheduler2" as Sch2 <<microservice>>
+            rectangle "scheduler3" as Sch3 <<microservice>>
+        }
+
+        rectangle "service-discovery" as Svc_Disc {
+            rectangle "discovery1" as Disc1 <<microservice>>
+            rectangle "discovery2" as Disc2 <<microservice>>
+            rectangle "discovery3" as Disc3 <<microservice>>
+        }
+    }
+
+    ' Zone 3: Infra Layer
+    rectangle "Infra Layer" as Infra_Layer {
+        database "MySQL" as MySQL <<infra>>
+        database "Redis" as Redis <<infra>>
+        rectangle "RabbitMQ" as RabbitMQ <<infra>>
+        rectangle "Prometheus" as Prometheus <<infra>>
+    }
+
+}
+
+' --- Relationships ---
+Gateway_Cluster --> Micro_Service_Layer
+Micro_Service_Layer --> Infra_Layer
+
+@enduml

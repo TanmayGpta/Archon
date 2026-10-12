@@ -1,0 +1,45 @@
+flowchart TD
+    subgraph Infrastructure["Infrastructure"]
+        COMP-001[" APIGateway "]
+        COMP-007[" AuthService "]
+        COMP-008[(" TrafficDataDB ")]
+        COMP-009[(" DeviceControlDB ")]
+        COMP-010[(" NetworkDB ")]
+        COMP-011[(" ConfigDB ")]
+        COMP-012{" EventQueue "}
+        COMP-013[" ExistingTrafficManagementSystems "]
+        COMP-014[" NCTCOGGeoDataWarehouse "]
+        COMP-015[" InternetWWWServer "]
+    end
+
+    subgraph Presentation["Presentation"]
+        COMP-002[" WebMapBFF "]
+    end
+
+    subgraph Domain["Domain"]
+        COMP-003[" TrafficDataService "]
+        COMP-004[" DeviceControlService "]
+        COMP-005[" NetworkManagementService "]
+    end
+
+    subgraph Application["Application"]
+        COMP-006[" ConfigurationService "]
+    end
+
+
+    COMP-013 -->|"gRPC over HTTP/2 (DATEX/ASN TMDD payload)"| COMP-001
+    COMP-001 -->|"gRPC over HTTP/2"| COMP-003
+    COMP-001 -->|"gRPC over HTTP/2"| COMP-004
+    COMP-001 -->|"HTTPS/REST"| COMP-007
+    COMP-004 -->|"HTTPS/REST"| COMP-007
+    COMP-003 -->|"PostgreSQL wire protocol"| COMP-008
+    COMP-003 -->|"PostgreSQL wire protocol"| COMP-008
+    COMP-001 -->|"HTTPS/REST"| COMP-002
+    COMP-001 -->|"HTTPS/REST"| COMP-005
+    COMP-001 -->|"HTTPS/REST"| COMP-006
+    COMP-004 -->|"PostgreSQL wire protocol"| COMP-009
+    COMP-005 -->|"PostgreSQL wire protocol"| COMP-010
+    COMP-006 -->|"PostgreSQL wire protocol"| COMP-011
+    COMP-002 -.->|"AMQP / Kafka protocol"| COMP-012
+    COMP-014 -->|"HTTPS/REST"| COMP-001
+    COMP-015 -->|"HTTPS/REST"| COMP-001

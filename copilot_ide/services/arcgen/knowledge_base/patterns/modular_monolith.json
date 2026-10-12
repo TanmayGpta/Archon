@@ -1,0 +1,65 @@
+{
+  "pattern_id": "PAT-MODULAR-MONOLITH",
+  "name": "Modular Monolith Architecture",
+  "catalog_source": "Richards & Ford (2020); Bass et al. (2021); Millett & Tune (2015)",
+  "topology_type": "Monolithic",
+  "forces_resolved": [
+    "High domain modularity without network overhead",
+    "Single deployment unit with strict internal package boundaries",
+    "Strong immediate ACID transaction consistency across modules",
+    "Low operational complexity and low infrastructure costs"
+  ],
+  "forces_unresolved": [
+    "Coarse-grained scaling (entire application scales together)",
+    "Runtime failure blast radius (unhandled crash affects entire process)",
+    "Requires code-level discipline to prevent cross-module boundary leakage"
+  ],
+  "iso25010_impact": {
+    "Capacity": 0,
+    "Time behavior": 2,
+    "Resource utilization": 2,
+    "Availability": 0,
+    "Fault tolerance": -1,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": 2,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": 2,
+    "Modifiability": 2,
+    "Testability": 2,
+    "Scalability": 0,
+    "Adaptability": 1,
+    "Interoperability": 0
+  },
+  "limits": {
+    "supported_consistency": [
+      "Strong"
+    ],
+    "min_team_size": 1,
+    "operational_complexity": 2,
+    "cost_factor": 1,
+    "max_scale_rps": 25000
+  },
+  "applicability_conditions": [
+    "Startups and enterprises wanting clean domain boundaries without distributed complexity",
+    "Strict requirement for immediate ACID database transactions",
+    "Low to medium operational/DevOps budget (< $2,000/mo)"
+  ],
+  "anti_requisites": [
+    "Independent autonomous team release cadences with separate CI/CD pipelines",
+    "Polyglot technology stack requirements across business capabilities",
+    "Target throughput exceeding 50,000 req/sec requiring heterogeneous scaling"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-LAYERED",
+      "PAT-HEXAGONAL"
+    ],
+    "successors": [
+      "PAT-SERVICE-BASED",
+      "PAT-MICROSERVICES"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: SendGrid Mail Send API
+  version: v3
+  description: Allows you to send email over SendGrid's v3 Web API.
+servers:
+- url: https://api.sendgrid.com/v3
+paths:
+  /mail/send:
+    post:
+      summary: Send an email
+      description: The Mail Send endpoint allows you to send email over SendGrid's
+        v3 Web API.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                personalizations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      to:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            email:
+                              type: string
+                from:
+                  type: object
+                  properties:
+                    email:
+                      type: string
+                subject:
+                  type: string
+                content:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: text/plain
+                      value:
+                        type: string
+      responses:
+        '202':
+          description: Message accepted for delivery
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

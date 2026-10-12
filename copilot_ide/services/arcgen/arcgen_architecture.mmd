@@ -1,0 +1,71 @@
+Here is the same diagram recolored to match your slide: pale lime fills, mid-green accents, black text, and the purple from your bottom line used as the accent.
+
+```mermaid
+flowchart LR
+    subgraph INPUTS ["1. Inputs"]
+        direction TB
+        IN_PROMPT["Vague Prompt<br/><i>'Build a ride-sharing app'</i>"]
+        IN_SRS["Full SRS Document<br/><i>e.g. C2C.txt</i>"]
+    end
+
+    subgraph ARCGEN ["2. ArcGen Engine"]
+        direction LR
+        subgraph PHASE_A ["Phase A: Interviewer"]
+            direction TB
+            A1["Targeted questions:<br/>scale, latency, consistency"]
+            A2["Stop rule:<br/>≥85% architecture info gathered"]
+            A1 <--> A2
+        end
+        subgraph PHASE_B ["Phase B: Architect"]
+            direction TB
+            B1["Pattern Matcher<br/>best of 20 catalog patterns"]
+            B2["Pass 1: Nodes<br/>services, gateways, DBs"]
+            B3["Pass 2: Edges<br/>REST, gRPC, Pub/Sub"]
+            B4["Citation & Graph Validator<br/>no unproven links, 0% orphans"]
+            B1 --> B2 --> B3 --> B4
+        end
+        PHASE_A -->|"Synthesized SRS"| PHASE_B
+    end
+
+    GRAPH_OUTPUT["Ground-Truth Blueprint<br/><b>Graph JSON / Mermaid / PlantUML</b>"]
+
+    subgraph CONFORMANCE ["3. Arc Conformance (Black Box)"]
+        direction TB
+        CODEBASE[("Source Code<br/>repos")]
+        BOX["<b>Conformance Audit Engine</b><br/>AST scan, coupling and bypass detection"]
+        RESULT["CI/CD Gate<br/><b>Pass / Fail + Drift Report</b>"]
+        CODEBASE --> BOX --> RESULT
+    end
+
+    IN_PROMPT --> PHASE_A
+    IN_SRS --> PHASE_B
+    PHASE_B --> GRAPH_OUTPUT
+    GRAPH_OUTPUT ==>|"Ground Truth Contract"| CONFORMANCE
+
+    classDef inputStyle fill:#FFFFFF,stroke:#8FBF5A,stroke-width:2px,color:#000000;
+    classDef nodeStyle fill:#E1FFB8,stroke:#8FBF5A,stroke-width:2px,color:#000000;
+    classDef outputStyle fill:#FFFFFF,stroke:#9333EA,stroke-width:3px,color:#000000;
+    classDef blackBoxStyle fill:#FFFFFF,stroke:#9333EA,stroke-width:3px,stroke-dasharray: 5 5,color:#000000;
+    classDef dbStyle fill:#ADD87B,stroke:#7BA83F,stroke-width:2px,color:#000000;
+
+    class IN_PROMPT,IN_SRS inputStyle;
+    class A1,A2,B1,B2,B3,B4 nodeStyle;
+    class GRAPH_OUTPUT outputStyle;
+    class BOX,RESULT blackBoxStyle;
+    class CODEBASE dbStyle;
+
+    style INPUTS fill:#F4FFE0,stroke:#ADD87B,stroke-width:2px,color:#000000
+    style ARCGEN fill:#F4FFE0,stroke:#ADD87B,stroke-width:2px,color:#000000
+    style PHASE_A fill:#ADD87B,stroke:#7BA83F,stroke-width:2px,color:#000000
+    style PHASE_B fill:#ADD87B,stroke:#7BA83F,stroke-width:2px,color:#000000
+    style CONFORMANCE fill:#F4FFE0,stroke:#9333EA,stroke-width:2px,stroke-dasharray: 5 5,color:#000000
+
+    linkStyle default stroke:#5E8F2B,stroke-width:2px
+```
+
+Notes:
+
+1. **The hex values are my estimates from your screenshot** (label green about #ADD87B, row fill about #E1FFB8). If your PPT theme has exact values, swap them in, since a mismatch of a few shades is visible when the diagram sits next to the slide's own table.
+2. **I used black text on the green, not white.** On your current slide, the white RQ labels on #ADD87B have a contrast ratio of roughly 1.6:1 by my estimate, far below the 4.5:1 WCAG minimum for normal text. They'll wash out on a projector. I'd fix those labels to black or a dark green (#2F4A12) on the slide itself, otherwise the diagram will look more readable than the slide it sits on.
+3. **Purple is reserved for the two things that matter most**: the blueprint output and the black-box conformance engine. This makes the "ground truth contract" link the visual focal point, and it echoes your slide's bottom line.
+4. **Mermaid's `style` and `linkStyle` lines can be ignored by some renderers.** If the subgraph colors don't show in your PPT tool, render at mermaid.live and export as SVG, then recolor manually if needed.

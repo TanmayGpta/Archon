@@ -1,0 +1,67 @@
+@startuml
+' --- Configuration ---
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+left to right direction
+
+' --- Styling ---
+skinparam rectangle {
+    BackgroundColor<<ui>> #f2f3f4
+    BorderColor<<ui>> #bdc3c7
+    BackgroundColor<<bus>> #eaeded
+    BorderColor<<bus>> #95a5a6
+    BackgroundColor<<data>> #e5e7e9
+    BorderColor<<data>> #7f8c8d
+    BackgroundColor<<env>> #ecf0f1
+    BorderColor<<env>> #bdc3c7
+}
+
+skinparam database {
+    BackgroundColor<<db>> #d7dbdd
+    BorderColor<<db>> #34495e
+}
+
+' --- Frontend UI ---
+package "Frontend UI" as Frontend {
+    rectangle "Recipe App" as RecipeApp <<ui>>
+}
+
+' --- Business Layer ---
+package "Business Layer (Spring Boot Framework)" as Business {
+    package "Modules" {
+        rectangle "User Information" as UserInfo <<bus>>
+        rectangle "Recipe Search" as RecipeSearch <<bus>>
+        rectangle "Community Sharing" as SocialShare <<bus>>
+        rectangle "Smart Recommendation" as SmartRec <<bus>>
+        rectangle "Health Management" as HealthMgmt <<bus>>
+        rectangle "Admin Audit" as AdminAudit <<bus>>
+    }
+}
+
+' --- Data Layer ---
+package "Data Layer" as DataLayer {
+    rectangle "Dataset" as Dataset <<data>>
+    rectangle "Data Cleaning" as DataClean <<data>>
+    rectangle "Read/Write Database" as RWDB <<data>>
+}
+
+' --- Runtime Environment ---
+package "Runtime Environment" as Runtime {
+    rectangle "Springboot Service" as SBService <<env>>
+    rectangle "Flask Service" as FlaskService <<env>>
+}
+
+' --- Database ---
+package "Database" as DBGroup {
+    database "MySQL" as MySQL <<db>>
+    database "Redis" as Redis <<db>>
+}
+
+' --- Relationships ---
+RecipeApp --> Business : Ajax Interaction
+Business --> DataLayer
+DataLayer --> DBGroup
+DBGroup --> Runtime
+
+@enduml

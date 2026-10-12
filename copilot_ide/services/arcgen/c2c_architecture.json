@@ -1,0 +1,554 @@
+{
+  "project_name": "C2C-TxDOT",
+  "style": "Microservices Architecture",
+  "nodes": [
+    {
+      "node_id": "COMP-001",
+      "name": "APIGateway",
+      "node_type": "gateway",
+      "layer": "Infrastructure",
+      "description": "Routes external requests to appropriate microservices, enforces authentication and protocol translation for TMDD/DATEX messages.",
+      "responsibilities": [
+        "Route inbound TMDD/DATEX requests",
+        "Validate authentication tokens",
+        "Apply rate limiting and logging"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "NFR-001",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-API-GATEWAY",
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-002",
+      "name": "WebMapBFF",
+      "node_type": "service",
+      "layer": "Presentation",
+      "description": "Backend\u2011for\u2011Frontend that aggregates traffic and map data for the web\u2011map UI.",
+      "responsibilities": [
+        "Compose map view data from downstream services",
+        "Expose UI\u2011friendly REST endpoints",
+        "Cache recent map tiles"
+      ],
+      "traced_requirements": [
+        "FR-004",
+        "TC-004",
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-BFF",
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-003",
+      "name": "TrafficDataService",
+      "node_type": "service",
+      "layer": "Domain",
+      "description": "Central repository for TMDD traffic data; ingests, stores, and serves traffic information.",
+      "responsibilities": [
+        "Receive TMDD messages via DATEX/ASN",
+        "Persist traffic observations",
+        "Provide query API for traffic data"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002",
+        "TC-001",
+        "TC-002",
+        "TC-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-004",
+      "name": "DeviceControlService",
+      "node_type": "service",
+      "layer": "Domain",
+      "description": "Manages status retrieval and control commands for all traffic devices.",
+      "responsibilities": [
+        "Expose device status endpoints",
+        "Process authenticated control commands",
+        "Publish device\u2011status events"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-005",
+      "name": "NetworkManagementService",
+      "node_type": "service",
+      "layer": "Domain",
+      "description": "Maintains network, link, and node metadata for the transportation network.",
+      "responsibilities": [
+        "CRUD operations for Network/Link/Node objects",
+        "Validate topology constraints",
+        "Serve topology queries"
+      ],
+      "traced_requirements": [
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-006",
+      "name": "ConfigurationService",
+      "node_type": "service",
+      "layer": "Application",
+      "description": "Provides configuration\u2011driven deployment data for each agency instance.",
+      "responsibilities": [
+        "Store agency\u2011specific configuration",
+        "Supply config to other services at startup",
+        "Support hot\u2011reload of configuration"
+      ],
+      "traced_requirements": [
+        "FR-005",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES",
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-007",
+      "name": "AuthService",
+      "node_type": "service",
+      "layer": "Infrastructure",
+      "description": "Central authentication authority for username/password validation and token issuance.",
+      "responsibilities": [
+        "Validate credentials",
+        "Issue JWT tokens",
+        "Integrate with API Gateway for token verification"
+      ],
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-008",
+      "name": "TrafficDataDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated database for TrafficDataService storing TMDD traffic observations.",
+      "responsibilities": [
+        "Persist high\u2011volume traffic messages",
+        "Support time\u2011range queries"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-009",
+      "name": "DeviceControlDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Dedicated store for device status and command history used by DeviceControlService.",
+      "responsibilities": [
+        "Record device state changes",
+        "Audit control command execution"
+      ],
+      "traced_requirements": [
+        "FR-002",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-010",
+      "name": "NetworkDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Database for NetworkManagementService holding network topology data.",
+      "responsibilities": [
+        "Store Network/Link/Node entities",
+        "Provide fast lookup for topology queries"
+      ],
+      "traced_requirements": [
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-011",
+      "name": "ConfigDB",
+      "node_type": "datastore",
+      "layer": "Infrastructure",
+      "description": "Configuration datastore used by ConfigurationService.",
+      "responsibilities": [
+        "Persist agency configuration bundles",
+        "Enable versioned configuration retrieval"
+      ],
+      "traced_requirements": [
+        "FR-005",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-DATABASE-PER-SERVICE"
+      ]
+    },
+    {
+      "node_id": "COMP-012",
+      "name": "EventQueue",
+      "node_type": "queue",
+      "layer": "Infrastructure",
+      "description": "Message broker for asynchronous event propagation between microservices.",
+      "responsibilities": [
+        "Publish TrafficDataReceived events",
+        "Publish DeviceStatusUpdated events",
+        "Support durable delivery"
+      ],
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-013",
+      "name": "ExistingTrafficManagementSystems",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "Legacy traffic management systems that exchange TMDD messages with the platform.",
+      "responsibilities": [
+        "Send/receive TMDD data sets"
+      ],
+      "traced_requirements": [
+        "NFR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-014",
+      "name": "NCTCOGGeoDataWarehouse",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "Source of basemap data for the web\u2011map application.",
+      "responsibilities": [
+        "Provide GIS basemap layers"
+      ],
+      "traced_requirements": [
+        "TC-004"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    },
+    {
+      "node_id": "COMP-015",
+      "name": "InternetWWWServer",
+      "node_type": "external",
+      "layer": "Infrastructure",
+      "description": "Public web server hosting the web\u2011map UI and BFF endpoints.",
+      "responsibilities": [
+        "Serve static assets",
+        "Expose BFF REST API to browsers"
+      ],
+      "traced_requirements": [
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "EDGE-001",
+      "source": "COMP-013",
+      "target": "COMP-001",
+      "edge_type": "sync_grpc",
+      "protocol": "gRPC over HTTP/2 (DATEX/ASN TMDD payload)",
+      "payload_description": "TMDD TrafficDataMessage / DeviceControlCommand",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002",
+        "ASR-001",
+        "ASR-002",
+        "TC-001",
+        "TC-002",
+        "TC-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "External traffic management systems send TMDD messages to the API Gateway for validation and routing"
+    },
+    {
+      "edge_id": "EDGE-002",
+      "source": "COMP-001",
+      "target": "COMP-003",
+      "edge_type": "sync_grpc",
+      "protocol": "gRPC over HTTP/2",
+      "payload_description": "TMDD TrafficDataMessage",
+      "traced_requirements": [
+        "FR-001",
+        "ASR-001",
+        "TC-001",
+        "TC-002",
+        "TC-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "Gateway forwards inbound traffic\u2011data messages to TrafficDataService"
+    },
+    {
+      "edge_id": "EDGE-003",
+      "source": "COMP-001",
+      "target": "COMP-004",
+      "edge_type": "sync_grpc",
+      "protocol": "gRPC over HTTP/2",
+      "payload_description": "TMDD DeviceControlCommand",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-003",
+        "TC-001",
+        "TC-002",
+        "TC-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "Gateway forwards authenticated device\u2011control commands to DeviceControlService"
+    },
+    {
+      "edge_id": "EDGE-004",
+      "source": "COMP-001",
+      "target": "COMP-007",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "JWT validation request",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "Gateway validates bearer tokens with AuthService before allowing protected calls"
+    },
+    {
+      "edge_id": "EDGE-005",
+      "source": "COMP-004",
+      "target": "COMP-007",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Validate JWT token for control command",
+      "traced_requirements": [
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "DeviceControlService checks command authenticity via AuthService"
+    },
+    {
+      "edge_id": "EDGE-006",
+      "source": "COMP-003",
+      "target": "COMP-008",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT traffic observation record",
+      "traced_requirements": [
+        "FR-001"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "TrafficDataService persists incoming traffic observations"
+    },
+    {
+      "edge_id": "EDGE-007",
+      "source": "COMP-003",
+      "target": "COMP-008",
+      "edge_type": "db_read",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "SELECT traffic observations by time range / area",
+      "traced_requirements": [
+        "FR-001",
+        "FR-004"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "TrafficDataService serves query API for stored traffic data"
+    },
+    {
+      "edge_id": "EDGE-008",
+      "source": "COMP-001",
+      "target": "COMP-002",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-004",
+        "TC-004",
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APIGateway routes requests to WebMapBFF"
+    },
+    {
+      "edge_id": "EDGE-009",
+      "source": "COMP-001",
+      "target": "COMP-005",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APIGateway routes requests to NetworkManagementService"
+    },
+    {
+      "edge_id": "EDGE-010",
+      "source": "COMP-001",
+      "target": "COMP-006",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "Authenticated internal service invocation",
+      "traced_requirements": [
+        "FR-005",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "APIGateway routes requests to ConfigurationService"
+    },
+    {
+      "edge_id": "EDGE-011",
+      "source": "COMP-004",
+      "target": "COMP-009",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-002",
+        "ASR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "DeviceControlService persists data to dedicated datastore DeviceControlDB"
+    },
+    {
+      "edge_id": "EDGE-012",
+      "source": "COMP-005",
+      "target": "COMP-010",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-003"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "NetworkManagementService persists data to dedicated datastore NetworkDB"
+    },
+    {
+      "edge_id": "EDGE-013",
+      "source": "COMP-006",
+      "target": "COMP-011",
+      "edge_type": "db_write",
+      "protocol": "PostgreSQL wire protocol",
+      "payload_description": "INSERT/UPDATE domain entities and status",
+      "traced_requirements": [
+        "FR-005",
+        "ASR-002"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "ConfigurationService persists data to dedicated datastore ConfigDB"
+    },
+    {
+      "edge_id": "EDGE-014",
+      "source": "COMP-002",
+      "target": "COMP-012",
+      "edge_type": "async_pubsub",
+      "protocol": "AMQP / Kafka protocol",
+      "payload_description": "Asynchronous domain events",
+      "traced_requirements": [
+        "FR-001",
+        "FR-002"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "WebMapBFF publishes asynchronous events to EventQueue"
+    },
+    {
+      "edge_id": "EDGE-015",
+      "source": "COMP-014",
+      "target": "COMP-001",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "External incoming messages and telemetry",
+      "traced_requirements": [
+        "TC-004"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "External system NCTCOGGeoDataWarehouse exchanges data with APIGateway"
+    },
+    {
+      "edge_id": "EDGE-016",
+      "source": "COMP-015",
+      "target": "COMP-001",
+      "edge_type": "sync_rest",
+      "protocol": "HTTPS/REST",
+      "payload_description": "External incoming messages and telemetry",
+      "traced_requirements": [
+        "TC-005"
+      ],
+      "kb_citations": [
+        "PAT-MICROSERVICES"
+      ],
+      "justification": "External system InternetWWWServer exchanges data with APIGateway"
+    }
+  ],
+  "plantuml": "@startuml\nskinparam componentStyle uml2\n\ntitle Architecture: C2C-TxDOT (Microservices Architecture)\n\npackage \"Infrastructure\" {\n  [APIGateway] as COMP-001 <<gateway>>\n  [AuthService] as COMP-007 <<service>>\n  [TrafficDataDB] as COMP-008 <<datastore>>\n  [DeviceControlDB] as COMP-009 <<datastore>>\n  [NetworkDB] as COMP-010 <<datastore>>\n  [ConfigDB] as COMP-011 <<datastore>>\n  [EventQueue] as COMP-012 <<queue>>\n  [ExistingTrafficManagementSystems] as COMP-013 <<external>>\n  [NCTCOGGeoDataWarehouse] as COMP-014 <<external>>\n  [InternetWWWServer] as COMP-015 <<external>>\n}\n\npackage \"Presentation\" {\n  [WebMapBFF] as COMP-002 <<service>>\n}\n\npackage \"Domain\" {\n  [TrafficDataService] as COMP-003 <<service>>\n  [DeviceControlService] as COMP-004 <<service>>\n  [NetworkManagementService] as COMP-005 <<service>>\n}\n\npackage \"Application\" {\n  [ConfigurationService] as COMP-006 <<service>>\n}\n\n\nCOMP-013 --> COMP-001 : gRPC over HTTP/2 (DATEX/ASN TMDD payload)\nCOMP-001 --> COMP-003 : gRPC over HTTP/2\nCOMP-001 --> COMP-004 : gRPC over HTTP/2\nCOMP-001 --> COMP-007 : HTTPS/REST\nCOMP-004 --> COMP-007 : HTTPS/REST\nCOMP-003 --> COMP-008 : PostgreSQL wire protocol\nCOMP-003 --> COMP-008 : PostgreSQL wire protocol\nCOMP-001 --> COMP-002 : HTTPS/REST\nCOMP-001 --> COMP-005 : HTTPS/REST\nCOMP-001 --> COMP-006 : HTTPS/REST\nCOMP-004 --> COMP-009 : PostgreSQL wire protocol\nCOMP-005 --> COMP-010 : PostgreSQL wire protocol\nCOMP-006 --> COMP-011 : PostgreSQL wire protocol\nCOMP-002 ..> COMP-012 : AMQP / Kafka protocol\nCOMP-014 --> COMP-001 : HTTPS/REST\nCOMP-015 --> COMP-001 : HTTPS/REST\n\n@enduml"
+}

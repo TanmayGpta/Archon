@@ -1,0 +1,161 @@
+@startuml
+' --- Styling and Configuration ---
+skinparam componentStyle rectangle
+top to bottom direction
+
+' Definitions based on Mermaid classDefs
+skinparam rectangle<<frontend>> {
+    BackgroundColor #ff99cc
+    BorderColor #333333
+}
+skinparam rectangle<<presentation>> {
+    BackgroundColor #33ffd6
+    BorderColor #333333
+}
+skinparam rectangle<<gateway>> {
+    BackgroundColor #66ccff
+    BorderColor #333333
+}
+skinparam rectangle<<service>> {
+    BackgroundColor #ff99cc
+    BorderColor #333333
+}
+skinparam rectangle<<access>> {
+    BackgroundColor #66ccff
+    BorderColor #333333
+}
+skinparam package<<securityContainer>> {
+    BackgroundColor #ff4d4d
+    BorderColor #333333
+    FontColor white
+}
+skinparam package<<securityInner>> {
+    BackgroundColor #00e6ac
+    BorderColor #333333
+}
+skinparam rectangle<<userCodeNode>> {
+    BackgroundColor #ff9900
+    BorderColor #333333
+}
+skinparam rectangle<<persistence>> {
+    BackgroundColor #66ccff
+    BorderColor #333333
+}
+skinparam rectangle<<storage>> {
+    BackgroundColor #66ccff
+    BorderColor #333333
+}
+skinparam database<<storage>> {
+    BackgroundColor #66ccff
+    BorderColor #333333
+}
+skinparam rectangle<<sidebar>> {
+    BackgroundColor #ccff66
+    BorderColor #333333
+    BorderStyle dashed
+}
+skinparam rectangle<<auth>> {
+    BackgroundColor #ffff66
+    BorderColor #333333
+    BorderStyle dashed
+}
+
+' --- Layers ---
+
+package "Frontend Layer" as FrontendLayer {
+    rectangle "Vue3" as Vue3 <<frontend>>
+    rectangle "TypeScript" as TS <<frontend>>
+    rectangle "ESLint" as ESLint <<frontend>>
+    rectangle "Webpack" as Webpack <<frontend>>
+    rectangle "Vuex" as Vuex <<frontend>>
+    rectangle "vue-router" as Router <<frontend>>
+    rectangle "antd-vue" as Antd <<frontend>>
+    rectangle "axios" as Axios <<frontend>>
+}
+
+package "Presentation Layer" as PresentationLayer {
+    rectangle "Vue Template Rendering Engine" as RenderEngine <<presentation>>
+    rectangle "Routing Control" as RouteCtrl <<presentation>>
+    rectangle "Ajax Interaction: GET POST PUT DELETE" as AjaxInteraction <<presentation>>
+}
+
+package "Network / Proxy Layer" as GatewayLayer {
+    rectangle "Nginx Reverse Proxy" as Nginx <<gateway>>
+}
+
+package "Business Layer" as ServiceLayer {
+    rectangle "Spring Boot" as SpringBoot <<service>>
+    rectangle "Mybatis Plus" as MybatisPlus <<service>>
+    rectangle "JWT Authentication" as JWT <<service>>
+    rectangle "SMTP Service" as SMTP <<service>>
+    rectangle "LomBok" as LomBok <<service>>
+    rectangle "Swagger API" as Swagger <<service>>
+    rectangle "Sandbox Management" as Sandbox <<service>>
+    rectangle "Interceptor" as Interceptor <<service>>
+}
+
+package "Access Layer" as AccessLayer {
+    rectangle "WebFlux" as WebFlux <<access>>
+    rectangle "Thread Pool" as ThreadPool <<access>>
+}
+
+package "Security Sandbox" as SecurityLayer {
+    package "Docker Singleton Mode" as DockerContainer <<securityContainer>> {
+        package "Seccomp: Restrict System Calls" as SeccompLayer <<securityInner>> {
+            package "uLimit: Restrict Process Resources" as UlimitLayer <<securityInner>> {
+                rectangle "Execute User Code" as UserCode <<userCodeNode>>
+            }
+        }
+    }
+}
+
+package "Persistence Layer" as PersistenceLayer {
+    rectangle "Data Caching" as DataCache <<persistence>>
+    rectangle "Transaction Control" as TransCtrl <<persistence>>
+    rectangle "Concurrency Control" as ConcurrencyCtrl <<persistence>>
+    rectangle "Optimistic Locking" as OptimisticLock <<persistence>>
+}
+
+package "Data Layer" as DataLayer {
+    package "Database" {
+        database "MySQL" as MySQL <<storage>>
+        database "Redis" as Redis <<storage>>
+    }
+    package "Distributed Storage" {
+        rectangle "Object Storage Service OSS" as OSS <<storage>>
+        rectangle "Qiniu Cloud Storage" as Qiniu <<storage>>
+    }
+}
+
+' Cross-cutting Concerns
+rectangle "Logging / Log Record" as Logging <<sidebar>>
+rectangle "Permission / Access Control" as AuthCtrl <<auth>>
+
+' --- Relationships ---
+
+FrontendLayer --> PresentationLayer
+PresentationLayer --> Nginx
+Nginx --> ServiceLayer
+ServiceLayer --> AccessLayer
+AccessLayer --> SecurityLayer
+SecurityLayer --> PersistenceLayer
+PersistenceLayer --> DataLayer
+
+' Global concern connections
+FrontendLayer .. Logging
+PresentationLayer .. Logging
+GatewayLayer .. Logging
+ServiceLayer .. Logging
+AccessLayer .. Logging
+SecurityLayer .. Logging
+PersistenceLayer .. Logging
+DataLayer .. Logging
+
+GatewayLayer .. AuthCtrl
+AccessLayer .. AuthCtrl
+ServiceLayer .. AuthCtrl
+SecurityLayer .. AuthCtrl
+PersistenceLayer .. AuthCtrl
+DataLayer .. AuthCtrl
+
+@enduml

@@ -1,0 +1,39 @@
+flowchart TD
+    subgraph Infrastructure["Infrastructure"]
+        COMP-001[" APIGateway "]
+        COMP-009[(" EventStore ")]
+        COMP-010{" MessageQueue "}
+        COMP-011[(" SharedDatabase ")]
+        COMP-012[" EdgeAgent "]
+        COMP-013{" Cache "}
+        COMP-014[" CloudServiceProvider "]
+    end
+
+    subgraph Presentation["Presentation"]
+        COMP-002[" FleetManagerBFF "]
+        COMP-003[" DriverBFF "]
+    end
+
+    subgraph Application["Application"]
+        COMP-004[" VehicleTelemetryService "]
+        COMP-005[" AlertService "]
+        COMP-006[" DispatchService "]
+        COMP-007[" TripLogService "]
+        COMP-008[" DeviceManagementService "]
+    end
+
+
+    COMP-001 -->|"HTTPS/REST"| COMP-002
+    COMP-001 -->|"HTTPS/REST"| COMP-003
+    COMP-001 -->|"HTTPS/REST"| COMP-008
+    COMP-002 -->|"In-process memory call"| COMP-013
+    COMP-003 -->|"In-process memory call"| COMP-013
+    COMP-002 -->|"HTTPS/REST"| COMP-006
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-011
+    COMP-003 -->|"PostgreSQL wire protocol"| COMP-011
+    COMP-012 -->|"gRPC over HTTP/2 with mTLS"| COMP-004
+    COMP-001 -->|"HTTPS/REST"| COMP-005
+    COMP-001 -->|"HTTPS/REST"| COMP-007
+    COMP-002 -->|"PostgreSQL wire protocol"| COMP-009
+    COMP-002 -.->|"AMQP / Kafka protocol"| COMP-010
+    COMP-014 -->|"HTTPS/REST"| COMP-001

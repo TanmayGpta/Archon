@@ -1,0 +1,91 @@
+@startuml
+' --- Styling and Configuration ---
+skinparam componentStyle rectangle
+top to bottom direction
+
+' Defining styles based on Mermaid classDefs
+skinparam rectangle<<uiLayer>> {
+    BackgroundColor #e8f8f5
+    BorderColor #1abc9c
+    BorderThickness 2
+}
+
+skinparam rectangle<<logicLayer>> {
+    BackgroundColor #ebf5fb
+    BorderColor #3498db
+    BorderThickness 2
+}
+
+skinparam rectangle<<algoLayer>> {
+    BackgroundColor #e8daef
+    BorderColor #8e44ad
+    BorderThickness 2
+}
+
+skinparam rectangle<<abstractLayer>> {
+    BackgroundColor #d6eaf8
+    BorderColor #2e86c1
+    BorderThickness 2
+}
+
+skinparam rectangle<<accessLayer>> {
+    BackgroundColor #5499c7
+    BorderColor #154360
+    BorderThickness 2
+    FontColor white
+}
+
+' --- Frontend Layer ---
+package "Frontend (User Interface Layer)" as FrontendUI {
+    rectangle "User Registration" as UserReg <<uiLayer>>
+    rectangle "User Login" as UserLogin <<uiLayer>>
+    rectangle "File Management" as FileMgmt <<uiLayer>>
+    rectangle "New User Tutorial" as NewUserTut <<uiLayer>>
+    rectangle "Detection Settings" as DetectSet <<uiLayer>>
+    rectangle "Generate Modification Suggestions" as GenSugg <<uiLayer>>
+    rectangle "Display Modification Results" as ShowRes <<uiLayer>>
+}
+
+' --- Backend Container ---
+package "Backend" as Backend {
+
+    package "Business Logic Layer" as Logic {
+        rectangle "User Input Acquisition" as InputAcq <<logicLayer>>
+        rectangle "Class Attr vs DB Field Inconsistency Detection" as AttrCheck <<logicLayer>>
+        rectangle "Generate Modification Command" as GenCmd <<logicLayer>>
+        rectangle "DB & Class Diagram Format Conversion" as FormatConv <<logicLayer>>
+        rectangle "Relationship Inconsistency Detection" as RelCheck <<logicLayer>>
+        rectangle "Build Topology" as BuildTopo <<logicLayer>>
+        rectangle "DB & Class Diagram Matching" as MatchLogic <<logicLayer>>
+        rectangle "Class vs DB Table Inconsistency Detection" as TableCheck <<logicLayer>>
+        rectangle "Class Diagram Modification" as ClassMod <<logicLayer>>
+    }
+
+    package "Base Algorithm Layer" as Algo {
+        rectangle "Weighted Graph Construction" as WeightGraph <<algoLayer>>
+        rectangle "Bipartite Matching" as BiMatch <<algoLayer>>
+        rectangle "Strict Matching" as StrictMatch <<algoLayer>>
+        rectangle "String Similarity" as StrSim <<algoLayer>>
+        rectangle "Type Similarity" as TypeSim <<algoLayer>>
+    }
+
+    package "Unified Abstraction Layer" as Abstract {
+        rectangle "Database Relationship Identification" as DBRelID <<abstractLayer>>
+        rectangle "Comparable Entity Construction" as CompEnt <<abstractLayer>>
+        rectangle "Data Type Mapping" as DataTypeMap <<abstractLayer>>
+    }
+
+    package "Data Access Layer" as Access {
+        rectangle "Database Parser" as DBParse <<accessLayer>>
+        rectangle "Class Diagram Parser" as ClassParse <<accessLayer>>
+        rectangle "Database Connection" as DBConn <<accessLayer>>
+    }
+}
+
+' --- Relationships ---
+FrontendUI --> Logic
+Logic --> Algo
+Algo --> Abstract
+Abstract --> Access
+
+@enduml

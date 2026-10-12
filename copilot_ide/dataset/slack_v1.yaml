@@ -1,0 +1,39 @@
+openapi: 3.0.3
+info:
+  title: Slack Web API
+  version: v1
+  description: Send messages to Slack channels.
+servers:
+- url: https://slack.com/api
+paths:
+  /chat.postMessage:
+    post:
+      summary: Send a message to a channel
+      description: Sends a message to a channel.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  description: Channel, private group, or IM channel to send message
+                    to.
+                text:
+                  type: string
+                  description: The formatted text of the message to be published.
+              required:
+              - channel
+              - text
+      responses:
+        '200':
+          description: Typical success response
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

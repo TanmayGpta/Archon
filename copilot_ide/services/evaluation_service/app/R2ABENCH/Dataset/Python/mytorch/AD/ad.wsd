@@ -1,0 +1,117 @@
+@startuml
+' Settings for top-down layout
+top to bottom direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+' Define Styles (Matching Mermaid classDefs)
+skinparam rectangle {
+    BackgroundColor<<presentation>> #e1f5fe
+    BorderColor<<presentation>> #01579b
+    
+    BackgroundColor<<application>> #fff9c4
+    BorderColor<<application>> #fbc02d
+    
+    BackgroundColor<<service>> #e8f5e9
+    BorderColor<<service>> #2e7d32
+    
+    BackgroundColor<<framework>> #ffe0b2
+    BorderColor<<framework>> #ef6c00
+    
+    BackgroundColor<<storage>> #f5f5f5
+    BorderColor<<storage>> #616161
+}
+
+' --- Presentation Layer ---
+package "Presentation Layer" as PresentationLayer {
+    rectangle "Main Interface" as MainUI <<presentation>>
+    rectangle "Configuration Interface" as ConfigUI <<presentation>>
+    rectangle "Training Interface" as TrainUI <<presentation>>
+    rectangle "Inference Interface" as InferenceUI <<presentation>>
+}
+
+' --- Application Layer ---
+package "Application Layer" as ApplicationLayer {
+    rectangle "Model Initialization" as ModelInit <<application>>
+    rectangle "Model Training" as ModelTrain <<application>>
+    rectangle "Task Inference" as TaskInference <<application>>
+    rectangle "Model Management" as ModelMgmt <<application>>
+}
+
+' --- Service Layer ---
+package "Service Layer" as ServiceLayer {
+    
+    package "Core Functional Modules" as CoreServices {
+        ' Left-to-Right layout for core modules
+        left to right direction
+        package "Initialization" as InitGroup {
+            rectangle "Backbone Selection" as Backbone <<service>>
+            rectangle "Parameter Settings" as ParamSet <<service>>
+            rectangle "Initialization Visualization" as InitViz <<service>>
+        }
+        package "Training" as TrainGroup {
+            rectangle "Model Selection" as ModelSelT <<service>>
+            rectangle "Training Hyperparams" as TrainParam <<service>>
+            rectangle "Training Visualization" as TrainViz <<service>>
+        }
+        package "Inference" as InferGroup {
+            rectangle "Model Selection" as ModelSelI <<service>>
+            rectangle "Task Settings" as TaskSet <<service>>
+            rectangle "Inference Visualization" as InferViz <<service>>
+        }
+    }
+
+    package "System Management" as SystemMgmt {
+        rectangle "Security Audit" as Security <<service>>
+        rectangle "Permission Management" as Auth <<service>>
+        rectangle "Logging System" as Log <<service>>
+    }
+
+    package "Infrastructure & Interfaces" as Infrastructure {
+        rectangle "Business System" as BusinessSys <<service>>
+        rectangle "Public Interface" as PublicAPI <<service>>
+        rectangle "Service Interface" as ServiceAPI <<service>>
+    }
+    
+    rectangle "Software Construction & Middleware" as SoftwareBuild <<service>>
+    rectangle "Neural Network Model Management" as NNMgmt <<service>>
+}
+
+' --- MyTorch Framework Layer ---
+package "MyTorch Framework Layer" as MyTorchLayer {
+    package "High-Level Components" as HighLevelAPI {
+        package "Neural Network" as NNModule {
+            rectangle "Neural Network Tools" as NNTools <<framework>>
+            rectangle "Activation Functions" as Activation <<framework>>
+            rectangle "Loss Functions" as Loss <<framework>>
+        }
+        package "Optimization" as Optimization {
+            rectangle "Optimizers" as Optimizer <<framework>>
+            rectangle "LR Scheduler" as LRScheduler <<framework>>
+        }
+        package "Data Related" as DataModule {
+            rectangle "Datasets" as Datasets <<framework>>
+            rectangle "Data Loader" as DataLoader <<framework>>
+        }
+    }
+    
+    package "Low-Level Operations" as LowLevelOps {
+        rectangle "Tensor Operations" as TensorOp <<framework>>
+        rectangle "Gradient Computation" as GradCalc <<framework>>
+        rectangle "Mathematical Interfaces" as MathInterface <<framework>>
+    }
+}
+
+' --- Data Layer ---
+package "Storage / Data Layer" as DataLayer {
+    database "NN Model Data" as NNModelData <<storage>>
+    database "Train/Inference History" as HistoryData <<storage>>
+}
+
+' --- Relationships ---
+PresentationLayer --> ApplicationLayer
+ApplicationLayer --> ServiceLayer
+ServiceLayer --> MyTorchLayer
+MyTorchLayer --> DataLayer
+
+@enduml

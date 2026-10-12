@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Twilio SMS API
+  version: '2010-04-01'
+  description: API for sending and receiving SMS and MMS messages.
+servers:
+- url: https://api.twilio.com/2010-04-01
+paths:
+  /Accounts/{AccountSid}/Messages.json:
+    post:
+      summary: Send an SMS message
+      description: Send a new SMS, MMS, or WhatsApp message.
+      security:
+      - basicAuth: []
+      parameters:
+      - name: AccountSid
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                To:
+                  type: string
+                  description: The destination phone number in E.164 format.
+                From:
+                  type: string
+                  description: A Twilio phone number in E.164 format.
+                Body:
+                  type: string
+                  description: The text of the message you want to send. Can be up
+                    to 1,600 characters.
+              required:
+              - To
+              - From
+              - Body
+      responses:
+        '201':
+          description: Message created
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic

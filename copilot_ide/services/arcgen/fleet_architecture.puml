@@ -1,0 +1,45 @@
+@startuml
+skinparam componentStyle uml2
+
+title Architecture: FleetMonitor-IoT (Service-Based Architecture)
+
+package "Infrastructure" {
+  [APIGateway] as COMP-001 <<gateway>>
+  [EventStore] as COMP-009 <<datastore>>
+  [MessageQueue] as COMP-010 <<queue>>
+  [SharedDatabase] as COMP-011 <<datastore>>
+  [EdgeAgent] as COMP-012 <<service>>
+  [Cache] as COMP-013 <<cache>>
+  [CloudServiceProvider] as COMP-014 <<external>>
+}
+
+package "Presentation" {
+  [FleetManagerBFF] as COMP-002 <<service>>
+  [DriverBFF] as COMP-003 <<service>>
+}
+
+package "Application" {
+  [VehicleTelemetryService] as COMP-004 <<service>>
+  [AlertService] as COMP-005 <<service>>
+  [DispatchService] as COMP-006 <<service>>
+  [TripLogService] as COMP-007 <<service>>
+  [DeviceManagementService] as COMP-008 <<service>>
+}
+
+
+COMP-001 --> COMP-002 : HTTPS/REST
+COMP-001 --> COMP-003 : HTTPS/REST
+COMP-001 --> COMP-008 : HTTPS/REST
+COMP-002 --> COMP-013 : In-process memory call
+COMP-003 --> COMP-013 : In-process memory call
+COMP-002 --> COMP-006 : HTTPS/REST
+COMP-002 --> COMP-011 : PostgreSQL wire protocol
+COMP-003 --> COMP-011 : PostgreSQL wire protocol
+COMP-012 --> COMP-004 : gRPC over HTTP/2 with mTLS
+COMP-001 --> COMP-005 : HTTPS/REST
+COMP-001 --> COMP-007 : HTTPS/REST
+COMP-002 --> COMP-009 : PostgreSQL wire protocol
+COMP-002 ..> COMP-010 : AMQP / Kafka protocol
+COMP-014 --> COMP-001 : HTTPS/REST
+
+@enduml

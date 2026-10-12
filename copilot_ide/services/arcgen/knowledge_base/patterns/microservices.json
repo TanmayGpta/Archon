@@ -1,0 +1,68 @@
+{
+  "pattern_id": "PAT-MICROSERVICES",
+  "name": "Microservices Architecture",
+  "catalog_source": "Richards & Ford (2020), Ch. 17; Newman (2021); Richardson (microservices.io)",
+  "topology_type": "Distributed",
+  "forces_resolved": [
+    "Independent deployability and autonomy of multiple feature teams",
+    "Fine-grained heterogeneous elasticity and tech-stack specialization",
+    "High fault isolation (single service crash does not bring down system)"
+  ],
+  "forces_unresolved": [
+    "Network latency and serialization overhead across distributed boundaries",
+    "Complex distributed data management (sagas, eventual consistency, CQRS)",
+    "Significant operational complexity (service meshes, Kubernetes, distributed tracing)",
+    "Higher infrastructure base cost"
+  ],
+  "iso25010_impact": {
+    "Capacity": 2,
+    "Time behavior": -1,
+    "Resource utilization": -1,
+    "Availability": 2,
+    "Fault tolerance": 2,
+    "Recoverability": 1,
+    "Confidentiality": 1,
+    "Integrity": -2,
+    "Modularity": 2,
+    "Reusability": 1,
+    "Analysability": -1,
+    "Modifiability": 2,
+    "Testability": -2,
+    "Scalability": 2,
+    "Adaptability": 2,
+    "Interoperability": 2
+  },
+  "limits": {
+    "supported_consistency": [
+      "Eventual",
+      "Causal"
+    ],
+    "min_team_size": 8,
+    "operational_complexity": 5,
+    "cost_factor": 4,
+    "max_scale_rps": 100000
+  },
+  "applicability_conditions": [
+    "Large enterprise with multiple cross-functional teams (> 15 engineers)",
+    "Distinct domain boundaries with differing scale, security, or deployment cadence",
+    "Mature DevOps CI/CD and observability infrastructure in place"
+  ],
+  "anti_requisites": [
+    "Small engineering team (< 5 developers)",
+    "Tight cloud budget (< $1,000/mo)",
+    "Strict single-database immediate ACID transactions across all domains",
+    "Unclear, highly fluid domain boundaries (risk of distributed monolith)"
+  ],
+  "related_patterns": {
+    "alternatives": [
+      "PAT-MODULAR-MONOLITH",
+      "PAT-SERVICE-BASED"
+    ],
+    "successors": [
+      "PAT-API-GATEWAY",
+      "PAT-DATABASE-PER-SERVICE",
+      "PAT-SAGA-ORCHESTRATED"
+    ]
+  },
+  "pattern_role": "MacroStyle"
+}

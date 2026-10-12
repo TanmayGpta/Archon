@@ -1,0 +1,67 @@
+{
+    "info": {
+        "name": "Twilio Communication API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Send SMS",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Basic {{auth}}"
+                    }
+                ],
+                "url": {
+                    "raw": "https://api.twilio.com/2010-04-01/Accounts/:AccountSid/Messages.json",
+                    "host": [
+                        "https://api.twilio.com"
+                    ],
+                    "path": [
+                        "2010-04-01",
+                        "Accounts",
+                        ":AccountSid",
+                        "Messages.json"
+                    ]
+                },
+                "body": {
+                    "mode": "urlencoded",
+                    "urlencoded": [
+                        {
+                            "key": "To",
+                            "value": "+1234567890"
+                        },
+                        {
+                            "key": "From",
+                            "value": "+0987654321"
+                        },
+                        {
+                            "key": "Body",
+                            "value": "Hello World"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Fetch Call Logs",
+            "request": {
+                "method": "GET",
+                "url": {
+                    "raw": "https://api.twilio.com/2010-04-01/Accounts/:AccountSid/Calls.json",
+                    "host": [
+                        "https://api.twilio.com"
+                    ],
+                    "path": [
+                        "2010-04-01",
+                        "Accounts",
+                        ":AccountSid",
+                        "Calls.json"
+                    ]
+                }
+            }
+        }
+    ]
+}
