@@ -53,4 +53,8 @@ out/
 .playwright-mcp/
 slides_export/
 **/data/chroma_db/
-**/server.log
+**/server.log
+
+# External target codebases scanned by Conformance Studio
+targets/
+copilot_ide/targets/

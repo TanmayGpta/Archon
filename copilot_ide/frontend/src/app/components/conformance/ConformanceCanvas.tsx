@@ -507,11 +507,13 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     }
     particlesRef.current = newParticles;
 
-    // Reset initial camera fit flag on data change so settled constellation is framed immediately
-    hasFittedInitialCameraRef.current = false;
+    // Frame settled constellation only once on true initial mount
+    if (cameraRef.current.x === 0 && cameraRef.current.y === 0 && cameraRef.current.zoom === 0.85) {
+      hasFittedInitialCameraRef.current = false;
+    }
   }, [nodes, edges, filterLayers]);
 
-  // Layout mode transition with cubic easing and camera auto-fit
+  // Layout mode transition with smooth cubic easing (keeps camera position stable)
   useEffect(() => {
     const currentNodes = simNodesRef.current;
     if (!currentNodes || currentNodes.length === 0) return;
@@ -528,24 +530,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       starts,
       targets
     };
-
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        const targetCam = computeFitT(Array.from(targets.values()), rect.width, rect.height, 80);
-        cameraTweenRef.current = {
-          t0: performance.now(),
-          dur: 950,
-          startX: cameraRef.current.x,
-          startY: cameraRef.current.y,
-          startZoom: cameraRef.current.zoom,
-          targetX: targetCam.x,
-          targetY: targetCam.y,
-          targetZoom: targetCam.zoom
-        };
-      }
-    }
   }, [mode, selectedNode]);
 
   // Main 60 FPS Render & Physics Loop
@@ -641,12 +625,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           }
         }
 
-        // Ambient solar system cosmic rotation (paused while hovering or dragging)
-        if (!isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current) {
-          ambientRotationRef.current += 0.00022;
+        // Gentle ambient cosmic rotation (paused while hovering, dragging, or inspecting)
+        if (!isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current && !selectedNode) {
+          ambientRotationRef.current += 0.00018;
         }
-
-        // ── Precision High-DPI Mouse Spatial Raycasting (Every Frame Synchronized) ──
         const rot = mode === 'network' ? ambientRotationRef.current : 0;
         if (mousePosRef.current.isInside && !isDraggingRef.current) {
           const mouseX = mousePosRef.current.x;
@@ -750,12 +732,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           return;
         }
 
-        // Apply Surreal Solar System Cosmic Rotation to the graph network (network mode only)
-        if (mode === 'network') {
+        // Apply gentle cosmic rotation to the graph network
+        if (mode === 'network' && rot !== 0) {
           ctx.rotate(rot);
         }
-
-        // Mode Guides (Orbit Rings / Cluster Labels)
         if (mode === 'orbit') {
           [180, 340, 520].forEach((r, idx) => {
             ctx.beginPath();
@@ -854,31 +834,18 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           const isHot = hotEdges.has(e.id);
           const isSelected = selectedEdge && selectedEdge.id === e.id;
 
-          let lineWidth = isHot ? 1.5 : (geom.isDashed ? 0.6 : 0.65);
+          let lineWidth = e.isViolation ? 1.4 : (isHot ? 0.85 : (geom.isDashed ? 0.6 : 0.65));
           let alpha = 0.22;
 
           if (e.isViolation) {
-            alpha = hasActiveFocus ? (isHot ? 1.0 : 0.60) : 0.95;
-            lineWidth = isHot ? 2.4 : 2.0;
+            alpha = hasActiveFocus ? (isHot ? 0.95 : 0.40) : 0.90;
           } else if (hasActiveFocus) {
-            if (isHot) {
-              alpha = 0.95;
-              lineWidth = 1.5;
-            } else {
-              alpha = 0.06;
-            }
+            alpha = isHot ? 0.80 : 0.05;
           } else if (mode === 'violations') {
             alpha = 0.04;
           }
 
-          let strokeStyle: string;
-          if (e.isViolation) {
-            strokeStyle = '#ff3b30';
-          } else if (isHot) {
-            strokeStyle = isSelected ? '#e8ff00' : s.color;
-          } else {
-            strokeStyle = s.color;
-          }
+          const strokeStyle = e.isViolation ? '#ff3b30' : (isHot ? '#e8ff00' : s.color);
 
           ctx.beginPath();
           ctx.moveTo(s.x!, s.y!);
@@ -904,84 +871,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.setLineDash([]);
           } else {
             ctx.stroke();
-          }
-
-          // Directional glowing chevrons on hot edges
-          if (isHot) {
-            let bx = 0, by = 0, angle = 0;
-            if (geom.isStraight) {
-              angle = Math.atan2(t.y! - s.y!, t.x! - s.x!);
-              bx = s.x! + 0.88 * (t.x! - s.x!);
-              by = s.y! + 0.88 * (t.y! - s.y!);
-            } else {
-              const tPos = 0.86;
-              const ax = (1 - tPos) * (1 - tPos) * s.x! + 2 * (1 - tPos) * tPos * geom.cx + tPos * tPos * t.x!;
-              const ay = (1 - tPos) * (1 - tPos) * s.y! + 2 * (1 - tPos) * tPos * geom.cy + tPos * tPos * t.y!;
-              const tNext = 0.90;
-              bx = (1 - tNext) * (1 - tNext) * s.x! + 2 * (1 - tNext) * tNext * geom.cx + tNext * tNext * t.x!;
-              by = (1 - tNext) * (1 - tNext) * s.y! + 2 * (1 - tNext) * tNext * geom.cy + tNext * tNext * t.y!;
-              angle = Math.atan2(by - ay, bx - ax);
-            }
-
-            ctx.fillStyle = e.isViolation ? '#ff3b30' : s.color;
-            ctx.shadowColor = e.isViolation ? '#ff3b30' : s.color;
-            ctx.shadowBlur = 6;
-            ctx.beginPath();
-            ctx.moveTo(bx, by);
-            ctx.lineTo(bx - 7 * Math.cos(angle - 0.45), by - 7 * Math.sin(angle - 0.45));
-            ctx.lineTo(bx - 7 * Math.cos(angle + 0.45), by - 7 * Math.sin(angle + 0.45));
-            ctx.closePath();
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // bl00d.money Badge Pill on Hot Connected Edges
-            if (activeNode) {
-              const otherId = e.source === activeNode.id ? e.target : e.source;
-              const otherNode = nodeMap.get(otherId);
-              if (otherNode) {
-                const badgeText = e.isViolation ? 'VIOLATION' : otherNode.label;
-                const tPos = 0.58;
-                let px = 0, py = 0;
-                if (geom.isStraight) {
-                  px = (1 - tPos) * s.x! + tPos * t.x!;
-                  py = (1 - tPos) * s.y! + tPos * t.y!;
-                } else {
-                  px = (1 - tPos) * (1 - tPos) * s.x! + 2 * (1 - tPos) * tPos * geom.cx + tPos * tPos * t.x!;
-                  py = (1 - tPos) * (1 - tPos) * s.y! + 2 * (1 - tPos) * tPos * geom.cy + tPos * tPos * t.y!;
-                }
-
-                ctx.font = 'bold 9px ui-monospace, monospace';
-                const metrics = ctx.measureText(badgeText);
-                const bw = metrics.width + 12;
-                const bh = 17;
-                const bx = px - bw / 2;
-                const by = py - bh / 2;
-
-                ctx.fillStyle = 'rgba(10, 12, 16, 0.94)';
-                ctx.strokeStyle = e.isViolation ? '#ff3b30' : (isSelected ? '#e8ff00' : otherNode.color);
-                ctx.lineWidth = 1;
-
-                ctx.beginPath();
-                const rad = 3;
-                ctx.moveTo(bx + rad, by);
-                ctx.lineTo(bx + bw - rad, by);
-                ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + rad);
-                ctx.lineTo(bx + bw, by + bh - rad);
-                ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - rad, by + bh);
-                ctx.lineTo(bx + rad, by + bh);
-                ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - rad);
-                ctx.lineTo(bx, by + rad);
-                ctx.quadraticCurveTo(bx, by, bx + rad, by);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = e.isViolation ? '#ff3b30' : '#ffffff';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(badgeText, px, py);
-              }
-            }
           }
         });
         ctx.globalAlpha = 1.0;
@@ -1060,29 +949,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           const baseR = n.totalDegree >= 16 ? 9.2 : n.totalDegree >= 8 ? 7.0 : n.totalDegree >= 4 ? 5.0 : 3.5;
           let radius = baseR * Math.max(0.75, Math.min(1.35, Math.sqrt(cam.zoom)));
           if (isSelected) radius = radius * 1.35 + 2;
-          else if (isHovered) radius = radius * 1.25 + 1;
 
           ctx.globalAlpha = nodeAlpha;
 
           const isExternal = n.nodeType === 'external';
 
-          // Luminous Atmospheric Corona Glow (subtle for diamonds, soft celestial for circles)
-          const coronaRadius = isHovered ? radius + 7 : (isExternal ? radius + 1.2 : radius + 4.0);
-          ctx.beginPath();
-          ctx.arc(n.x!, n.y!, coronaRadius, 0, Math.PI * 2);
-          ctx.fillStyle = n.violationsCount > 0 
-            ? 'rgba(255, 59, 48, 0.40)' 
-            : hexA(n.color, isHovered ? 0.45 : (isExternal ? 0.16 : 0.22));
-          ctx.fill();
-
           // Draw Shape Based on Node Type
           const isViolation = n.violationsCount > 0;
-          const needsShadow = isHovered || isSelected || isViolation;
 
-          if (needsShadow) {
-            ctx.shadowColor = isViolation ? '#ff3b30' : (isHovered ? '#e8ff00' : n.color);
-            ctx.shadowBlur = isViolation ? 22 : 16;
-          }
+          // Vibrant Neon Glow on Nodes (radiating node's own layer color)
+          ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
+          ctx.shadowBlur = isViolation ? 18 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
 
           if (isViolation) {
             ctx.beginPath();
@@ -1106,7 +983,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           } else if (n.nodeType === 'external') {
             // Delicate, crisp jewel diamonds scaled proportionally
             const dBase = Math.min(4.8, Math.max(2.4, radius * 0.45));
-            const dSize = isSelected ? dBase + 2.0 : isHovered ? dBase + 1.2 : dBase;
+            const dSize = isSelected ? dBase + 2.0 : dBase;
             ctx.beginPath();
             ctx.moveTo(n.x!, n.y! - dSize);
             ctx.lineTo(n.x! + dSize, n.y!);
@@ -1115,7 +992,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.closePath();
             ctx.fillStyle = n.color;
             ctx.fill();
-            ctx.strokeStyle = isHovered ? '#e8ff00' : '#141413';
+            ctx.strokeStyle = '#141413';
             ctx.lineWidth = 1;
             ctx.stroke();
           } else if (n.layer === 'Infrastructure') {
@@ -1157,19 +1034,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.fill();
           }
 
-          if (needsShadow) {
-            ctx.shadowBlur = 0;
-          }
+          ctx.shadowBlur = 0;
 
-          if (isSelected || isHovered) {
-            ctx.beginPath();
-            ctx.arc(n.x!, n.y!, radius + 5, 0, Math.PI * 2);
-            ctx.strokeStyle = '#e8ff00';
-            ctx.lineWidth = 1.8;
-            ctx.stroke();
-          }
-
-          // bl00d.money Declutter: Landmark hubs only on overview; full labels on hover / zoom
+          // Decluttered Labels with Compact, Sleek Typography
           const isTopLandmark = n.totalDegree >= 18;
           const shouldShowLabel =
             isSelected ||
@@ -1181,24 +1048,24 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             (cam.zoom >= 0.85 && isTopLandmark);
 
           if (isHovered) {
-            ctx.font = 'bold 12px ui-sans-serif, system-ui, -apple-system, sans-serif';
+            ctx.font = '600 9.5px ui-monospace, SFMono-Regular, monospace';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            const textX = n.x! + radius + 9;
+            const textX = n.x! + radius + 6;
             const textY = n.y!;
 
-            ctx.lineWidth = 3.5;
+            ctx.lineWidth = 2.5;
             ctx.strokeStyle = 'rgba(8, 8, 8, 0.95)';
-            ctx.strokeText(n.label.toUpperCase(), textX, textY);
+            ctx.strokeText(n.label, textX, textY);
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(n.label.toUpperCase(), textX, textY);
+            ctx.fillText(n.label, textX, textY);
           } else if (shouldShowLabel) {
-            ctx.font = `${isSelected ? 'bold 10px' : '9px'} ui-monospace, monospace`;
+            ctx.font = `${isSelected ? 'bold 8.5px' : '7.5px'} ui-monospace, monospace`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            const textY = n.y! + radius + 7;
+            const textY = n.y! + radius + 4;
 
-            ctx.lineWidth = 2.5;
+            ctx.lineWidth = 2.0;
             ctx.strokeStyle = 'rgba(8, 8, 8, 0.90)';
             ctx.strokeText(n.label, n.x!, textY);
             ctx.fillStyle = isSelected ? '#e8ff00' : n.violationsCount > 0 ? '#ff5c2b' : '#d1d5db';
@@ -1224,28 +1091,45 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   }, [mode, selectedNode, selectedEdge, highlightLayer]);
 
   // Window resize listener
+  // Window resize listener (does not move or reset user camera)
   useEffect(() => {
     const handleResize = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const w = canvas.clientWidth || window.innerWidth;
-      const h = canvas.clientHeight || (window.innerHeight - 56);
-      if (w > 0 && h > 0 && simNodesRef.current.length > 0) {
-        cameraRef.current = computeFitT(simNodesRef.current, w, h, 75);
-      }
+      // Dimensions synchronize cleanly in requestAnimationFrame
     };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ── Precision High-DPI Mouse Spatial Raycasting with Cosmic Rotation ──
+  // Reset Camera smoothly to default fitted view with straight names (0 rotation)
+  const handleResetCamera = useCallback(() => {
+    ambientRotationRef.current = 0; // Snap/reset rotation back to 0 where all names are straight
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const w = canvas.clientWidth || 1200;
+    const h = canvas.clientHeight || 800;
+    const currentNodes = simNodesRef.current;
+    if (currentNodes.length === 0) return;
+
+    const targetCam = computeFitT(currentNodes, w, h, 75);
+    cameraTweenRef.current = {
+      t0: performance.now(),
+      dur: 600,
+      startX: cameraRef.current.x,
+      startY: cameraRef.current.y,
+      startZoom: cameraRef.current.zoom,
+      targetX: targetCam.x,
+      targetY: targetCam.y,
+      targetZoom: targetCam.zoom
+    };
+  }, []);
+
+  // ── Precision High-DPI Mouse Spatial Raycasting ──
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const cam = cameraRef.current;
-    const rot = ambientRotationRef.current;
+    const rot = mode === 'network' ? ambientRotationRef.current : 0;
     const mx = (clientX - rect.left - rect.width / 2 - cam.x) / cam.zoom;
     const my = (clientY - rect.top - rect.height / 2 - cam.y) / cam.zoom;
     const cos = Math.cos(rot);
@@ -1254,7 +1138,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       x: mx * cos + my * sin,
       y: -mx * sin + my * cos
     };
-  }, []);
+  }, [mode]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -1262,11 +1146,11 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     const rect = canvas.getBoundingClientRect();
     const cam = cameraRef.current;
     const nodesList = simNodesRef.current;
-    const rot = ambientRotationRef.current;
+    const rot = mode === 'network' ? ambientRotationRef.current : 0;
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
 
-    // High-Precision Screen-Space Raycasting: Find true closest node accounting for rotation
+    // High-Precision Screen-Space Raycasting: Find true closest node
     let closestNode: ConformanceNode | null = null;
     let minScreenDist = Infinity;
 
@@ -1280,7 +1164,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       const screenY = rect.top + rect.height / 2 + cam.y + ry * cam.zoom;
       const sDx = e.clientX - screenX;
       const sDy = e.clientY - screenY;
-      const screenDist = Math.sqrt(sDx * sDx + sDy * sDy);
+      const screenDist = Math.hypot(sDx, sDy);
 
       const hitRadius = Math.max(9, n.radius * cam.zoom + 4);
       if (screenDist <= hitRadius && screenDist < minScreenDist) {
@@ -1376,7 +1260,22 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
+        onDoubleClick={handleResetCamera}
       />
+
+      {/* Top Right: Reset / Default View Button */}
+      <div className="absolute top-3.5 right-3.5 z-20">
+        <button
+          onClick={handleResetCamera}
+          title="Reset Camera to Default View (Fit)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e0e0d]/90 hover:bg-[#1a1a19] text-[#a0a0a0] hover:text-[#e8ff00] border border-[#2a2a29] hover:border-[#e8ff00]/40 transition-all font-mono text-[11px] shadow-xl backdrop-blur-md cursor-pointer group select-none active:scale-95"
+        >
+          <svg className="w-3.5 h-3.5 text-[#8b8b86] group-hover:text-[#e8ff00] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+          </svg>
+          <span className="tracking-wider font-semibold">DEFAULT VIEW</span>
+        </button>
+      </div>
     </div>
   );
 };

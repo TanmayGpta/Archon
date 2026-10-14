@@ -67,8 +67,7 @@ services:
       - ../conformance:/workspace/conformance:ro
       - ../shared:/workspace/shared:ro
       - ./services/orchestrator_service/app:/app/app
-      - /mnt/c:/mnt/c
-      - /mnt/d:/mnt/d
+      - C:\Users:/mnt/c/Users:ro
     environment:
       - PORT=8000
       - HOST=0.0.0.0
