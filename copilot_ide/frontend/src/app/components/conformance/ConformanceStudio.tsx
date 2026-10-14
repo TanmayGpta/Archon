@@ -311,6 +311,13 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               ✕
             </button>
           )}
+          <button
+            onClick={() => runAudit(selectedBlueprintId, targetPath)}
+            className="px-2 py-0.5 rounded bg-[#e8ff00]/15 hover:bg-[#e8ff00] text-[#e8ff00] hover:text-black font-mono text-[10px] font-bold border border-[#e8ff00]/40 transition-all cursor-pointer"
+            title="Scan this codebase folder"
+          >
+            SCAN
+          </button>
         </div>
 
         {/* Blueprint & Audit Controls */}
@@ -321,7 +328,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               value={selectedBlueprintId}
               onChange={e => {
                 setSelectedBlueprintId(e.target.value);
-                runAudit(e.target.value);
+                runAudit(e.target.value, targetPath);
               }}
               className="bg-[#141413] border border-[#2b2b2a] text-white text-xs font-mono rounded px-2.5 py-1 outline-none focus:border-[#e8ff00]"
             >
@@ -350,7 +357,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           </button>
 
           <button
-            onClick={() => runAudit()}
+            onClick={() => runAudit(selectedBlueprintId, targetPath)}
             disabled={loading}
             className="px-3 py-1 rounded bg-[#e8ff00] text-black font-mono text-xs font-bold hover:bg-[#d6ec00] transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >

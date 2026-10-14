@@ -64,6 +64,54 @@ def heuristic_layer_classify(module_name: str) -> str:
     return "Application"
 
 
+def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
+    """Safely normalizes Windows and Linux paths across host and Docker container mounts."""
+    if not p_str or not p_str.strip():
+        return default_root
+    clean = p_str.strip().strip('"').strip("'")
+    
+    # 1. Direct check
+    direct = Path(clean)
+    if direct.exists():
+        return direct.resolve()
+        
+    # 2. Check mounted targets directory (e.g. /workspace/targets/FinSight)
+    basename = Path(clean.replace('\\', '/')).name
+    target_candidates = [
+        Path("/workspace/targets") / basename,
+        default_root / "targets" / basename,
+        default_root.parent / "targets" / basename,
+        Path("/workspace") / clean.replace('\\', '/'),
+        default_root / clean.replace('\\', '/')
+    ]
+    for tc in target_candidates:
+        if tc.exists():
+            return tc.resolve()
+
+    # 3. Windows drive translation for Linux Docker (e.g. C:\Users\... -> /mnt/c/Users/...)
+    if len(clean) >= 2 and clean[1] == ':':
+        drive = clean[0].lower()
+        sub = clean[2:].replace('\\', '/')
+        if sub.startswith('/'):
+            sub = sub[1:]
+        candidates = [
+            Path(f"/mnt/{drive}/{sub}"),
+            Path(f"/{drive}/{sub}"),
+            Path(f"/host_{drive}/{sub}"),
+            Path(f"/workspace/{sub}")
+        ]
+        for c in candidates:
+            if c.exists():
+                return c.resolve()
+
+    # 4. Relative to workspace root
+    rel = (default_root / clean).resolve()
+    if rel.exists():
+        return rel
+
+    return direct.resolve()
+
+
 class ConformanceService:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or ROOT_DIR).resolve()
@@ -76,9 +124,33 @@ class ConformanceService:
         include_external: bool = True
     ) -> Dict[str, Any]:
         """Runs an end-to-end architectural conformance audit."""
-        scan_dir = Path(target_path).resolve() if target_path else self.workspace_root
+        scan_dir = normalize_target_path(target_path, self.workspace_root)
         if not scan_dir.exists():
-            scan_dir = self.workspace_root
+            return {
+                "status": "error",
+                "error": f"Path not found: {target_path}",
+                "targetPath": str(target_path),
+                "nodes": [],
+                "edges": [],
+                "violations": [],
+                "cycles": [],
+                "layers": [],
+                "availableBlueprints": [
+                    {"id": b["id"], "name": b["name"], "description": b["description"]}
+                    for b in load_available_blueprints()
+                ],
+                "metrics": {
+                    "healthScore": 0,
+                    "totalModules": 0,
+                    "internalModules": 0,
+                    "stdlibModules": 0,
+                    "externalModules": 0,
+                    "totalDependencies": 0,
+                    "totalViolations": 0,
+                    "cyclesCount": 0,
+                    "layerDistribution": {}
+                }
+            }
 
         # 1. Load Blueprint
         if custom_ruleset:
