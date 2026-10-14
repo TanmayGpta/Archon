@@ -7,7 +7,7 @@
     {
       "name": "Presentation",
       "description": "User interfaces and delivery entrypoints: Streamlit web dashboard (app.py) and CLI automation commands (shared.cli). Translates user or CI input into application workflows.",
-      "match_patterns": ["app", "*app*", "*shared.cli*", "*cli*", "*ArcGen.main*"]
+      "match_patterns": ["app", "*app.py", "*shared.cli*", "*cli.main*", "*ArcGen.main*", "*interactive_cli*"]
     },
     {
       "name": "Application",

@@ -9,11 +9,18 @@ import ContextFileChips, { ContextFileItem, SuggestedFileItem } from './componen
 import GitHubOpenModal, { GitHubRepoInfo } from './components/GitHubOpenModal';
 import AutoForkPromptModal from './components/AutoForkPromptModal';
 import { ArcGenStudio } from './components/ArcGenStudio';
+import { ConformanceStudio } from './components/conformance/ConformanceStudio';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 /* ── Professional Sleek SVG Icon Library ───────────────────── */
 const Icons = {
+  Conformance: () => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v7m0 6v7M2 12h7m6 0h7" />
+    </svg>
+  ),
   Chart: () => (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="20" x2="18" y2="10" />
@@ -3584,7 +3591,7 @@ function VSCodeAgentIDE({
 
 /* -- Main Application Component ------------------------------ */
 export default function Home() {
-  const [appMode, setAppMode] = useState<'api_copilot' | 'copilot_agent' | 'evaluation' | 'arcgen'>('api_copilot');
+  const [appMode, setAppMode] = useState<'api_copilot' | 'copilot_agent' | 'evaluation' | 'arcgen' | 'conformance'>('api_copilot');
 
   // Shared Global State
   const [models, setModels] = useState<string[]>(["gemma3:4b", "gemma3:12b", "codellama:7b-instruct"]);
@@ -3868,7 +3875,7 @@ export default function Home() {
                   Archon Copilot
                 </span>
                 <span className="text-[9.5px] font-mono font-medium px-1.5 py-0.2 bg-[#12151c] border border-[#1e232e] text-[#60a5fa] rounded">
-                  v2.0
+                  v1.0
                 </span>
               </div>
             </div>
@@ -3920,6 +3927,17 @@ export default function Home() {
               <Icons.Architecture />
               <span>ArcGen Studio</span>
             </button>
+            <button
+              onClick={() => setAppMode('conformance')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[12px] font-mono font-semibold transition-all cursor-pointer ${
+                appMode === 'conformance'
+                  ? 'bg-[#1b1b1a] text-[#e8ff00] border border-[#e8ff00]/50 shadow-md'
+                  : 'text-[#64748b] hover:text-[#cbd5e1]'
+              }`}
+            >
+              <Icons.Conformance />
+              <span>Conformance Studio</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#10b981]/10 border border-[#10b981]/25 rounded-lg text-[11px] font-mono text-[#10b981]">
@@ -3939,6 +3957,12 @@ export default function Home() {
           <ArcGenStudio
             apiBase={API_BASE}
             onOpenInIDE={() => setAppMode('copilot_agent')}
+          />
+        </main>
+      ) : appMode === 'conformance' ? (
+        <main className="w-full min-h-[calc(100vh-56px)] bg-[#080808]">
+          <ConformanceStudio
+            apiBase={API_BASE}
           />
         </main>
       ) : appMode === 'copilot_agent' ? (
@@ -4575,7 +4599,7 @@ export default function Home() {
 
             {/* Footer */}
             <div className="mt-8 flex justify-between items-center text-[10px] font-mono text-[#282e3a]">
-              <span>v2.0.0-archon</span>
+              <span>v1.0.0-archon</span>
               <span>Archon Copilot · Multi-Strategy Diagnostic Portal</span>
             </div>
           </div>

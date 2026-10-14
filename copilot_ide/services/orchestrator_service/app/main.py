@@ -31,6 +31,9 @@ app.add_middleware(
 from .arcgen_router import router as arcgen_router
 app.include_router(arcgen_router, prefix="/api/arcgen", tags=["arcgen"])
 
+from .conformance_router import router as conformance_router
+app.include_router(conformance_router, prefix="/api/conformance", tags=["conformance"])
+
 WORKSPACE_ROOT = Path(os.getenv("WORKSPACE_ROOT", "/workspace" if os.path.exists("/workspace") else str(Path(__file__).resolve().parent.parent.parent.parent)))
 
 IGNORED_DIRS = {

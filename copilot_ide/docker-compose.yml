@@ -64,6 +64,8 @@ services:
       - "8000:8000"
     volumes:
       - .:/workspace
+      - ../conformance:/workspace/conformance:ro
+      - ../shared:/workspace/shared:ro
       - ./services/orchestrator_service/app:/app/app
       - /mnt/c:/mnt/c
       - /mnt/d:/mnt/d
