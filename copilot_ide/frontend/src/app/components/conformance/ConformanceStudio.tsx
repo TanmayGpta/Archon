@@ -14,6 +14,7 @@ import {
 interface ConformanceStudioProps {
   apiBase: string;
   initialPath?: string;
+  initialBlueprintId?: string;
 }
 
 const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
@@ -92,7 +93,7 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
   ]
 });
 
-export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath }) => {
+export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [auditData, setAuditData] = useState<ConformanceAuditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +108,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [selectedEdge, setSelectedEdge] = useState<ConformanceEdge | null>(null);
   const [highlightLayer, setHighlightLayer] = useState<string | null>(null);
   const [filterLayers, setFilterLayers] = useState<Set<string>>(new Set());
-  const [selectedBlueprintId, setSelectedBlueprintId] = useState<string>('archon_architecture');
+  const [selectedBlueprintId, setSelectedBlueprintId] = useState<string>(initialBlueprintId || 'archon_architecture');
   const [includeExternal, setIncludeExternal] = useState<boolean>(true);
 
   // Search state
