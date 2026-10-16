@@ -48,7 +48,14 @@ def heuristic_layer_classify(module_name: str) -> str:
     parts = module_name.lower().split(".")
     base = parts[-1]
     full = module_name.lower()
-    
+
+    # A package explicitly named after a layer (e.g. domain/ports.py) wins over file-name keywords.
+    explicit = {"domain": "Domain", "application": "Application",
+                "presentation": "Presentation", "infrastructure": "Infrastructure"}
+    for part in parts[:-1]:
+        if part in explicit:
+            return explicit[part]
+
     # Only true UI / CLI entrypoints are Presentation
     if base in ["app", "main", "cli", "interactive_cli"] and any(k in full for k in ["ui", "frontend", "cli", "shared"]):
         return "Presentation"

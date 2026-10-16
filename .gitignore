@@ -57,4 +57,11 @@ slides_export/
 
 # External target codebases scanned by Conformance Studio
 targets/
-copilot_ide/targets/
+copilot_ide/targets/
+# Personal Claude Code notes (root only; copilot_ide/frontend/CLAUDE.md stays tracked)
+/CLAUDE.md
+.claude/
+
+# Archon Guard (AGAI) sandboxes, backups, event logs
+archon_agai/.runs/
+test_codebases/_bench/
