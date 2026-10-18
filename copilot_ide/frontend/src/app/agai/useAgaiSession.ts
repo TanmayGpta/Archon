@@ -73,6 +73,7 @@ export interface SessionState {
   session_id: string;
   codebase_path: string;
   blueprint_id: string;
+  healable?: boolean;  // false for read-only targets (Archon itself): audit only, no healing
   audit_result?: AuditResult | null;
   audit_narrative?: { summary: string; rationales: { violation_id: string; why_it_matters: string; prescribed_fix: string }[]; roadmap: string[] } | null;
   healing_report?: HealingReport | null;

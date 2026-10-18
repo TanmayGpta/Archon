@@ -122,11 +122,16 @@ export function EditorWindow({ s }: { s: Session }) {
               className="flex-1 py-1.5 rounded text-[12px] bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white">
               {s.busy === 'audit' ? 'Auditing…' : '1 · Audit (ADK)'}
             </button>
-            <button disabled={!!s.busy || !audit?.violations.length} onClick={s.heal}
-              className="flex-1 py-1.5 rounded text-[12px] bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white">
-              {s.busy === 'heal' ? 'Healing…' : '2 · Heal (CrewAI)'}
-            </button>
+            {s.state?.healable !== false && (
+              <button disabled={!!s.busy || !audit?.violations.length} onClick={s.heal}
+                className="flex-1 py-1.5 rounded text-[12px] bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white">
+                {s.busy === 'heal' ? 'Healing…' : '2 · Heal (CrewAI)'}
+              </button>
+            )}
           </div>
+          {s.state?.healable === false && (
+            <div className="text-[11px] text-zinc-500">Archon core is audit-only. Open an external project to heal.</div>
+          )}
           {s.error && <div className="text-[11px] text-rose-400 break-words">{s.error}</div>}
           {s.state?.guardrail_blocked && <div className="text-[11px] text-rose-400">Blocked: {s.state.guardrail_blocked.join('; ')}</div>}
         </div>

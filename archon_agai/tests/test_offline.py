@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from archon_agai import engine
-from archon_agai.config import DEFAULT_CODEBASE
+from archon_agai.config import DEMO_CODEBASE as DEFAULT_CODEBASE
 from archon_agai.guardrails import check_patch_file, resolve_allowed_path, screen_user_prompt
 from archon_agai.schemas import FilePatch, SearchReplace
 
@@ -93,7 +93,7 @@ def test_only_adk_and_crewai_frameworks():
 def test_gateway_offline_endpoints():
     from archon_agai.gateway import app
     c = TestClient(app)
-    s = c.post("/api/agai/sessions", json={}).json()
+    s = c.post("/api/agai/sessions", json={"codebase_path": DEFAULT_CODEBASE, "blueprint_id": BP}).json()
     assert c.get("/api/agai/tree").json()["files"]
     canvas = c.post("/api/conformance/audit", json={"target_path": s["codebase_path"], "blueprint_id": BP}).json()
     assert canvas["metrics"]["totalViolations"] > 0
@@ -102,3 +102,15 @@ def test_gateway_offline_endpoints():
     assert r.status_code in (400, 500)  # 400 blocked (500 only if GOOGLE_API_KEY missing)
     assert c.post("/api/agai/heal", json={"session_id": s["session_id"]}).status_code == 400
     assert c.get("/api/agai/file", params={"path": "../../../.env"}).status_code >= 400
+
+
+def test_archon_repo_is_readonly():
+    from archon_agai.config import REPO_ROOT
+    from archon_agai.gateway import app
+    c = TestClient(app)
+    s = c.post("/api/agai/sessions", json={}).json()
+    assert Path(s["codebase_path"]) == REPO_ROOT and s["healable"] is False
+    assert c.post("/api/agai/heal", json={"session_id": s["session_id"]}).status_code == 400
+    assert c.put("/api/agai/file", json={"path": "README.md", "content": "x"}).status_code >= 400
+    assert c.get("/api/agai/file", params={"path": ".env"}).status_code >= 400
+    assert c.get("/api/agai/file", params={"path": "conformance/checker.py"}).status_code == 200

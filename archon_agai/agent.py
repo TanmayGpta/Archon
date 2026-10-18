@@ -19,7 +19,7 @@ from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from mcp import StdioServerParameters
 
 from archon_agai.callbacks import AGENT_CALLBACKS, LLM_CALLBACKS
-from archon_agai.config import (ADK_MODEL, ALLOWED_ROOTS, FS_MCP_COMMAND, HEALING_A2A_URL, HEALING_TIMEOUT_S,
+from archon_agai.config import (ADK_MODEL, ALLOWED_ROOTS, READONLY_ROOTS, FS_MCP_COMMAND, HEALING_A2A_URL, HEALING_TIMEOUT_S,
                                 LLM_API_KEY, LLM_BASE_URL, REPO_ROOT, fs_mcp_args)
 from archon_agai.schemas import AuditNarrative
 
@@ -38,7 +38,7 @@ archon_tools = McpToolset(
 filesystem_tools = McpToolset(
     connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
-            command=FS_MCP_COMMAND, args=fs_mcp_args(*[str(r) for r in ALLOWED_ROOTS])),
+            command=FS_MCP_COMMAND, args=fs_mcp_args(*[str(r) for r in ALLOWED_ROOTS + READONLY_ROOTS])),
         timeout=60),
     tool_filter=["read_text_file", "list_directory", "directory_tree"],  # read-only
 )

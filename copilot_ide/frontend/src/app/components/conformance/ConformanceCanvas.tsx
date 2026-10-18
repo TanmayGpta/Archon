@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback } from 'react';
+import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 
 interface ConformanceCanvasProps {
@@ -51,6 +52,25 @@ function easeCubicInOut(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+// Node radius in *screen* pixels (bl00d.money: 1.6 + sqrt(deg) * 2.1), so hubs read as
+// big discs and leaves stay visible at the default zoom instead of shrinking to 1px.
+function nodeScreenR(deg: number): number {
+  return Math.min(17, 2.4 + Math.sqrt(Math.max(0, deg)) * 2.3);
+}
+
+// Per-layer shrink for the part of the radius above "small" (dense layers would otherwise crowd)
+const SMALL_R = 5.6;
+const LAYER_SIZE_SCALE: Record<string, number> = { Application: 0.6, Stdlib: 0.85 };
+
+// World-space radius to draw with at a given zoom (shrinks only gently when zoomed out).
+// The single largest hub (`isTop`) keeps its full size.
+function nodeWorldR(n: ConformanceNode, zoom: number, isTop = false): number {
+  let r = nodeScreenR(n.totalDegree);
+  const k = LAYER_SIZE_SCALE[n.layer] ?? 1;
+  if (!isTop && r > SMALL_R) r = SMALL_R + (r - SMALL_R) * k;
+  return r / Math.pow(Math.max(0.05, zoom), 0.8);
+}
+
 function computeFitT(
   pts: Array<{ x?: number; y?: number }>,
   canvasW: number,
@@ -58,16 +78,16 @@ function computeFitT(
   pad: number = 80
 ) {
   if (!pts || pts.length === 0) return { x: 0, y: 0, zoom: 0.85 };
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const xs: number[] = [], ys: number[] = [];
   pts.forEach(p => {
-    if (p.x !== undefined && p.y !== undefined) {
-      if (p.x < x0) x0 = p.x;
-      if (p.x > x1) x1 = p.x;
-      if (p.y < y0) y0 = p.y;
-      if (p.y > y1) y1 = p.y;
-    }
+    if (p.x !== undefined && p.y !== undefined) { xs.push(p.x); ys.push(p.y); }
   });
-  if (!isFinite(x0)) return { x: 0, y: 0, zoom: 0.85 };
+  if (xs.length === 0) return { x: 0, y: 0, zoom: 0.85 };
+  // Frame the 3rd–97th percentile so a few stray leaves don't shrink the whole view
+  xs.sort((a, b) => a - b);
+  ys.sort((a, b) => a - b);
+  const q = xs.length > 40 ? Math.floor(xs.length * 0.03) : 0;
+  const x0 = xs[q], x1 = xs[xs.length - 1 - q], y0 = ys[q], y1 = ys[ys.length - 1 - q];
 
   const spanW = Math.max(120, x1 - x0);
   const spanH = Math.max(120, y1 - y0);
@@ -76,7 +96,7 @@ function computeFitT(
   const avH = Math.max(150, canvasH - pad * 2);
 
   // Balanced fit zoom factor: airy margins, no over-magnification
-  const k = Math.max(0.35, Math.min(1.05, Math.min(avW / spanW, avH / spanH)));
+  const k = Math.max(0.25, Math.min(1.6, Math.min(avW / spanW, avH / spanH)));
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
 
@@ -271,7 +291,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   const ambientRotationRef = useRef(0);
   const mousePosRef = useRef<{ x: number; y: number; isInside: boolean }>({ x: 0, y: 0, isInside: false });
   const networkPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
-  const edgeCurvesRef = useRef<Map<string, { cx: number; cy: number; isStraight: boolean }>>(new Map());
+  const topNodeIdRef = useRef<string | null>(null);
+  const edgeCurvesRef = useRef<Map<string, { along: number; perp: number }>>(new Map());
 
   // Initialize, pre-settle, and lock static simulation nodes/edges with bloodmoney physics
   useEffect(() => {
@@ -353,83 +374,46 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     const nMap = new Map<string, ConformanceNode>();
     newSimNodes.forEach(n => nMap.set(n.id, n));
 
-    // ── 65-Tick Physics Relaxation (Ethereal Constellation & Zero-Overlap Guarantees) ──
-    const totalTicks = 65;
-    for (let tick = 0; tick < totalTicks; tick++) {
-      const alpha = Math.pow(1 - tick / totalTicks, 1.3) * 0.85 + 0.04;
+    // ── bl00d.money-style force layout ──
+    // Every edge gets an invisible "bend" node (A → F → B). F is pushed around by the
+    // same forces as real nodes, so each filament bows naturally around its neighbours
+    // and the bend points fill the space between hubs instead of rigid straight chords.
+    type SimPt = SimulationNodeDatum & { kind: 'e' | 'f'; node?: ConformanceNode };
+    const realPts = new Map<string, SimPt>();
+    newSimNodes.forEach(n => realPts.set(n.id, { kind: 'e', node: n, x: n.x, y: n.y }));
+    const bendPts = new Map<string, SimPt>();
+    const simLinks: { source: SimPt; target: SimPt; d: number }[] = [];
+    visibleEdges.forEach(e => {
+      const s = realPts.get(e.source);
+      const t = realPts.get(e.target);
+      if (!s || !t || s === t) return;
+      const h = Math.abs(hashString(e.id));
+      const f: SimPt = {
+        kind: 'f',
+        x: (s.x! + t.x!) / 2 + ((h % 21) - 10),
+        y: (s.y! + t.y!) / 2 + (((h >> 5) % 21) - 10)
+      };
+      bendPts.set(e.id, f);
+      const half = (s.node!.totalDegree < 6 || t.node!.totalDegree < 6) ? 22 : 34;
+      simLinks.push({ source: s, target: f, d: half }, { source: f, target: t, d: half });
+    });
 
-      // 1. Direct Link Springs with Degree-Normalized Damping (avoids super-hub collapse)
-      visibleEdges.forEach(e => {
-        const s = nMap.get(e.source);
-        const t = nMap.get(e.target);
-        if (!s || !t || s.x === undefined || t.x === undefined) return;
-
-        const isSatellite = s.totalDegree < 10 || t.totalDegree < 10;
-        const targetD = isSatellite ? 95 : 155;
-
-        const sDeg = Math.max(1, s.totalDegree);
-        const tDeg = Math.max(1, t.totalDegree);
-        const kSpring = 0.04 * alpha;
-
-        const dx = t.x - s.x;
-        const dy = t.y! - s.y!;
-        const d = Math.hypot(dx, dy) || 1;
-        const force = ((d - targetD) / d) * kSpring;
-
-        s.vx = (s.vx || 0) + (dx * force) / Math.sqrt(sDeg);
-        s.vy = (s.vy || 0) + (dy * force) / Math.sqrt(sDeg);
-        t.vx = (t.vx || 0) - (dx * force) / Math.sqrt(tDeg);
-        t.vy = (t.vy || 0) - (dy * force) / Math.sqrt(tDeg);
-      });
-
-      // 2. Wide Electrostatic Repulsion & Guaranteed Collision Separation
-      for (let i = 0; i < newSimNodes.length; i++) {
-        const n1 = newSimNodes[i];
-
-        for (let j = i + 1; j < newSimNodes.length; j++) {
-          const n2 = newSimNodes[j];
-          const dx = n2.x! - n1.x!;
-          const dy = n2.y! - n1.y!;
-          const distSq = dx * dx + dy * dy + 9;
-          const dist = Math.sqrt(distSq);
-
-          // Elastic Non-Superimposing Collision Barrier (Guaranteed clear breathing space)
-          const rMin = n1.radius + n2.radius + 28;
-          if (dist < rMin) {
-            const overlap = (rMin - dist) * 0.45 * alpha;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            n1.vx = (n1.vx || 0) - nx * overlap;
-            n1.vy = (n1.vy || 0) - ny * overlap;
-            n2.vx = (n2.vx || 0) + nx * overlap;
-            n2.vy = (n2.vy || 0) + ny * overlap;
-          } else if (distSq < 200000) {
-            const rep = (340.0 / (distSq + 49)) * alpha;
-            n1.vx = (n1.vx || 0) - (dx / dist) * rep;
-            n1.vy = (n1.vy || 0) - (dy / dist) * rep;
-            n2.vx = (n2.vx || 0) + (dx / dist) * rep;
-            n2.vy = (n2.vy || 0) + (dy / dist) * rep;
-          }
-        }
-
-        // 3. Gentle Center of Mass Centering (prevents drift without crushing clusters)
-        n1.vx = (n1.vx || 0) - n1.x! * 0.0016 * alpha;
-        n1.vy = (n1.vy || 0) - n1.y! * 0.0016 * alpha;
-
-        // Velocity clamp and integration
-        const maxV = 16 * alpha;
-        const vLen = Math.hypot(n1.vx || 0, n1.vy || 0);
-        if (vLen > maxV) {
-          n1.vx = ((n1.vx || 0) / vLen) * maxV;
-          n1.vy = ((n1.vy || 0) / vLen) * maxV;
-        }
-
-        n1.vx! *= 0.74;
-        n1.vy! *= 0.74;
-        n1.x! += n1.vx!;
-        n1.y! += n1.vy!;
-      }
-    }
+    const anchorOf = (p: SimPt) => (p.node ? layerAnchors[p.node.layer] : undefined) || { x: 0, y: 0, r: 0 };
+    const sim = forceSimulation<SimPt>([...realPts.values(), ...bendPts.values()])
+      .force('link', forceLink<SimPt, { source: SimPt; target: SimPt; d: number }>(simLinks).distance(l => l.d).strength(0.35))
+      .force('charge', forceManyBody<SimPt>()
+        .strength(p => p.kind === 'e' ? -110 - Math.min(40, p.node!.totalDegree) * 7 : -7)
+        .distanceMax(480))
+      .force('collide', forceCollide<SimPt>(p => p.kind === 'e' ? nodeScreenR(p.node!.totalDegree) + 4 : 1.5))
+      .force('x', forceX<SimPt>(p => anchorOf(p).x * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
+      .force('y', forceY<SimPt>(p => anchorOf(p).y * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
+      .stop();
+    for (let i = 0; i < 320; i++) sim.tick();
+    newSimNodes.forEach(n => {
+      const p = realPts.get(n.id)!;
+      n.x = p.x!;
+      n.y = p.y!;
+    });
 
     // Recenter around origin (0, 0)
     let meanX = 0, meanY = 0;
@@ -451,39 +435,29 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     });
     networkPositionsRef.current = netPositions;
 
-    // Precompute Bézier control points (bl00d.money organic filaments: straight vs curved)
-    const curvesMap = new Map<string, { cx: number; cy: number; isStraight: boolean }>();
+    // Store each bend point in the edge's local frame (fraction of length along / across the
+    // chord) so curves stay correct while nodes drift or tween into other layout modes.
+    const curvesMap = new Map<string, { along: number; perp: number }>();
     visibleEdges.forEach(e => {
       const s = nMap.get(e.source);
       const t = nMap.get(e.target);
-      if (!s || !t || s.x === undefined || t.x === undefined) return;
-
-      const hash = Math.abs(hashString(e.id));
-      // ~25% of filaments remain clean straight lines, remainder curve organically
-      const isStraight = (hash % 4) === 0;
-
-      const mx = (s.x + t.x) / 2;
-      const my = (s.y! + t.y!) / 2;
-      const dx = t.x - s.x;
+      const f = bendPts.get(e.id);
+      if (!s || !t || !f) return;
+      const dx = t.x! - s.x!;
       const dy = t.y! - s.y!;
-      const len = Math.hypot(dx, dy) || 1;
-
-      // Perpendicular normal vector
-      const nx = -dy / len;
-      const ny = dx / len;
-
-      // Hash-based lateral bend: range roughly [-17px, +17px]
-      const bend = ((hash % 9) - 4) * 4.2;
-
+      const len2 = dx * dx + dy * dy || 1;
+      const ox = f.x! - meanX - (s.x! + t.x!) / 2;
+      const oy = f.y! - meanY - (s.y! + t.y!) / 2;
       curvesMap.set(e.id, {
-        cx: isStraight ? mx : mx + nx * bend,
-        cy: isStraight ? my : my + ny * bend,
-        isStraight
+        along: Math.max(-0.3, Math.min(0.3, (ox * dx + oy * dy) / len2)),
+        perp: Math.max(-0.22, Math.min(0.22, (oy * dx - ox * dy) / len2))
       });
     });
     edgeCurvesRef.current = curvesMap;
 
     simNodesRef.current = newSimNodes;
+    topNodeIdRef.current = newSimNodes.reduce<ConformanceNode | null>(
+      (best, n) => (!best || n.totalDegree > best.totalDegree ? n : best), null)?.id ?? null;
     simEdgesRef.current = visibleEdges;
 
     // Selective, slow, graceful particles (strictly 8-10 pulses across the graph)
@@ -652,7 +626,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             const dy = mouseY - screenY;
             const screenDist = Math.hypot(dx, dy);
 
-            const hitRadius = Math.max(12, n.radius * cam.zoom + 8);
+            const hitRadius = Math.max(12, nodeWorldR(n, cam.zoom, n.id === topNodeIdRef.current) * cam.zoom + 8);
             if (screenDist <= hitRadius && screenDist < minScreenDist) {
               minScreenDist = screenDist;
               closestNode = n;
@@ -812,11 +786,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           } else {
             const preGeom = preCurves.get(e.id);
             if (preGeom) {
+              // Bend point F in world space, then the quadratic control point that makes the
+              // curve pass through F at t = 0.5: C = 2F - (A + B) / 2
+              const dx = t.x! - s.x!;
+              const dy = t.y! - s.y!;
+              const fx = mx + dx * preGeom.along - dy * preGeom.perp;
+              const fy = my + dy * preGeom.along + dx * preGeom.perp;
               edgeCurves.set(e.id, {
-                isStraight: preGeom.isStraight,
+                isStraight: false,
                 isDashed: e.isViolation,
-                cx: preGeom.cx,
-                cy: preGeom.cy
+                cx: 2 * fx - mx,
+                cy: 2 * fy - my
               });
             } else {
               edgeCurves.set(e.id, { isStraight: true, isDashed: e.isViolation, cx: mx, cy: my });
@@ -834,8 +814,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           const isHot = hotEdges.has(e.id);
           const isSelected = selectedEdge && selectedEdge.id === e.id;
 
-          let lineWidth = e.isViolation ? 1.4 : (isHot ? 0.85 : (geom.isDashed ? 0.6 : 0.65));
-          let alpha = 0.22;
+          const lineWidth = (e.isViolation ? 1.4 : (isHot ? 0.85 : (geom.isDashed ? 0.6 : 0.65))) / Math.pow(Math.max(0.05, cam.zoom), 0.7);
+          let alpha = 0.32;
 
           if (e.isViolation) {
             alpha = hasActiveFocus ? (isHot ? 0.95 : 0.40) : 0.90;
@@ -871,6 +851,15 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.setLineDash([]);
           } else {
             ctx.stroke();
+          }
+
+          // Micro bend-point dot at the curve's midpoint (fills the space between hubs)
+          if (!geom.isStraight && alpha > 0.05) {
+            const bx = (s.x! + 2 * geom.cx + t.x!) / 4;
+            const by = (s.y! + 2 * geom.cy + t.y!) / 4;
+            ctx.globalAlpha = Math.min(0.55, alpha * 2);
+            ctx.fillStyle = e.isViolation ? '#ff3b30' : '#c8c8c4';
+            ctx.fillRect(bx - 0.6, by - 0.6, 1.2, 1.2);
           }
         });
         ctx.globalAlpha = 1.0;
@@ -946,8 +935,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           }
 
           // Ethereal visual hierarchy matching bl00d.money
-          const baseR = n.totalDegree >= 16 ? 9.2 : n.totalDegree >= 8 ? 7.0 : n.totalDegree >= 4 ? 5.0 : 3.5;
-          let radius = baseR * Math.max(0.75, Math.min(1.35, Math.sqrt(cam.zoom)));
+          let radius = nodeWorldR(n, cam.zoom, n.id === topNodeIdRef.current);
           if (isSelected) radius = radius * 1.35 + 2;
 
           ctx.globalAlpha = nodeAlpha;
@@ -959,30 +947,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
           // Vibrant Neon Glow on Nodes (radiating node's own layer color)
           ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
-          ctx.shadowBlur = isViolation ? 18 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
+          ctx.shadowBlur = isViolation ? 10 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
 
           if (isViolation) {
+            // Solid red disc, slightly smaller than a normal node of the same degree
             ctx.beginPath();
-            ctx.arc(n.x!, n.y!, radius, 0, Math.PI * 2);
+            ctx.arc(n.x!, n.y!, radius * 0.75, 0, Math.PI * 2);
             ctx.fillStyle = '#ff3b30';
             ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(n.x!, n.y!, radius + 4, 0, Math.PI * 2);
-            ctx.strokeStyle = '#ff3b30';
-            ctx.lineWidth = 1.8;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(n.x!, n.y!, radius + 7.5, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-            ctx.lineWidth = 1.0;
-            ctx.setLineDash([3, 3]);
-            ctx.stroke();
-            ctx.setLineDash([]);
           } else if (n.nodeType === 'external') {
-            // Delicate, crisp jewel diamonds scaled proportionally
-            const dBase = Math.min(4.8, Math.max(2.4, radius * 0.45));
+            // Small fixed-size diamonds regardless of degree (same zoom scaling as other nodes)
+            const dBase = 3.6 / Math.pow(Math.max(0.05, cam.zoom), 0.8);
             const dSize = isSelected ? dBase + 2.0 : dBase;
             ctx.beginPath();
             ctx.moveTo(n.x!, n.y! - dSize);
@@ -1166,7 +1141,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       const sDy = e.clientY - screenY;
       const screenDist = Math.hypot(sDx, sDy);
 
-      const hitRadius = Math.max(9, n.radius * cam.zoom + 4);
+      const hitRadius = Math.max(9, nodeWorldR(n, cam.zoom, n.id === topNodeIdRef.current) * cam.zoom + 4);
       if (screenDist <= hitRadius && screenDist < minScreenDist) {
         minScreenDist = screenDist;
         closestNode = n;

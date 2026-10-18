@@ -10,8 +10,8 @@ type Win = 'editor' | 'conformance';
 
 export default function ArchonGuardPage() {
   const s = useAgaiSession();
-  const [win, setWin] = useState<Win>('editor');
-  const [showTrace, setShowTrace] = useState(true);
+  const [win, setWin] = useState<Win>('conformance');
+  const [showTrace, setShowTrace] = useState(false);
 
   useEffect(() => { s.start(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from pydantic import BaseModel, ValidationError
 
-from archon_agai.config import ALLOWED_ROOTS
+from archon_agai.config import ALLOWED_ROOTS, READONLY_ROOTS, SECRET_PARTS
 
 # --------------------------------------------------------------------------- user prompts
 
@@ -46,16 +46,31 @@ def screen_user_prompt(text: str) -> List[str]:
 
 # --------------------------------------------------------------------------- paths
 
-def resolve_allowed_path(p: str, base: Optional[Path] = None) -> Path:
-    """Resolve a path and ensure it lies inside an allowed codebase root. Raises ValueError."""
+def _under(path: Path, roots: List[Path]) -> bool:
+    return any(path == r or r in path.parents for r in roots)
+
+
+def resolve_allowed_path(p: str, base: Optional[Path] = None, writable: bool = False) -> Path:
+    """Resolve a path and ensure it lies inside an allowed codebase root. Raises ValueError.
+
+    Read-only roots (Archon itself) are accepted unless `writable` is set; secret paths never are."""
     path = Path(p)
     if not path.is_absolute():
         path = (base or ALLOWED_ROOTS[0]) / path
     path = path.resolve()
-    roots = list(ALLOWED_ROOTS) + ([base.resolve()] if base else [])
-    if not any(path == r or r in path.parents for r in roots):
-        raise ValueError(f"path outside allowed roots: {path}")
+    roots = list(ALLOWED_ROOTS) + ([] if writable else list(READONLY_ROOTS))
+    if base and (not writable or is_writable(base)):
+        roots.append(base.resolve())
+    if not _under(path, roots):
+        raise ValueError(f"path outside {'writable' if writable else 'allowed'} roots: {path}")
+    if any(part in SECRET_PARTS or part.startswith(".env") for part in path.parts):
+        raise ValueError(f"path is a protected secret/vendor location: {path}")
     return path
+
+
+def is_writable(p: Path) -> bool:
+    """True when a codebase may be healed / edited (inside ALLOWED_ROOTS, not just read-only)."""
+    return _under(Path(p).resolve(), list(ALLOWED_ROOTS))
 
 
 # --------------------------------------------------------------------------- tool outputs

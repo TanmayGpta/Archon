@@ -19,14 +19,25 @@ LLM_API_KEY = os.getenv("FREELLMAPI_KEY", "")
 ADK_MODEL = os.getenv("AGAI_ADK_MODEL", "auto")
 CREW_MODEL = os.getenv("AGAI_CREW_MODEL", "auto")
 
-# Codebases the agents may touch. Anything outside these roots is rejected by guardrails.
+# Codebases the agents may heal / write. Anything outside these roots is rejected by guardrails.
 ALLOWED_ROOTS = [
     Path(p).resolve()
     for p in os.getenv("AGAI_ALLOWED_ROOTS", str(REPO_ROOT / "test_codebases")).split(os.pathsep)
     if p
 ]
-DEFAULT_CODEBASE = os.getenv("AGAI_DEFAULT_CODEBASE", str(REPO_ROOT / "test_codebases" / "ecommerce_platform"))
-DEFAULT_BLUEPRINT = os.getenv("AGAI_DEFAULT_BLUEPRINT", "clean_architecture")
+# Codebases that may be audited and viewed but never healed or edited (Archon itself).
+READONLY_ROOTS = [
+    Path(p).resolve()
+    for p in os.getenv("AGAI_READONLY_ROOTS", str(REPO_ROOT)).split(os.pathsep)
+    if p
+]
+# Never readable through the agents or the editor, even inside an allowed root.
+SECRET_PARTS = {".env", ".git", ".venv", "node_modules"}
+# The UI opens on the Archon repo itself, checked against the Archon Core blueprint.
+DEFAULT_CODEBASE = os.getenv("AGAI_DEFAULT_CODEBASE", str(REPO_ROOT))
+DEFAULT_BLUEPRINT = os.getenv("AGAI_DEFAULT_BLUEPRINT", "archon_architecture")
+# Seeded-violation demo target (used by the offline tests).
+DEMO_CODEBASE = str(REPO_ROOT / "test_codebases" / "ecommerce_platform")
 
 # Sandboxes where healing patches are tried before a human applies them.
 RUNS_DIR = Path(os.getenv("AGAI_RUNS_DIR", str(AGAI_ROOT / ".runs"))).resolve()

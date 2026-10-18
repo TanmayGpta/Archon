@@ -13,6 +13,7 @@ Run:  uvicorn archon_agai.gateway:app --port 8100
 """
 import asyncio
 import json
+import os
 import shutil
 import time
 import uuid
@@ -28,9 +29,9 @@ from google.genai import types
 from pydantic import BaseModel
 
 from archon_agai import engine, events, observability
-from archon_agai.config import (ALLOWED_ROOTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE, GATEWAY_PORT, RUNS_DIR,
+from archon_agai.config import (ALLOWED_ROOTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE, GATEWAY_PORT, RUNS_DIR,
                                 require_llm_key)
-from archon_agai.guardrails import resolve_allowed_path, screen_user_prompt
+from archon_agai.guardrails import is_writable, resolve_allowed_path, screen_user_prompt
 from archon_agai.pricing import estimate_cost
 from archon_agai.schemas import AuditResult, HealingReport, HealingRequest
 from conformance.studio.api import router as conformance_router
@@ -93,10 +94,16 @@ async def create_session(req: SessionReq):
     sid = "s-" + uuid.uuid4().hex[:10]
     await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=sid, state={
         "session_id": sid, "codebase_path": str(root), "blueprint_id": req.blueprint_id or DEFAULT_BLUEPRINT,
-        "timings": {}, "usage": {},
+        "timings": {}, "usage": {}, "healable": is_writable(root),
     })
     events.emit(sid, "gateway", "session_created", str(root))
-    return {"session_id": sid, "codebase_path": str(root), "blueprint_id": req.blueprint_id or DEFAULT_BLUEPRINT}
+    return {"session_id": sid, "codebase_path": str(root), "blueprint_id": req.blueprint_id or DEFAULT_BLUEPRINT,
+            "healable": is_writable(root)}
+
+
+def _require_writable(st: Dict[str, Any]) -> None:
+    if not is_writable(Path(st["codebase_path"])):
+        raise HTTPException(400, "read-only codebase: healing is only available for external projects")
 
 
 @app.get("/api/agai/sessions/{sid}")
@@ -214,6 +221,7 @@ def _extract_json(text: str) -> str:
 @app.post("/api/agai/heal")
 async def heal(req: HealReq, bg: BackgroundTasks):
     st = await _state(req.session_id)
+    _require_writable(st)
     if not st.get("audit_result"):
         raise HTTPException(400, "run an audit first")
     if not st["audit_result"]["violations"]:
@@ -232,6 +240,7 @@ class ApplyReq(BaseModel):
 @app.post("/api/agai/apply")
 async def apply(req: ApplyReq):
     st = await _state(req.session_id)
+    _require_writable(st)
     report = HealingReport.model_validate(st.get("healing_report") or {"request_id": req.session_id})
     patches = [p for p in report.patches if req.paths is None or p.path in req.paths]
     if not patches:
@@ -263,6 +272,7 @@ async def apply(req: ApplyReq):
 @app.post("/api/agai/revert")
 async def revert(req: ApplyReq):
     st = await _state(req.session_id)
+    _require_writable(st)
     root, backup = Path(st["codebase_path"]), RUNS_DIR / "backups" / req.session_id
     if not backup.exists():
         raise HTTPException(400, "nothing to revert")
@@ -289,9 +299,12 @@ async def report_md(sid: str):
 @app.get("/api/agai/tree")
 def tree(codebase: Optional[str] = None):
     root = resolve_allowed_path(codebase or DEFAULT_CODEBASE)
-    files = sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
-                   if p.is_file() and "__pycache__" not in p.parts and not p.name.endswith(".pyc"))
-    return {"root": str(root), "files": files}
+    files = []
+    for d, dirs, names in os.walk(root):  # prune vendor/secret dirs instead of walking them
+        dirs[:] = [x for x in dirs if x not in SECRET_PARTS and x != "__pycache__" and not x.startswith(".")]
+        files += [(Path(d) / f).relative_to(root).as_posix() for f in names
+                  if not f.endswith(".pyc") and not f.startswith(".env")]
+    return {"root": str(root), "files": sorted(files)}
 
 
 @app.get("/api/agai/file")
@@ -311,8 +324,8 @@ class SaveReq(BaseModel):
 
 @app.put("/api/agai/file")
 def save_file(req: SaveReq):
-    root = resolve_allowed_path(req.codebase or DEFAULT_CODEBASE)
-    f = resolve_allowed_path(req.path, root)
+    root = resolve_allowed_path(req.codebase or DEFAULT_CODEBASE, writable=True)
+    f = resolve_allowed_path(req.path, root, writable=True)
     f.write_text(req.content, encoding="utf-8")
     return {"saved": f.relative_to(root).as_posix()}
 
