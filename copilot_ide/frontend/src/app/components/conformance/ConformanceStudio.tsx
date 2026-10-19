@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ConformanceCanvas } from './ConformanceCanvas';
+import archonAuditSnapshot from './archonAuditSnapshot.json';
 import {
   ConformanceAuditResult,
   ConformanceNode,
@@ -94,8 +95,14 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
 });
 
 export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId }) => {
-  const [loading, setLoading] = useState<boolean>(true);
-  const [auditData, setAuditData] = useState<ConformanceAuditResult | null>(null);
+  // Default target (Archon itself): start from the bundled snapshot instead of waiting on the API.
+  // "Run audit" still fetches live. Regenerate the snapshot when Archon's structure changes.
+  const fromSnapshot = !initialPath?.trim() && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
+  const skipInitialAuditRef = useRef(fromSnapshot);
+  const [loading, setLoading] = useState<boolean>(!fromSnapshot);
+  const [auditData, setAuditData] = useState<ConformanceAuditResult | null>(
+    fromSnapshot ? (archonAuditSnapshot as unknown as ConformanceAuditResult) : null
+  );
   const [error, setError] = useState<string | null>(null);
   const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
 
@@ -107,7 +114,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [selectedNode, setSelectedNode] = useState<ConformanceNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<ConformanceEdge | null>(null);
   const [highlightLayer, setHighlightLayer] = useState<string | null>(null);
-  const [filterLayers, setFilterLayers] = useState<Set<string>>(new Set());
+  const [filterLayers, setFilterLayers] = useState<Set<string>>(
+    () => new Set(fromSnapshot ? archonAuditSnapshot.layers.map(l => l.name) : [])
+  );
   const [selectedBlueprintId, setSelectedBlueprintId] = useState<string>(initialBlueprintId || 'archon_architecture');
   const [includeExternal, setIncludeExternal] = useState<boolean>(true);
 
@@ -119,6 +128,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
   // Left rail collapse
   const [isRailOpen, setIsRailOpen] = useState<boolean>(true);
+  const [introActive, setIntroActive] = useState<boolean>(true);
 
   // Fetch / Run Audit
   const runAudit = async (blueprintId?: string, customPath?: string) => {
@@ -162,6 +172,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   };
 
   useEffect(() => {
+    if (skipInitialAuditRef.current) {
+      skipInitialAuditRef.current = false;
+      return;
+    }
     runAudit();
   }, [includeExternal]);
 
@@ -224,7 +238,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   }, [selectedNode, auditData]);
 
   return (
-    <div className="relative w-full h-[calc(100vh-56px)] bg-[#080808] text-[#e0e0e0] font-sans overflow-hidden flex flex-col">
+    <div className={`relative w-full h-[calc(100vh-56px)] bg-[#080808] text-[#e0e0e0] font-sans overflow-hidden flex flex-col [&_header]:transition-opacity [&_header]:duration-300 [&_header]:ease-out [&_aside]:transition-opacity [&_aside]:duration-300 [&_aside]:ease-out ${introActive ? '[&_header]:opacity-0 [&_aside]:opacity-0' : ''}`}>
       {/* ── TOP HUD HEADER ────────────────────────────────────────── */}
       <header className="h-12 border-b border-[#1f1f1e] bg-[#0c0c0b]/90 backdrop-blur-md px-4 flex items-center justify-between z-20 flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -501,8 +515,12 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             selectedEdge={selectedEdge}
             highlightLayer={highlightLayer}
             filterLayers={filterLayers}
-            onSelectNode={setSelectedNode}
+            onSelectNode={(node) => {
+              setSelectedNode(node);
+              if (node && mode === 'network') setMode('orbit');
+            }}
             onSelectEdge={setSelectedEdge}
+            onIntroChange={setIntroActive}
           />
 
           {/* ── FLOATING EDGE INSPECTOR MODAL (#insp) ────────────────── */}
@@ -572,7 +590,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           )}
 
           {/* ── BOTTOM MODE SWITCHER PILL BAR (#modes) ──────────────── */}
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20">
+          <div className={`absolute bottom-5 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300 ease-out ${introActive ? 'opacity-0' : ''}`}>
             <div className="flex items-center gap-1 bg-[#0e0e0d]/90 border border-[#343434] p-1 rounded-lg backdrop-blur-md shadow-2xl">
               {[
                 { id: 'network', label: 'NETWORK' },

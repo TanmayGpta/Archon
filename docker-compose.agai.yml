@@ -1,0 +1,60 @@
+services:
+  healing-service:
+    build:
+      context: .
+      dockerfile: archon_agai/deploy/Dockerfile
+    container_name: archon-healing-service
+    environment:
+      - SERVICE=healing
+      - PORT=8101
+      - AGAI_HEALING_PORT=8101
+      - AGAI_LLM_BASE_URL=http://host.docker.internal:31415/v1
+      - FREELLMAPI_KEY=${FREELLMAPI_KEY:-freellmapi-6debe94548b4e3ddabc7aa03f2d15c55b99be9136dfabdee}
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8101:8101"
+    volumes:
+      - ./test_codebases:/app/test_codebases
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: archon_agai/deploy/Dockerfile
+    container_name: archon-gateway-service
+    environment:
+      - SERVICE=gateway
+      - PORT=8100
+      - AGAI_GATEWAY_PORT=8100
+      - AGAI_HEALING_A2A_URL=http://healing-service:8101
+      - AGAI_LLM_BASE_URL=http://host.docker.internal:31415/v1
+      - FREELLMAPI_KEY=${FREELLMAPI_KEY:-freellmapi-6debe94548b4e3ddabc7aa03f2d15c55b99be9136dfabdee}
+      - AGAI_ALLOWED_ROOTS=/app/test_codebases
+      - AGAI_DEFAULT_CODEBASE=/app/test_codebases/ecommerce_platform
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./test_codebases:/app/test_codebases
+    depends_on:
+      - healing-service
+    restart: unless-stopped
+
+  ui-service:
+    build:
+      context: ./copilot_ide/frontend
+      dockerfile: Dockerfile.dev
+    container_name: archon-ui-service
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_AGAI_API_URL=http://localhost:8100
+      - NEXT_PUBLIC_API_URL=http://localhost:8100
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway-service
+    restart: unless-stopped

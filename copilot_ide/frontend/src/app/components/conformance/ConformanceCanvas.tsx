@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 
@@ -14,7 +14,17 @@ interface ConformanceCanvasProps {
   filterLayers: Set<string>;
   onSelectNode: (node: ConformanceNode | null) => void;
   onSelectEdge: (edge: ConformanceEdge | null) => void;
+  onIntroChange?: (active: boolean) => void;
 }
+
+// Intro timings (ms), matching bl00d.money
+const INTRO_FILL = 1500;   // beads light up around the dial
+const INTRO_BURST = 1750;  // burst into the layout starts
+const INTRO_TWEEN = 2300;
+const INTRO_HOLD = 1650;   // full dial waits here if the layout is still settling
+// Slowest node lands at INTRO_BURST + 900 (max rank delay) + INTRO_TWEEN; hand back just after
+const INTRO_END = INTRO_BURST + 900 + INTRO_TWEEN + 150;
+const INTRO_LAYER_ORDER = ['Presentation', 'Application', 'Domain', 'Infrastructure', 'Observability', 'External', 'Stdlib', 'Unclassified'];
 
 interface Particle {
   edgeId: string;
@@ -255,15 +265,87 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   highlightLayer,
   filterLayers,
   onSelectNode,
-  onSelectEdge
+  onSelectEdge,
+  onIntroChange
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const onIntroChangeRef = useRef(onIntroChange);
+  onIntroChangeRef.current = onIntroChange;
 
   // Camera State
   const cameraRef = useRef({ x: 0, y: 0, zoom: 0.85 });
   const hasFittedInitialCameraRef = useRef(false);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const dragOriginRef = useRef({ x: 0, y: 0 });
+  const pendingEdgeRef = useRef<ConformanceEdge | null>(null);
+  // bl00d.money intro: plays once per mount, full screen from the very first paint (it also
+  // covers the audit fetch). Node positions during the intro are derived every frame from these
+  // per-id maps, so the graph data reloading mid-intro can't knock nodes off the dial.
+  const [introActive, setIntroActive] = useState(true);
+  const introRef = useRef<{
+    placed: boolean; // ring laid out for the current node set
+    started: boolean; // dial fill has begun (clock running)
+    clock: number; // virtual ms, advanced by a clamped dt so a slow frame never skips the animation
+    last: number;
+    wait: number; // frames spent waiting for the full-screen layout
+    born: number;
+    spin: number; // waiting-dial rotation
+    cx: number; // ring centre (world)
+    cy: number;
+    targets: Map<string, { x: number; y: number }>;
+    ring: Map<string, { x: number; y: number }>;
+    at: Map<string, number>; // when each bead lights up on the dial
+    dl: Map<string, number>; // per-node burst delay (by rank)
+    al: Map<string, number>; // per-node alpha
+  } | null>({
+    placed: false, started: false, clock: 0, last: 0, wait: 0, born: 0, spin: 0, cx: 0, cy: 0,
+    targets: new Map(), ring: new Map(), at: new Map(), dl: new Map(), al: new Map()
+  });
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const renderRef = useRef<(() => void) | null>(null);
+  const handBackPendingRef = useRef(false);
+  const fullSizeRef = useRef({ w: 0, h: 0 }); // canvas size while full screen
+
+  // Give the screen back to the studio (canvas returns to its slot) as the burst begins
+  const handBack = useCallback(() => {
+    if (!handBackPendingRef.current && wrapperRef.current?.classList.contains('fixed')) {
+      handBackPendingRef.current = true;
+      setIntroActive(false);
+      onIntroChangeRef.current?.(false);
+    }
+  }, []);
+
+  // End (or skip) the intro: snap to the final layout
+  const finishIntro = useCallback(() => {
+    const intro = introRef.current;
+    if (!intro) return;
+    simNodesRef.current.forEach(n => {
+      const t = intro.targets.get(n.id);
+      if (t) { n.x = t.x; n.y = t.y; }
+    });
+    introRef.current = null;
+    handBack();
+  }, [handBack]);
+
+  // Canvas just shrank from full screen into its slot: shift the camera by the slot's offset
+  // so every node stays at the same pixel, and redraw before paint so nothing visibly moves
+  useLayoutEffect(() => {
+    if (introActive || !handBackPendingRef.current) return;
+    handBackPendingRef.current = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const cam = cameraRef.current;
+    cameraTweenRef.current = null;
+    cameraRef.current = {
+      ...cam,
+      x: cam.x + fullSizeRef.current.w / 2 - (r.left + r.width / 2),
+      y: cam.y + fullSizeRef.current.h / 2 - (r.top + r.height / 2)
+    };
+    if (animFrameIdRef.current !== null) cancelAnimationFrame(animFrameIdRef.current);
+    renderRef.current?.();
+  }, [introActive]);
   const layoutTweenRef = useRef<{
     t0: number;
     dur: number;
@@ -374,6 +456,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     const nMap = new Map<string, ConformanceNode>();
     newSimNodes.forEach(n => nMap.set(n.id, n));
 
+    // Intro playing: hand the node set over now so the beads can start filling the dial while
+    // the layout below settles (the intro positions every node itself; edges stay hidden)
+    if (introRef.current) {
+      simNodesRef.current = newSimNodes;
+      simEdgesRef.current = visibleEdges;
+      topNodeIdRef.current = newSimNodes[0]?.id ?? null;
+      introRef.current.targets = new Map();
+      introRef.current.placed = false;
+      introRef.current.wait = 0;
+    }
+
     // ── bl00d.money-style force layout ──
     // Every edge gets an invisible "bend" node (A → F → B). F is pushed around by the
     // same forces as real nodes, so each filament bows naturally around its neighbours
@@ -408,83 +501,106 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       .force('x', forceX<SimPt>(p => anchorOf(p).x * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
       .force('y', forceY<SimPt>(p => anchorOf(p).y * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
       .stop();
-    for (let i = 0; i < 320; i++) sim.tick();
-    newSimNodes.forEach(n => {
-      const p = realPts.get(n.id)!;
-      n.x = p.x!;
-      n.y = p.y!;
-    });
-
-    // Recenter around origin (0, 0)
-    let meanX = 0, meanY = 0;
-    newSimNodes.forEach(n => { meanX += n.x!; meanY += n.y!; });
-    meanX /= Math.max(1, newSimNodes.length);
-    meanY /= Math.max(1, newSimNodes.length);
-
-    newSimNodes.forEach(n => {
-      n.x! -= meanX;
-      n.y! -= meanY;
-      n.vx = 0;
-      n.vy = 0;
-    });
-
-    // Save settled network positions
-    const netPositions = new Map<string, { x: number; y: number }>();
-    newSimNodes.forEach(n => {
-      netPositions.set(n.id, { x: n.x!, y: n.y! });
-    });
-    networkPositionsRef.current = netPositions;
-
-    // Store each bend point in the edge's local frame (fraction of length along / across the
-    // chord) so curves stay correct while nodes drift or tween into other layout modes.
-    const curvesMap = new Map<string, { along: number; perp: number }>();
-    visibleEdges.forEach(e => {
-      const s = nMap.get(e.source);
-      const t = nMap.get(e.target);
-      const f = bendPts.get(e.id);
-      if (!s || !t || !f) return;
-      const dx = t.x! - s.x!;
-      const dy = t.y! - s.y!;
-      const len2 = dx * dx + dy * dy || 1;
-      const ox = f.x! - meanX - (s.x! + t.x!) / 2;
-      const oy = f.y! - meanY - (s.y! + t.y!) / 2;
-      curvesMap.set(e.id, {
-        along: Math.max(-0.3, Math.min(0.3, (ox * dx + oy * dy) / len2)),
-        perp: Math.max(-0.22, Math.min(0.22, (oy * dx - ox * dy) / len2))
+    // Same 320 ticks as before, spread across frames (~10ms per frame) so the main thread
+    // never blocks: the intro dial keeps animating while the layout settles.
+    let cancelled = false;
+    let rafId = 0;
+    let ticks = 0;
+    const settle = () => {
+      newSimNodes.forEach(n => {
+        const p = realPts.get(n.id)!;
+        n.x = p.x!;
+        n.y = p.y!;
       });
-    });
-    edgeCurvesRef.current = curvesMap;
 
-    simNodesRef.current = newSimNodes;
-    topNodeIdRef.current = newSimNodes.reduce<ConformanceNode | null>(
-      (best, n) => (!best || n.totalDegree > best.totalDegree ? n : best), null)?.id ?? null;
-    simEdgesRef.current = visibleEdges;
+      // Recenter around origin (0, 0)
+      let meanX = 0, meanY = 0;
+      newSimNodes.forEach(n => { meanX += n.x!; meanY += n.y!; });
+      meanX /= Math.max(1, newSimNodes.length);
+      meanY /= Math.max(1, newSimNodes.length);
 
-    // Selective, slow, graceful particles (strictly 8-10 pulses across the graph)
-    const newParticles: Particle[] = [];
-    const maxParticles = Math.min(10, visibleEdges.length);
-    const step = Math.max(1, Math.floor(visibleEdges.length / maxParticles));
-
-    for (let i = 0; i < visibleEdges.length; i += step) {
-      if (newParticles.length >= maxParticles) break;
-      const e = visibleEdges[i];
-      const sNode = nMap.get(e.source);
-      newParticles.push({
-        edgeId: e.id,
-        source: e.source,
-        target: e.target,
-        progress: Math.random(),
-        speed: e.isViolation ? 0.0012 : 0.0006 + (i % 4) * 0.00012,
-        isViolation: e.isViolation,
-        color: e.isViolation ? '#ff3b30' : sNode?.color || '#4f9dff'
+      newSimNodes.forEach(n => {
+        n.x! -= meanX;
+        n.y! -= meanY;
+        n.vx = 0;
+        n.vy = 0;
       });
-    }
-    particlesRef.current = newParticles;
 
-    // Frame settled constellation only once on true initial mount
-    if (cameraRef.current.x === 0 && cameraRef.current.y === 0 && cameraRef.current.zoom === 0.85) {
-      hasFittedInitialCameraRef.current = false;
-    }
+      // Save settled network positions
+      const netPositions = new Map<string, { x: number; y: number }>();
+      newSimNodes.forEach(n => {
+        netPositions.set(n.id, { x: n.x!, y: n.y! });
+      });
+      networkPositionsRef.current = netPositions;
+
+      // Store each bend point in the edge's local frame (fraction of length along / across the
+      // chord) so curves stay correct while nodes drift or tween into other layout modes.
+      const curvesMap = new Map<string, { along: number; perp: number }>();
+      visibleEdges.forEach(e => {
+        const s = nMap.get(e.source);
+        const t = nMap.get(e.target);
+        const f = bendPts.get(e.id);
+        if (!s || !t || !f) return;
+        const dx = t.x! - s.x!;
+        const dy = t.y! - s.y!;
+        const len2 = dx * dx + dy * dy || 1;
+        const ox = f.x! - meanX - (s.x! + t.x!) / 2;
+        const oy = f.y! - meanY - (s.y! + t.y!) / 2;
+        curvesMap.set(e.id, {
+          along: Math.max(-0.3, Math.min(0.3, (ox * dx + oy * dy) / len2)),
+          perp: Math.max(-0.22, Math.min(0.22, (oy * dx - ox * dy) / len2))
+        });
+      });
+      edgeCurvesRef.current = curvesMap;
+
+      simNodesRef.current = newSimNodes;
+      topNodeIdRef.current = newSimNodes.reduce<ConformanceNode | null>(
+        (best, n) => (!best || n.totalDegree > best.totalDegree ? n : best), null)?.id ?? null;
+      simEdgesRef.current = visibleEdges;
+
+      // Selective, slow, graceful particles (strictly 8-10 pulses across the graph)
+      const newParticles: Particle[] = [];
+      const maxParticles = Math.min(10, visibleEdges.length);
+      const step = Math.max(1, Math.floor(visibleEdges.length / maxParticles));
+
+      for (let i = 0; i < visibleEdges.length; i += step) {
+        if (newParticles.length >= maxParticles) break;
+        const e = visibleEdges[i];
+        const sNode = nMap.get(e.source);
+        newParticles.push({
+          edgeId: e.id,
+          source: e.source,
+          target: e.target,
+          progress: Math.random(),
+          speed: e.isViolation ? 0.0012 : 0.0006 + (i % 4) * 0.00012,
+          isViolation: e.isViolation,
+          color: e.isViolation ? '#ff3b30' : sNode?.color || '#4f9dff'
+        });
+      }
+      particlesRef.current = newParticles;
+
+      // Intro still playing: the layout computed above is its end state; re-lay the dial for
+      // this node set on the next frame (it needs the camera)
+      if (introRef.current) {
+        introRef.current.targets = computeLayoutTargets(mode, newSimNodes, visibleEdges, netPositions, selectedNode);
+        introRef.current.placed = false;
+        introRef.current.wait = 0;
+      }
+
+      // Frame settled constellation only once on true initial mount
+      if (cameraRef.current.x === 0 && cameraRef.current.y === 0 && cameraRef.current.zoom === 0.85) {
+        hasFittedInitialCameraRef.current = false;
+      }
+    };
+    const step = () => {
+      if (cancelled) return;
+      const t0 = performance.now();
+      while (ticks < 320 && performance.now() - t0 < 10) { sim.tick(); ticks++; }
+      if (ticks < 320) rafId = requestAnimationFrame(step);
+      else settle();
+    };
+    step();
+    return () => { cancelled = true; cancelAnimationFrame(rafId); };
   }, [nodes, edges, filterLayers]);
 
   // Layout mode transition with smooth cubic easing (keeps camera position stable)
@@ -531,7 +647,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           canvas.height = targetH;
         }
 
-        const cam = cameraRef.current;
+        let cam = cameraRef.current;
         const currentNodes = simNodesRef.current;
         const currentEdges = simEdgesRef.current;
 
@@ -542,17 +658,117 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         const now = performance.now();
         const clock = now * 0.001;
 
-        // Handle Initial Camera Fit on first valid render frame
-        if (!hasFittedInitialCameraRef.current && currentNodes.length > 0 && cssWidth > 50) {
+        // Handle Initial Camera Fit on first valid render frame (the intro does its own)
+        if (!introRef.current && !hasFittedInitialCameraRef.current && currentNodes.length > 0 && cssWidth > 50) {
           cameraRef.current = computeFitT(currentNodes, cssWidth, cssHeight, 75);
           hasFittedInitialCameraRef.current = true;
         }
 
+        // ── INTRO: beads fill a dial, then burst into the layout ──
+        const intro = introRef.current;
+        let introEdgeK = intro ? 0 : 1;
+        let introFill = 0;
+        let introDial = 0;
+        if (intro) {
+          if (wrapperRef.current?.classList.contains('fixed')) fullSizeRef.current = { w: cssWidth, h: cssHeight };
+          const dt = intro.last ? Math.min(50, now - intro.last) : 0;
+          intro.last = now;
+          if (!intro.born) intro.born = now;
+
+          // Lay the dial out for the current node set: first as soon as the nodes arrive (beads
+          // start filling right away, provisional camera), then again once the layout has settled
+          // with the real camera. The ring sits at the same screen pixels both times.
+          // Waits for the full-screen layout to commit, with a fallback so it can never stall.
+          if (!intro.placed && currentNodes.length > 0) {
+            intro.wait++;
+            const isFull = cssWidth >= window.innerWidth - 2 && cssHeight >= window.innerHeight - 2;
+            if (isFull || intro.wait > 20) {
+              const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
+              // Frame the end state exactly as the default view of the canvas's slot in the
+              // studio would, expressed in full-screen coordinates, so the hand-back is seamless
+              const slot = wrapperRef.current?.classList.contains('fixed')
+                ? wrapperRef.current.parentElement?.getBoundingClientRect()
+                : undefined;
+              let cam0 = intro.targets.size > 0
+                ? computeFitT(fitPts, cssWidth, cssHeight, 75)
+                : { x: 0, y: 0, zoom: 1 };
+              if (intro.targets.size > 0 && slot && slot.width > 50 && slot.height > 50) {
+                const fit = computeFitT(fitPts, slot.width, slot.height, 75);
+                cam0 = {
+                  ...fit,
+                  x: fit.x + slot.left + slot.width / 2 - cssWidth / 2,
+                  y: fit.y + slot.top + slot.height / 2 - cssHeight / 2
+                };
+              }
+              cameraRef.current = cam0;
+              cameraTweenRef.current = null;
+              hasFittedInitialCameraRef.current = true;
+              // Ring centred on screen, radius 20% of the short side (bl00d.money)
+              const rw = (Math.min(cssWidth, cssHeight) * 0.2) / cam0.zoom;
+              const cx = -cam0.x / cam0.zoom;
+              const cy = -cam0.y / cam0.zoom;
+              intro.cx = cx;
+              intro.cy = cy;
+              const layerIdx = (l: string) => { const i = INTRO_LAYER_ORDER.indexOf(l); return i < 0 ? 99 : i; };
+              const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
+              intro.ring.clear();
+              order.forEach((n, i) => {
+                const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
+                intro.ring.set(n.id, { x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rw });
+                intro.at.set(n.id, (i / order.length) * INTRO_FILL);
+                if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
+              });
+              // currentNodes is sorted by degree, so its index is the rank
+              currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(900, rank * 7)));
+              intro.placed = true;
+              intro.started = true;
+            }
+          }
+
+          if (!intro.started) {
+            // Data still loading: idle dial
+            intro.spin += dt;
+            introDial = 1;
+            if (now - intro.born > 20000) finishIntro(); // never trap the screen if the audit fails
+          } else {
+            intro.clock += dt;
+            // Layout not settled yet: hold on the full dial until it is
+            if (intro.targets.size === 0) intro.clock = Math.min(intro.clock, INTRO_HOLD);
+            const c = intro.clock;
+            const burst = c - INTRO_BURST;
+            currentNodes.forEach(n => {
+              const tg = c >= (intro.at.get(n.id) ?? 0) ? 1 : 0;
+              const a = intro.al.get(n.id) ?? 0;
+              intro.al.set(n.id, a + (tg - a) * Math.min(1, dt * 0.004));
+              const s = intro.ring.get(n.id);
+              const t = intro.targets.get(n.id);
+              if (s && t) {
+                const k = Math.max(0, Math.min(1, (burst - (intro.dl.get(n.id) ?? 0)) / INTRO_TWEEN));
+                const e = easeCubicInOut(k);
+                n.x = s.x + (t.x - s.x) * e;
+                n.y = s.y + (t.y - s.y) * e;
+              } else if (s) {
+                n.x = s.x;
+                n.y = s.y;
+              }
+            });
+            introEdgeK = Math.max(0, Math.min(1, (burst - 250) / 1400));
+            introFill = Math.min(1, c / INTRO_FILL);
+            introDial = c < 1700 ? 1 : Math.max(0, 1 - (c - 1700) / 700);
+            // The studio UI comes back only once the whole graph has formed
+            if (c >= INTRO_END) finishIntro();
+          }
+        }
+        const introNow = introRef.current;
+        cam = cameraRef.current; // the fit / intro above may have replaced the camera this frame
+
         // Handle Layout Tweening (Cubic Easing between modes)
-        if (layoutTweenRef.current) {
+        if (introNow) {
+          // intro owns node positions
+        } else if (layoutTweenRef.current) {
           const tween = layoutTweenRef.current;
           const el = now - tween.t0;
-          const p = Math.min(1, el / tween.dur);
+          const p = Math.max(0, Math.min(1, el / tween.dur));
           const ease = easeCubicInOut(p);
 
           currentNodes.forEach(n => {
@@ -600,11 +816,13 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         }
 
         // Gentle ambient cosmic rotation (paused while hovering, dragging, or inspecting)
-        if (!isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current && !selectedNode) {
+        if (!introNow && !isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current && !selectedNode) {
           ambientRotationRef.current += 0.00018;
         }
         const rot = mode === 'network' ? ambientRotationRef.current : 0;
-        if (mousePosRef.current.isInside && !isDraggingRef.current) {
+        if (introNow) {
+          hoveredNodeRef.current = null;
+        } else if (mousePosRef.current.isInside && !isDraggingRef.current) {
           const mouseX = mousePosRef.current.x;
           const mouseY = mousePosRef.current.y;
           const cos = Math.cos(rot);
@@ -668,6 +886,55 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         ctx.fillStyle = '#080808';
         ctx.fillRect(0, 0, cssWidth, cssHeight);
 
+        // Intro dial (screen space): progress arc, outer ring, ticks and a sweeping bead
+        if (introNow && introDial > 0) {
+          // Pinned to the bead ring's centre on screen (canvas centre until it is laid out)
+          const dcx = introNow.started ? cssWidth / 2 + cam.x + introNow.cx * cam.zoom : cssWidth / 2;
+          const dcy = introNow.started ? cssHeight / 2 + cam.y + introNow.cy * cam.zoom : cssHeight / 2;
+          const R = Math.min(cssWidth, cssHeight) * 0.2;
+          const top = -Math.PI / 2;
+          ctx.lineWidth = 1;
+          if (!introNow.started) {
+            // Waiting for data: outer ring with a short arc sweeping round it
+            ctx.strokeStyle = 'rgba(52, 52, 52, 1)';
+            ctx.beginPath();
+            ctx.arc(dcx, dcy, R + 9, 0, Math.PI * 2);
+            ctx.stroke();
+            const a0 = top + introNow.spin * 0.004;
+            ctx.strokeStyle = 'rgba(232, 255, 0, 0.55)';
+            ctx.beginPath();
+            ctx.arc(dcx, dcy, R, a0, a0 + Math.PI / 3);
+            ctx.stroke();
+            ctx.fillStyle = '#e8ff00';
+            ctx.beginPath();
+            ctx.arc(dcx + Math.cos(a0 + Math.PI / 3) * R, dcy + Math.sin(a0 + Math.PI / 3) * R, 2.4, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = `rgba(232, 255, 0, ${0.55 * introDial})`;
+            ctx.beginPath();
+            ctx.arc(dcx, dcy, R, top, top + introFill * Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(52, 52, 52, ${introDial})`;
+            ctx.beginPath();
+            ctx.arc(dcx, dcy, R + 9, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = `rgba(148, 148, 148, ${0.6 * introDial})`;
+            ctx.beginPath();
+            for (let i = 0; i < 60 && i / 60 <= introFill; i++) {
+              const a = (i / 60) * Math.PI * 2 + top;
+              const r1 = R + 6, r2 = R + (i % 5 ? 11 : 16);
+              ctx.moveTo(dcx + Math.cos(a) * r1, dcy + Math.sin(a) * r1);
+              ctx.lineTo(dcx + Math.cos(a) * r2, dcy + Math.sin(a) * r2);
+            }
+            ctx.stroke();
+            const ba = top + introFill * Math.PI * 2;
+            ctx.fillStyle = `rgba(232, 255, 0, ${introDial})`;
+            ctx.beginPath();
+            ctx.arc(dcx + Math.cos(ba) * R, dcy + Math.sin(ba) * R, 2.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
         ctx.save();
         ctx.translate(cssWidth / 2 + cam.x, cssHeight / 2 + cam.y);
         ctx.scale(cam.zoom, cam.zoom);
@@ -697,6 +964,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
         if (currentNodes.length === 0) {
           ctx.restore();
+          if (introNow) {
+            animFrameIdRef.current = requestAnimationFrame(render);
+            return;
+          }
           ctx.fillStyle = '#6b7280';
           ctx.font = 'bold 11px ui-monospace, monospace';
           ctx.textAlign = 'center';
@@ -824,6 +1095,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           } else if (mode === 'violations') {
             alpha = 0.04;
           }
+          alpha *= introEdgeK;
+          if (alpha < 0.01) return;
 
           const strokeStyle = e.isViolation ? '#ff3b30' : (isHot ? '#e8ff00' : s.color);
 
@@ -868,7 +1141,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         ctx.setLineDash([]);
 
         // ── Draw Slow, Graceful Particle Pulses Along Lines & Curves ────────
-        particlesRef.current.forEach(p => {
+        if (!introNow) particlesRef.current.forEach(p => {
           const s = nodeMap.get(p.source);
           const t = nodeMap.get(p.target);
           if (!s || !t) return;
@@ -938,6 +1211,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           let radius = nodeWorldR(n, cam.zoom, n.id === topNodeIdRef.current);
           if (isSelected) radius = radius * 1.35 + 2;
 
+          if (introNow) {
+            nodeAlpha *= introNow.al.get(n.id) ?? 0;
+            if (nodeAlpha < 0.02) return;
+          }
           ctx.globalAlpha = nodeAlpha;
 
           const isExternal = n.nodeType === 'external';
@@ -1057,13 +1334,14 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       animFrameIdRef.current = requestAnimationFrame(render);
     };
 
+    renderRef.current = render;
     render();
 
     return () => {
       isRunning = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [mode, selectedNode, selectedEdge, highlightLayer]);
+  }, [mode, selectedNode, selectedEdge, highlightLayer, finishIntro, handBack]);
 
   // Window resize listener
   // Window resize listener (does not move or reset user camera)
@@ -1117,7 +1395,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || introRef.current) return;
     const rect = canvas.getBoundingClientRect();
     const cam = cameraRef.current;
     const nodesList = simNodesRef.current;
@@ -1175,16 +1453,19 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       const dSq = (world.x - projX) ** 2 + (world.y - projY) ** 2;
 
       if (dSq < 64) {
-        onSelectEdge(edge);
-        onSelectNode(null);
-        return;
+        // Defer edge selection to pointer-up so press-and-drag over an edge still pans
+        pendingEdgeRef.current = edge;
+        break;
       }
     }
 
     isDraggingRef.current = true;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
-    onSelectNode(null);
-    onSelectEdge(null);
+    dragOriginRef.current = { x: e.clientX, y: e.clientY };
+    if (!pendingEdgeRef.current) {
+      onSelectNode(null);
+      onSelectEdge(null);
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1202,13 +1483,22 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
   const handlePointerLeave = () => {
     isDraggingRef.current = false;
+    pendingEdgeRef.current = null;
     mousePosRef.current.isInside = false;
     hoveredNodeRef.current = null;
     hoveredEdgeRef.current = null;
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     isDraggingRef.current = false;
+    const edge = pendingEdgeRef.current;
+    pendingEdgeRef.current = null;
+    if (!edge) return;
+    const moved = Math.hypot(e.clientX - dragOriginRef.current.x, e.clientY - dragOriginRef.current.y);
+    if (moved < 5) {
+      onSelectEdge(edge);
+      onSelectNode(null);
+    }
   };
 
   // Native non-passive wheel listener for smooth zoom without browser warnings
@@ -1218,6 +1508,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (introRef.current) return;
       const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
       cameraRef.current.zoom = Math.min(3.5, Math.max(0.18, cameraRef.current.zoom * zoomFactor));
     };
@@ -1227,7 +1518,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none bg-[#080808]">
+    <div ref={wrapperRef} className={`${introActive ? 'fixed inset-0 z-[100]' : 'relative w-full h-full'} overflow-hidden select-none bg-[#080808]`}>
+      {introActive && (
+        <button
+          onClick={finishIntro}
+          title="Skip intro"
+          aria-label="Skip intro"
+          className="absolute bottom-6 right-6 z-30 w-8 h-8 rounded-full border border-[#343434] text-[#8b8b86] hover:text-[#e8ff00] hover:border-[#e8ff00]/50 font-mono text-sm transition-colors cursor-pointer"
+        >
+          »
+        </button>
+      )}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing block"
@@ -1239,7 +1540,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       />
 
       {/* Top Right: Reset / Default View Button */}
-      <div className="absolute top-3.5 right-3.5 z-20">
+      <div className={`absolute top-3.5 right-3.5 z-20 transition-opacity duration-300 ease-out ${introActive ? 'opacity-0 pointer-events-none' : ''}`}>
         <button
           onClick={handleResetCamera}
           title="Reset Camera to Default View (Fit)"
