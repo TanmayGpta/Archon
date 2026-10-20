@@ -3963,6 +3963,7 @@ export default function Home() {
         <main className="w-full min-h-[calc(100vh-56px)] bg-[#080808]">
           <ConformanceStudio
             apiBase={API_BASE}
+            introScope="studio"
           />
         </main>
       ) : appMode === 'copilot_agent' ? (
