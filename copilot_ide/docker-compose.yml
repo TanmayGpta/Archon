@@ -67,7 +67,8 @@ services:
       - ../conformance:/workspace/conformance:ro
       - ../shared:/workspace/shared:ro
       - ./services/orchestrator_service/app:/app/app
-      - C:\Users:/mnt/c/Users:ro
+      # Host user folders for external repo scanning. Windows default; WSL/Linux set HOST_USERS_DIR=/mnt/c/Users in .env
+      - ${HOST_USERS_DIR:-C:\Users}:/mnt/c/Users:ro
     environment:
       - PORT=8000
       - HOST=0.0.0.0

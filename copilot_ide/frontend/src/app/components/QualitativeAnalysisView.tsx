@@ -146,9 +146,165 @@ export const QUALITATIVE_BENCHMARK_DATA: BenchmarkRecord[] = [
   },
 ];
 
+interface MetricInfo {
+  title: string;
+  description: string;
+  formula?: string;
+  scale?: string;
+  better?: 'higher' | 'lower';
+}
+
+// Metric definitions sourced from R2ABENCH (Evaluation/metrics_calculator.py, llm_judge.py, prompt.md, ARCHON_BENCHMARK.md)
+const METRIC_INFO: Record<keyof BenchmarkRecord, MetricInfo> = {
+  model: {
+    title: 'Model',
+    description: 'Open-weight LLM used to generate the PlantUML architecture diagram for each R2ABench project.',
+  },
+  framework: {
+    title: 'Framework',
+    description: 'DIRECT = single-shot prompting of the raw model with the PRD. ARCHON = the same model driven by Archon’s requirement elicitation and pattern-grounded, two-pass node/edge generation.',
+  },
+  sv: {
+    title: 'Syntax Validity (SV)',
+    description: 'Share of the 17 R2ABench projects whose generated PlantUML diagram is syntactically valid and can be parsed.',
+    formula: 'valid diagrams / 17 (e.g. 15/17 = 0.8824)',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  node_precision: {
+    title: 'Node Precision',
+    description: 'Of the components the model drew, the fraction an LLM judge matched to a ground-truth component. Matches are semantic and may be 1:1, 1:N (split) or N:1 (merged). Penalises hallucinated components.',
+    formula: 'TP / (TP + unmatched predicted nodes)',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  node_recall: {
+    title: 'Node Recall',
+    description: 'Fraction of ground-truth components covered by at least one predicted component. Penalises omitted components.',
+    formula: 'TP / (TP + unmatched ground-truth nodes)',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  node_f1: {
+    title: 'Node F1',
+    description: 'Harmonic mean of Node Precision and Node Recall: overall component-identification quality.',
+    formula: '2 · P · R / (P + R)',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  edge_precision: {
+    title: 'Edge Precision',
+    description: 'Fraction of predicted dependency arrows that match a ground-truth edge. An arrow matches when its source and target map to ground-truth nodes (or their parent boundaries) that the ground truth connects.',
+    formula: 'matched predicted edges / predicted edges',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  edge_recall: {
+    title: 'Edge Recall',
+    description: 'Fraction of ground-truth dependency edges reproduced by at least one predicted arrow.',
+    formula: 'covered ground-truth edges / ground-truth edges',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  edge_f1: {
+    title: 'Edge F1',
+    description: 'Harmonic mean of Edge Precision and Edge Recall: how well the model reproduces invocations and data flows between components.',
+    formula: '2 · P · R / (P + R)',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  boundary_accuracy: {
+    title: 'Boundary Accuracy',
+    description: 'Of the matched node pairs, the fraction placed in the correct boundary, package or layer. Differently named but equivalent packages count as correct (e.g. "Backend::Data Layer::MySQL" vs "Database::MySQL"). Cross-context or frontend/backend mix-ups count as wrong.',
+    formula: 'pairs with correct boundary / matched pairs',
+    scale: '0 – 1',
+    better: 'higher',
+  },
+  orphan_ratio: {
+    title: 'Orphan Ratio',
+    description: 'Share of leaf components with no incoming or outgoing edges: isolated "zombie" services that nothing calls and that call nothing.',
+    formula: 'leaf nodes with degree 0 / leaf nodes',
+    scale: '0 – 1',
+    better: 'lower',
+  },
+  god_ratio: {
+    title: 'God Component Ratio',
+    description: 'Share of leaf components that are over-coupled hubs, i.e. their degree is more than two standard deviations above the mean degree.',
+    formula: 'leaf nodes with degree > μ + 2σ / leaf nodes',
+    scale: '0 – 1',
+    better: 'lower',
+  },
+  score_completeness: {
+    title: 'Completeness (rubric)',
+    description: '“Is anything missing?” An LLM judge checks the diagram against the PRD for required components, storage, third-party dependencies and core workflows. Extra components and wrong arrow directions are not penalised here.',
+    scale: '1 – 5 (5 = all modules present)',
+    better: 'higher',
+  },
+  score_accuracy: {
+    title: 'Accuracy (rubric)',
+    description: '“Is anything wrong or fabricated?” Checks that elements and connections are faithful to the PRD. Components not in the PRD count as hallucinations, even if useful. Omissions are not penalised here.',
+    scale: '1 – 5 (5 = zero hallucinations)',
+    better: 'higher',
+  },
+  score_rationality: {
+    title: 'Architectural Rationality (rubric)',
+    description: '“Can this system actually run?” Ignores the PRD and judges engineering soundness of the drawn topology. Penalises anti-patterns such as isolated nodes, circular dependencies, or a frontend writing directly to the DB.',
+    scale: '1 – 5 (5 = clean layering, no anti-patterns)',
+    better: 'higher',
+  },
+  score_readability: {
+    title: 'Structural Readability (rubric)',
+    description: '“Is the code well-organized?” Judges only the PlantUML structure: how well it uses packages, groups and boundaries to express hierarchy. Functional correctness is not considered.',
+    scale: '1 – 5 (5 = clear modular grouping)',
+    better: 'higher',
+  },
+  score_avg: {
+    title: 'Rubric Score Average',
+    description: 'Mean of the four LLM-judge rubric scores: Completeness, Accuracy, Rationality and Readability.',
+    formula: '(Compl + Accur + Ration + Readab) / 4',
+    scale: '1 – 5',
+    better: 'higher',
+  },
+  ged: {
+    title: 'Graph Edit Distance Accuracy',
+    description: 'Similarity to the ground-truth graph, derived from a weighted Graph Edit Distance. Edit costs: missing node 1.0, hallucinated node 0.8, boundary error 2.0 per GT node, missing edge 1.0, hallucinated edge 1.2.',
+    formula: '100 × (1 − GED / max possible GED)',
+    scale: '0 – 100 %',
+    better: 'higher',
+  },
+};
+
+const TOOLTIP_WIDTH = 288;
+
 export function QualitativeAnalysisView() {
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [frameworkFilter, setFrameworkFilter] = useState<string>('all');
+  const [tooltip, setTooltip] = useState<{ key: keyof BenchmarkRecord; left: number; top: number; above: boolean } | null>(null);
+
+  // Fixed-position tooltip so the table's overflow container cannot clip it
+  const showTooltip = (key: keyof BenchmarkRecord, e: React.SyntheticEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, rect.left + rect.width / 2 - TOOLTIP_WIDTH / 2),
+      window.innerWidth - TOOLTIP_WIDTH - 8
+    );
+    const above = window.innerHeight - rect.bottom < 240;
+    setTooltip({ key, left, top: above ? rect.top - 6 : rect.bottom + 6, above });
+  };
+  const hideTooltip = () => setTooltip(null);
+
+  const headerProps = (key: keyof BenchmarkRecord) => ({
+    tabIndex: 0,
+    'aria-describedby': tooltip?.key === key ? 'metric-tooltip' : undefined,
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => showTooltip(key, e),
+    onMouseLeave: hideTooltip,
+    onFocus: (e: React.FocusEvent<HTMLElement>) => showTooltip(key, e),
+    onBlur: hideTooltip,
+  });
+
+  const headerLabel = (label: string) => (
+    <span className="cursor-help underline decoration-dotted decoration-[#475569] underline-offset-4">{label}</span>
+  );
 
   // Compute best values across all 6 benchmark rows for each column
   const bestValues = useMemo(() => {
@@ -205,7 +361,51 @@ export function QualitativeAnalysisView() {
   };
 
   return (
-    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 overflow-y-auto">
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 overflow-y-auto" onScroll={hideTooltip}>
+      {/* ── METRIC HEADER TOOLTIP ───────────────────────────────────── */}
+      {tooltip && (() => {
+        const info = METRIC_INFO[tooltip.key];
+        return (
+          <div
+            id="metric-tooltip"
+            role="tooltip"
+            className="fixed z-50 pointer-events-none rounded-lg border border-[#334155] bg-[#0f172a] p-3 shadow-2xl shadow-black/50 text-left normal-case whitespace-normal"
+            style={{
+              left: tooltip.left,
+              top: tooltip.top,
+              width: TOOLTIP_WIDTH,
+              transform: tooltip.above ? 'translateY(-100%)' : undefined,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-xs font-bold text-[#f8fafc] font-sans">{info.title}</span>
+              {info.better && (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider border flex-shrink-0 ${
+                    info.better === 'higher'
+                      ? 'bg-[#10b981]/15 text-[#34d399] border-[#10b981]/40'
+                      : 'bg-[#f59e0b]/15 text-[#fbbf24] border-[#f59e0b]/40'
+                  }`}
+                >
+                  {info.better === 'higher' ? '↑ Higher better' : '↓ Lower better'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-[#cbd5e1] font-sans leading-relaxed">{info.description}</p>
+            {(info.formula || info.scale) && (
+              <div className="mt-2 pt-2 border-t border-[#1e293b] space-y-0.5 text-[10px] font-mono">
+                {info.formula && (
+                  <div><span className="text-[#64748b]">Formula: </span><span className="text-[#38bdf8]">{info.formula}</span></div>
+                )}
+                {info.scale && (
+                  <div><span className="text-[#64748b]">Range: </span><span className="text-[#94a3b8]">{info.scale}</span></div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── HEADER SECTION ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-4 border-b border-[#1e293b] pb-6">
         <div>
@@ -339,28 +539,28 @@ export function QualitativeAnalysisView() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" onScroll={hideTooltip}>
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-[#0e131f] text-[#64748b] font-mono uppercase text-[10.5px] border-b border-[#1e293b] select-none">
               <tr>
-                <th className="p-3 sticky left-0 bg-[#0e131f] z-10 border-r border-[#1e293b]">Model</th>
-                <th className="p-3 border-r border-[#1e293b]">Framework</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50" title="Syntax / Schema Validation Rate">SV</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Node Prec</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Node Rec</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]">Node F1</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Edge Prec</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Edge Rec</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]">Edge F1</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Bound Acc</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50" title="Orphan Ratio (Lower is better)">Orphan ↓</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50" title="God Component Ratio (Lower is better)">God ↓</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Compl</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Accur</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Ration</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50">Readab</th>
-                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]">Score Avg</th>
-                <th className="p-3 text-center font-bold text-[#38bdf8]">GED (Acc %)</th>
+                <th className="p-3 sticky left-0 bg-[#0e131f] z-10 border-r border-[#1e293b]" {...headerProps('model')}>{headerLabel('Model')}</th>
+                <th className="p-3 border-r border-[#1e293b]" {...headerProps('framework')}>{headerLabel('Framework')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('sv')}>{headerLabel('SV')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('node_precision')}>{headerLabel('Node Prec')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('node_recall')}>{headerLabel('Node Rec')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]" {...headerProps('node_f1')}>{headerLabel('Node F1')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('edge_precision')}>{headerLabel('Edge Prec')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('edge_recall')}>{headerLabel('Edge Rec')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]" {...headerProps('edge_f1')}>{headerLabel('Edge F1')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('boundary_accuracy')}>{headerLabel('Bound Acc')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('orphan_ratio')}>{headerLabel('Orphan ↓')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('god_ratio')}>{headerLabel('God ↓')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('score_completeness')}>{headerLabel('Compl')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('score_accuracy')}>{headerLabel('Accur')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('score_rationality')}>{headerLabel('Ration')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50" {...headerProps('score_readability')}>{headerLabel('Readab')}</th>
+                <th className="p-3 text-center border-r border-[#1e293b]/50 font-bold text-[#cbd5e1]" {...headerProps('score_avg')}>{headerLabel('Score Avg')}</th>
+                <th className="p-3 text-center font-bold text-[#38bdf8]" {...headerProps('ged')}>{headerLabel('GED (Acc %)')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e293b]/60 font-mono">
