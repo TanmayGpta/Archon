@@ -31,6 +31,42 @@ READONLY_ROOTS = [
     for p in os.getenv("AGAI_READONLY_ROOTS", str(REPO_ROOT)).split(os.pathsep)
     if p
 ]
+# The IDE's orchestrator may run in Docker and report container paths; map them to host paths
+# (longest prefix first). Format: "container=host,container=host". Defaults mirror copilot_ide/docker-compose.yml.
+PATH_MAP = sorted(
+    ((c.rstrip("/"), h) for c, h in (pair.split("=", 1) for pair in os.getenv("AGAI_PATH_MAP", ",".join([
+        f"/workspace/test_codebases={REPO_ROOT / 'test_codebases'}",
+        f"/workspace/conformance={REPO_ROOT / 'conformance'}",
+        f"/workspace/shared={REPO_ROOT / 'shared'}",
+        f"/workspace={REPO_ROOT / 'copilot_ide'}",
+        f"/archon={REPO_ROOT}",
+    ])).split(",") if "=" in pair)),
+    key=lambda m: -len(m[0]),
+)
+
+
+def to_host(p: str) -> str:
+    """Container path (/workspace/..., /mnt/c/...) -> host path; anything else is returned unchanged."""
+    s = p.replace("\\", "/")
+    for c, h in PATH_MAP:
+        if s == c or s.startswith(c + "/"):
+            return str(Path(h) / s[len(c):].lstrip("/"))
+    if os.name == "nt" and len(s) > 6 and s.startswith("/mnt/") and s[6] == "/":  # /mnt/c/Users -> C:/Users
+        return f"{s[5].upper()}:/{s[7:]}"
+    return p
+
+
+def to_container(p: str) -> str:
+    """Host path -> the path the Dockerised IDE sees (writable mounts only); unchanged if unmapped."""
+    hp = Path(p).resolve()
+    for c, h in PATH_MAP:
+        try:
+            return (c + "/" + hp.relative_to(Path(h).resolve()).as_posix()).rstrip("/.")
+        except ValueError:
+            continue
+    return p
+
+
 # Never readable through the agents or the editor, even inside an allowed root.
 SECRET_PARTS = {".env", ".git", ".venv", "node_modules"}
 # The UI opens on the Archon repo itself, checked against the Archon Core blueprint.
@@ -38,6 +74,11 @@ DEFAULT_CODEBASE = os.getenv("AGAI_DEFAULT_CODEBASE", str(REPO_ROOT))
 DEFAULT_BLUEPRINT = os.getenv("AGAI_DEFAULT_BLUEPRINT", "archon_architecture")
 # Seeded-violation demo target (used by the offline tests).
 DEMO_CODEBASE = str(REPO_ROOT / "test_codebases" / "ecommerce_platform")
+# One-click projects in the IDE / conformance pickers: (label, host path, blueprint).
+BUILTIN_PROJECTS = [
+    ("Archon (this repo)", DEFAULT_CODEBASE, DEFAULT_BLUEPRINT),
+    ("E-commerce demo (seeded violations)", DEMO_CODEBASE, "clean_architecture"),
+]
 
 # Sandboxes where healing patches are tried before a human applies them.
 RUNS_DIR = Path(os.getenv("AGAI_RUNS_DIR", str(AGAI_ROOT / ".runs"))).resolve()
@@ -45,6 +86,11 @@ RUNS_DIR = Path(os.getenv("AGAI_RUNS_DIR", str(AGAI_ROOT / ".runs"))).resolve()
 HEALING_A2A_URL = os.getenv("AGAI_HEALING_A2A_URL", "http://127.0.0.1:8101")
 HEALING_TIMEOUT_S = float(os.getenv("AGAI_HEALING_TIMEOUT_S", "1800"))  # free providers can be slow
 LLM_MAX_TOKENS = int(os.getenv("AGAI_LLM_MAX_TOKENS", "8192"))  # patches need room; some routes cap at 2048
+# Per-request cap: a stalled free provider otherwise hangs a heal step indefinitely.
+LLM_TIMEOUT_S = float(os.getenv("AGAI_LLM_TIMEOUT_S", "180"))
+# CrewAI phones home to its telemetry collector on every kickoff; off unless explicitly enabled.
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 GATEWAY_PORT = int(os.getenv("AGAI_GATEWAY_PORT", "8100"))
 HEALING_PORT = int(os.getenv("AGAI_HEALING_PORT", "8101"))
 

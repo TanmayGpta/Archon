@@ -84,7 +84,7 @@ export interface SessionState {
   guardrail_blocked?: string[];
 }
 
-type Busy = null | 'audit' | 'heal' | 'apply';
+type Busy = null | 'audit' | 'heal' | 'apply' | 'import';
 
 export function useAgaiSession() {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -104,20 +104,29 @@ export function useAgaiSession() {
 
   const start = useCallback(async (codebasePath?: string, blueprintId?: string) => {
     setError(null);
+    let res: Response;
     try {
-      const res = await fetch(`${AGAI_API}/api/agai/sessions`, {
+      res = await fetch(`${AGAI_API}/api/agai/sessions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codebase_path: codebasePath || null, blueprint_id: blueprintId || null }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setEvents([]);
-      setSessionId(data.session_id);
-      await refresh(data.session_id);
     } catch (e) {
       setError(`Gateway unreachable at ${AGAI_API}: ${(e as Error).message}`);
+      return;
     }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Don't keep auditing the previous project under the new one's name.
+      setSessionId(null);
+      setState(null);
+      setError(`Cannot guard ${codebasePath ?? 'default codebase'}: ${data.detail ?? res.status}`);
+      return;
+    }
+    setEvents([]);
+    setSessionId(data.session_id);
+    await refresh(data.session_id);
   }, [refresh]);
+
 
   // Live event stream (ADK / CrewAI / A2A / guardrail callbacks)
   useEffect(() => {
@@ -147,7 +156,21 @@ export function useAgaiSession() {
     return data;
   }, []);
 
-  const run = useCallback(async (kind: Exclude<Busy, null>, path: string, body: object) => {
+  const importGitHub = useCallback(async (repo: string, branch?: string, token?: string): Promise<{ codebase_path: string; container_path: string } | null> => {
+    setError(null);
+    setBusy('import');
+    try {
+      const data = await post('/api/agai/github/import', { repo, branch, token: token || null });
+      return data;
+    } catch (e) {
+      setError(`GitHub import failed: ${(e as Error).message}`);
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }, [post]);
+
+  const run = useCallback(async (kind: Exclude<Busy, null | 'import'>, path: string, body: object) => {
     if (!sessionId) return;
     setError(null);
     setBusy(kind);
@@ -161,7 +184,7 @@ export function useAgaiSession() {
   }, [sessionId, post, refresh]);
 
   return {
-    sessionId, state, events, busy, error, canvasKey, start, refresh,
+    sessionId, state, events, busy, error, canvasKey, start, refresh, importGitHub,
     audit: (prompt: string) => run('audit', '/api/agai/audit', { prompt }),
     heal: () => run('heal', '/api/agai/heal', { max_attempts: 3 }),
     apply: (paths?: string[]) => run('apply', '/api/agai/apply', { paths: paths ?? null }),

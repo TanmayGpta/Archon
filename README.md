@@ -1,5 +1,5 @@
 cd copilot_ide
-docker compose up --build --no-deps orchestrator-service ui-service
+docker compose up --no-deps orchestrator-service ui-service
 
 .venv\Scripts\python.exe -m archon_agai.healing.a2a_server
 # Archon

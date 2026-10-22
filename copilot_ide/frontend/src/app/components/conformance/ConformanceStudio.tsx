@@ -16,6 +16,7 @@ interface ConformanceStudioProps {
   apiBase: string;
   initialPath?: string;
   initialBlueprintId?: string;
+  presets?: { label: string; path: string; blueprintId?: string }[]; // built-in targets in the path picker
 }
 
 const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
@@ -94,7 +95,7 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
   ]
 });
 
-export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId }) => {
+export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId, presets = [] }) => {
   // Default target (Archon itself): start from the bundled snapshot instead of waiting on the API.
   // "Run audit" still fetches live. Regenerate the snapshot when Archon's structure changes.
   const fromSnapshot = !initialPath?.trim() && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
@@ -305,6 +306,24 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         {/* Target Project Path Selector */}
         <div className="flex items-center gap-1.5 bg-[#141413] border border-[#2b2b2a] rounded px-2.5 py-1">
           <span className="text-[10px] font-mono text-[#8b8b86]">📁 PATH:</span>
+          {presets.length > 0 && (
+            <select
+              value=""
+              onChange={e => {
+                const p = presets[Number(e.target.value)];
+                if (!p) return;
+                const bp = p.blueprintId || selectedBlueprintId;
+                setTargetPath(p.path);
+                setSelectedBlueprintId(bp);
+                runAudit(bp, p.path);
+              }}
+              title="Built-in projects"
+              className="bg-[#0f0f0e] border border-[#2b2b2a] text-[#e8ff00] text-[10px] font-mono rounded px-1 py-0.5 outline-none cursor-pointer"
+            >
+              <option value="">Built-in ▾</option>
+              {presets.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
+            </select>
+          )}
           <input
             type="text"
             placeholder="Default: Workspace Root"

@@ -66,6 +66,8 @@ services:
       - .:/workspace
       - ../conformance:/workspace/conformance:ro
       - ../shared:/workspace/shared:ro
+      - ../test_codebases:/workspace/test_codebases
+      - ..:/archon  # whole Archon repo, opened by default in /agai
       - ./services/orchestrator_service/app:/app/app
       - C:\Users:/mnt/c/Users:ro
     environment:

@@ -29,8 +29,9 @@ from google.genai import types
 from pydantic import BaseModel
 
 from archon_agai import engine, events, observability
-from archon_agai.config import (ALLOWED_ROOTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE, GATEWAY_PORT, RUNS_DIR,
-                                require_llm_key)
+from archon_agai.config import (ALLOWED_ROOTS, BUILTIN_PROJECTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE,
+                                GATEWAY_PORT, REPO_ROOT,
+                                RUNS_DIR, require_llm_key, to_container, to_host)
 from archon_agai.guardrails import is_writable, resolve_allowed_path, screen_user_prompt
 from archon_agai.pricing import estimate_cost
 from archon_agai.schemas import AuditResult, HealingReport, HealingRequest
@@ -88,17 +89,25 @@ async def _patch_state(sid: str, delta: Dict[str, Any]) -> None:
 @app.post("/api/agai/sessions")
 async def create_session(req: SessionReq):
     try:
-        root = resolve_allowed_path(req.codebase_path or DEFAULT_CODEBASE)
+        root = resolve_allowed_path(to_host(req.codebase_path) if req.codebase_path else DEFAULT_CODEBASE)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    bp = req.blueprint_id or next((b for _, p, b in BUILTIN_PROJECTS if Path(p).resolve() == root), DEFAULT_BLUEPRINT)
     sid = "s-" + uuid.uuid4().hex[:10]
     await session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=sid, state={
-        "session_id": sid, "codebase_path": str(root), "blueprint_id": req.blueprint_id or DEFAULT_BLUEPRINT,
+        "session_id": sid, "codebase_path": str(root), "blueprint_id": bp,
         "timings": {}, "usage": {}, "healable": is_writable(root),
     })
     events.emit(sid, "gateway", "session_created", str(root))
-    return {"session_id": sid, "codebase_path": str(root), "blueprint_id": req.blueprint_id or DEFAULT_BLUEPRINT,
-            "healable": is_writable(root)}
+    return {"session_id": sid, "codebase_path": str(root), "blueprint_id": bp, "healable": is_writable(root)}
+
+
+@app.get("/api/agai/builtins")
+def builtins():
+    """Built-in projects. `paths` are candidates for the IDE's orchestrator: container path first, then host path."""
+    return [{"label": label, "path": p, "blueprint_id": bp,
+             "paths": list(dict.fromkeys([to_container(p), p]))}
+            for label, p, bp in BUILTIN_PROJECTS]
 
 
 def _require_writable(st: Dict[str, Any]) -> None:
@@ -328,6 +337,41 @@ def save_file(req: SaveReq):
     f = resolve_allowed_path(req.path, root, writable=True)
     f.write_text(req.content, encoding="utf-8")
     return {"saved": f.relative_to(root).as_posix()}
+
+
+# --------------------------------------------------------------------------- GitHub import
+
+IMPORT_DIR = REPO_ROOT / "test_codebases" / "imported"  # inside the default ALLOWED_ROOTS, so imports are healable
+
+
+class GitHubImportReq(BaseModel):
+    repo: str  # "owner/repo" or a github.com URL
+    branch: Optional[str] = None
+    token: Optional[str] = None
+
+
+@app.post("/api/agai/github/import")
+async def github_import(req: GitHubImportReq):
+    """Shallow-clone a GitHub repo locally: the engine needs real files for AST audit, sandbox verify and apply."""
+    import re
+    import subprocess
+    slug = req.repo.strip().split("github.com/")[-1].strip("/").removesuffix(".git")
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", slug):
+        raise HTTPException(400, "use 'owner/repo' or a github.com URL")
+    dest = IMPORT_DIR / slug.replace("/", "__")
+    # The token goes in a one-off header, never into the clone's .git/config.
+    auth = ["-c", f"http.extraHeader=Authorization: Bearer {req.token}"] if req.token else []
+    if (dest / ".git").exists():
+        cmds = [["git", *auth, "-C", str(dest), "pull", "--ff-only"]]
+    else:
+        IMPORT_DIR.mkdir(parents=True, exist_ok=True)
+        cmds = [["git", *auth, "clone", "--depth", "1", *(["--branch", req.branch] if req.branch else []),
+                 f"https://github.com/{slug}.git", str(dest)]]
+    for cmd in cmds:
+        r = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode != 0 and not (dest / ".git").exists():
+            raise HTTPException(502, f"git failed: {r.stderr.strip()[-400:]}")
+    return {"codebase_path": str(dest), "container_path": to_container(str(dest)), "healable": is_writable(dest)}
 
 
 @app.get("/api/agai/config")

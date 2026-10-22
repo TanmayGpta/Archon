@@ -19,8 +19,8 @@ from crewai.mcp import MCPServerStdio, create_static_tool_filter
 from pydantic import BaseModel
 
 from archon_agai import engine
-from archon_agai.config import (CREW_MODEL, FS_MCP_COMMAND, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, REPO_ROOT,
-                                fs_mcp_args)
+from archon_agai.config import (CREW_MODEL, FS_MCP_COMMAND, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, LLM_TIMEOUT_S,
+                                REPO_ROOT, fs_mcp_args)
 from archon_agai.events import emit
 from archon_agai.guardrails import check_patch_file
 from archon_agai.schemas import (FilePatch, HealingPlan, HealingReport, HealingRequest, PatchSet,
@@ -80,11 +80,21 @@ def _callbacks(session_id: str):
 
 # --------------------------------------------------------------------------- guardrails
 
+def parse_output(output, model):
+    """output.pydantic is dropped by some CrewAI paths (e.g. after a guardrail); fall back to the raw JSON."""
+    if getattr(output, "pydantic", None) is not None:
+        return output.pydantic
+    raw = (output.raw or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+    return model.model_validate_json(raw[raw.find("{"):raw.rfind("}") + 1])
+
+
 def patch_guardrail(codebase: str):
     """Static safety check on the Specialist's patches before they reach the Verifier."""
     def _g(output) -> Tuple[bool, Any]:
         try:
-            ps = output.pydantic or PatchSet.model_validate_json(output.raw)
+            ps = parse_output(output, PatchSet)
         except Exception as e:
             return False, f"Output is not a valid PatchSet JSON: {e}"
         if not ps.patches:
@@ -108,8 +118,9 @@ def patch_guardrail(codebase: str):
                     problems += check_patch_file(p.path, before, after)
             else:
                 problems += check_patch_file(p.path, None, p.content or "")
+        # Pass the TaskOutput through untouched: returning the model makes CrewAI drop .pydantic.
         return (False, "Fix these problems and return the full PatchSet again:\n- " + "\n- ".join(problems)) \
-            if problems else (True, ps)
+            if problems else (True, output)
     return _g
 
 
@@ -120,7 +131,7 @@ class HealingFlow(Flow[HealState]):
         super().__init__(**kw)
         self.session_id = session_id
         self.llm = LLM(model=f"openai/{CREW_MODEL}", base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "missing",
-                       temperature=0.1, max_tokens=LLM_MAX_TOKENS)
+                       temperature=0.1, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT_S)
         self.step_cb, self.task_cb = _callbacks(session_id)
 
     def _crew(self, agent: Agent, task: Task) -> Crew:
@@ -165,7 +176,10 @@ class HealingFlow(Flow[HealState]):
                                       for v in req.audit.violations], indent=1),
             "sources": self.state.sources,
         })
-        self.state.plan = out.pydantic
+        try:
+            self.state.plan = parse_output(out, HealingPlan)
+        except Exception:
+            self.state.plan = None
 
     @listen(or_(plan, "retry"))
     def patch(self):
@@ -196,7 +210,11 @@ class HealingFlow(Flow[HealState]):
             "sources": self.state.sources,
             "feedback": f"PREVIOUS ATTEMPT WAS REJECTED:\n{self.state.feedback}" if self.state.feedback else "",
         })
-        self.state.patches = out.pydantic.patches if out.pydantic else []
+        try:
+            self.state.patches = parse_output(out, PatchSet).patches
+        except Exception as e:
+            self.state.patches = []
+            emit(self.session_id, "crewai", "error", f"Unparseable PatchSet: {e}")
 
     @router(patch)
     def verify(self):
@@ -215,10 +233,13 @@ class HealingFlow(Flow[HealState]):
         )
 
         def truthful(output) -> Tuple[bool, Any]:
-            rep = output.pydantic
+            try:
+                rep = parse_output(output, VerifierReport)
+            except Exception:
+                rep = None
             if rep is None or rep.passed != result.passed:
                 return False, f"Your 'passed' must equal the tool result ({result.passed})."
-            return True, rep
+            return True, output
 
         task = Task(
             description=("Verification result (ground truth):\n{result}\n\nPatches:\n{patches}\n\n"
@@ -231,14 +252,18 @@ class HealingFlow(Flow[HealState]):
             "result": result.model_dump_json(indent=1),
             "patches": json.dumps([p.model_dump(include={"path", "operation", "rationale"}) for p in self.state.patches]),
         })
-        self.state.summary_markdown = out.pydantic.summary_markdown if out.pydantic else out.raw
+        try:
+            self.state.summary_markdown = parse_output(out, VerifierReport).summary_markdown
+        except Exception:
+            self.state.summary_markdown = out.raw
 
         if result.passed:
             return "done"
         if self.state.attempt >= req.max_attempts:
             return "give_up"
         self.state.feedback = "\n".join(
-            result.guardrail_rejections + result.syntax_errors
+            (["No patches reached the verifier; return a valid PatchSet JSON."] if not self.state.patches else [])
+            + result.guardrail_rejections + result.syntax_errors
             + [f"new violation introduced: {i}" for i in result.new_violation_ids]
             + ([f"tests failed: {result.test_output[-600:]}"] if result.tests_passed is False else [])
             + [f"still unresolved: {result.violations_after} violations"]) or "Verification failed."

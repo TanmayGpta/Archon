@@ -65,3 +65,4 @@ copilot_ide/targets/
 # Archon Guard (AGAI) sandboxes, backups, event logs
 archon_agai/.runs/
 test_codebases/_bench/
+test_codebases/imported/
