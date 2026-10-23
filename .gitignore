@@ -69,3 +69,7 @@ test_codebases/imported/
 
 # Graphify local graph output
 graphify-out/
+
+# Local launcher scripts
+restart_servers.bat
+*.bat

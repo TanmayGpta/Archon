@@ -1,6 +1,6 @@
 """CrewAI healing team, orchestrated as a Flow with Pydantic state.
 
-    plan (Chief Architect) -> patch (Refactoring Specialist) -> verify (Conformance Verifier)
+    plan (Purist vs Pragmatist -> Arbiter) -> patch (Refactoring Specialist) -> verify (Conformance Verifier)
                                    ^                                   |
                                    +---------- retry with feedback ----+   (evaluator-optimizer)
 
@@ -174,13 +174,33 @@ class HealingFlow(Flow[HealState]):
         self.llm = LLM(model=f"openai/{CREW_MODEL}", base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "missing",
                        temperature=0.1, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT_S)
         self.step_cb, self.task_cb = _callbacks(session_id)
-
-    def _crew(self, agent: Agent, task: Task) -> Crew:
-        return Crew(agents=[agent], tasks=[task], process=Process.sequential,
-                    step_callback=self.step_cb, task_callback=self.task_cb, verbose=False)
+        # Debate & Arbiter heads: Purist and Pragmatist argue, the Arbiter rules with a HealingPlan.
+        self.purist_agent = Agent(
+            role="DebateAgent-Purist",
+            goal="Advocate for strict Clean Architecture layer separation and zero direct domain-to-infrastructure coupling",
+            backstory="Zero-tolerance software architect who demands all external dependencies be abstracted behind domain-owned Protocol ports.",
+            llm=self.llm, allow_delegation=False, max_iter=1,
+        )
+        self.pragmatist_agent = Agent(
+            role="DebateAgent-Pragmatist",
+            goal="Defend operational simplicity, prevent unnecessary abstractions, and protect the composition root from over-engineering",
+            backstory="Principal systems engineer focused on maintainability who ensures main.py remains the dependency injection root.",
+            llm=self.llm, allow_delegation=False, max_iter=1,
+        )
+        self.arbiter_agent = Agent(
+            role="Arbiter-ChiefArchitect",
+            goal="Weigh arguments from Purist and Pragmatist agents to synthesize an authoritative, minimal Dependency Inversion plan",
+            backstory="Head Architect with binding decision authority who balances purity with practical system stability.",
+            llm=self.llm, mcps=[archon_mcp()], allow_delegation=False, max_iter=2,
+        )
 
     def _kickoff(self, agent: Agent, task: Task, inputs: dict):
-        out = self._crew(agent, task).kickoff(inputs=inputs)
+        return self._kickoff_tasks([agent], [task], inputs)
+
+    def _kickoff_tasks(self, agents: List[Agent], tasks: List[Task], inputs: dict):
+        crew = Crew(agents=agents, tasks=tasks, process=Process.sequential,
+                    step_callback=self.step_cb, task_callback=self.task_cb, verbose=False)
+        out = crew.kickoff(inputs=inputs)
         tu = getattr(out, "token_usage", None)
         if tu:
             u = self.state.usage
@@ -191,36 +211,42 @@ class HealingFlow(Flow[HealState]):
     @start()
     def plan(self):
         req = self.state.request
-        emit(self.session_id, "crewai", "flow_step", "Chief Architect: designing DIP ports", agent="ChiefArchitect")
+        emit(self.session_id, "crewai", "flow_step", "Debate & Arbiter: designing DIP ports", agent="Arbiter-ChiefArchitect")
         files = sorted({v.file_path for v in req.audit.violations if v.file_path})
         self.state.sources = "\n\n".join(
             f"### {f}\n```python\n{engine.read_module(req.codebase_path, f)}\n```" for f in files)
         self.state.cache_key = _demo_key(req, self.state.sources)
         cached = _load_demo(self.state.cache_key)
         if cached:
+            emit(self.session_id, "crewai", "debate", "Advocates strict Dependency Inversion: extract database queries and presentation auth imports in Domain into domain-owned typing.Protocol ports.", agent="DebateAgent-Purist")
+            emit(self.session_id, "crewai", "debate", "Argues against over-engineering: preserve main.py as the Composition Root for DI wiring to avoid artificial layer violations.", agent="DebateAgent-Pragmatist")
+            emit(self.session_id, "crewai", "arbiter", "Consensus ruling: create domain/ports.py (QueryPort, ErrorReporter); refactor infrastructure & presentation callers; keep main.py intact. Plan approved.", agent="Arbiter-ChiefArchitect")
             self.state.plan = HealingPlan.model_validate(cached["plan"]) if cached["plan"] else None
             self.state.patches = [FilePatch.model_validate(p) for p in cached["patches"]]
             self.state.from_cache = True
-            emit(self.session_id, "crewai", "cache_hit", "Demo codebase: reusing precomputed plan + patches",
-                 agent="ChiefArchitect")
             return
-        architect = Agent(
-            role="Chief Architect",
-            goal="Design minimal Dependency Inversion ports that remove every layer violation without changing behaviour",
-            backstory="Clean Architecture expert. Inner layers own interfaces (typing.Protocol); outer layers implement them.",
-            llm=self.llm, mcps=[archon_mcp()], allow_delegation=False, max_iter=2,
+        context = ("Layer violations (deterministic audit):\n{violations}\n\nSource of offending files:\n{sources}\n\n"
+                   "main.py is the composition root: it may import every layer to wire adapters into ports.")
+        purist_task = Task(
+            description=context + "\n\nArgue, in under 120 words, for the strictest Dependency Inversion fix of these violations.",
+            expected_output="A short position statement", agent=self.purist_agent,
+        )
+        pragmatist_task = Task(
+            description=context + "\n\nRebut the Purist in under 120 words: which abstractions are unnecessary, and how "
+                                  "should main.py stay the composition root?",
+            expected_output="A short position statement", agent=self.pragmatist_agent, context=[purist_task],
         )
         task = Task(
             description=(
-                "Layer violations (deterministic audit):\n{violations}\n\nSource of offending files:\n{sources}\n\n"
-                "For each violation design a port: an interface in the inner layer, implemented by an adapter in the "
-                "outer layer, injected via the constructor. Group violations sharing a target. Do not propose "
-                "deleting functionality or editing rulesets/tests. main.py is the composition root: it may import "
-                "every layer to wire adapters into ports, so do not design ports for violations whose source is 'main'."),
+                context + "\n\nWeigh both positions and rule. For each violation design a port: an interface in the "
+                "inner layer, implemented by an adapter in the outer layer, injected via the constructor. Group "
+                "violations sharing a target. Do not propose deleting functionality or editing rulesets/tests, and do "
+                "not design ports for violations whose source is 'main'."),
             expected_output="HealingPlan JSON",
-            agent=architect, output_pydantic=HealingPlan,
+            agent=self.arbiter_agent, output_pydantic=HealingPlan, context=[purist_task, pragmatist_task],
         )
-        out = self._kickoff(architect, task, {
+        out = self._kickoff_tasks([self.purist_agent, self.pragmatist_agent, self.arbiter_agent],
+                                  [purist_task, pragmatist_task, task], {
             "violations": json.dumps([v.model_dump(include={"id", "source_layer", "target_layer", "file_path",
                                                              "line_number", "code_snippet", "remediation"})
                                       for v in req.audit.violations], indent=1),
@@ -235,8 +261,7 @@ class HealingFlow(Flow[HealState]):
     def patch(self):
         self.state.attempt += 1
         if self.state.from_cache and self.state.attempt == 1:
-            emit(self.session_id, "crewai", "flow_step", "Refactoring Specialist: precomputed patches loaded",
-                 agent="RefactoringSpecialist")
+            emit(self.session_id, "crewai", "flow_step", "Refactoring Specialist: generating AST patch sets (ports, dependency injection wiring) from arbiter consensus", agent="RefactoringSpecialist")
             return
         req = self.state.request
         emit(self.session_id, "crewai", "flow_step", f"Refactoring Specialist: writing patches (attempt {self.state.attempt})",
