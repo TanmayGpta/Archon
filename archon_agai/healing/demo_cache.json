@@ -1,0 +1,164 @@
+{
+ "key": "11f38e275aff0095f05895c693de6f0e543cf91abfed202a0587217defe122e2",
+ "plan": {
+  "ports": [
+   {
+    "port_name": "QueryPort",
+    "port_module": "domain/ports.py",
+    "adapter_module": "infrastructure/database.py",
+    "methods": [
+     "query(sql, *args)"
+    ],
+    "resolves": [
+     "domain.fraud_checker->infrastructure.database",
+     "presentation.order_routes->infrastructure.database"
+    ]
+   },
+   {
+    "port_name": "ErrorReporter",
+    "port_module": "domain/ports.py",
+    "adapter_module": "presentation/controllers.py",
+    "methods": [
+     "format_error(message)"
+    ],
+    "resolves": [
+     "domain.payment_rule->presentation.controllers"
+    ]
+   },
+   {
+    "port_name": "user_context provider",
+    "port_module": "infrastructure/audit_logger.py",
+    "adapter_module": "presentation/auth_middleware.py",
+    "methods": [
+     "() -> user"
+    ],
+    "resolves": [
+     "infrastructure.audit_logger->presentation.auth_middleware"
+    ]
+   }
+  ],
+  "notes": "Precomputed for the bundled demo; main.py stays the composition root."
+ },
+ "patches": [
+  {
+   "path": "domain/ports.py",
+   "operation": "create",
+   "edits": [],
+   "content": "\"\"\"Ports owned by the domain; outer layers provide the implementations.\"\"\"\nfrom typing import Any, Protocol\n\n\nclass QueryPort(Protocol):\n    def query(self, sql: str, *args: Any) -> Any: ...\n\n\nclass ErrorReporter(Protocol):\n    def format_error(self, message: str) -> Any: ...\n",
+   "violation_ids": [
+    "domain.fraud_checker->infrastructure.database",
+    "domain.payment_rule->presentation.controllers"
+   ],
+   "rationale": "Domain-owned interfaces for data queries and error reporting"
+  },
+  {
+   "path": "domain/fraud_checker.py",
+   "operation": "modify",
+   "edits": [
+    {
+     "search": "from infrastructure.database import DatabaseConnection  # VIOLATION: Domain -> Infrastructure",
+     "replace": "from domain.ports import QueryPort"
+    },
+    {
+     "search": "    def __init__(self):\n        self.db = DatabaseConnection()",
+     "replace": "    def __init__(self, db: QueryPort):\n        self.db = db"
+    }
+   ],
+   "content": null,
+   "violation_ids": [
+    "domain.fraud_checker->infrastructure.database"
+   ],
+   "rationale": "Inject a QueryPort instead of constructing the infrastructure DatabaseConnection"
+  },
+  {
+   "path": "domain/payment_rule.py",
+   "operation": "modify",
+   "edits": [
+    {
+     "search": "from presentation.controllers import ResponseFormatter  # VIOLATION: Domain -> Presentation",
+     "replace": "from typing import Optional\n\nfrom domain.ports import ErrorReporter"
+    },
+    {
+     "search": "class PaymentRuleValidator:\n",
+     "replace": "class PaymentRuleValidator:\n    def __init__(self, errors: Optional[ErrorReporter] = None):\n        self.errors = errors\n\n"
+    },
+    {
+     "search": "            ResponseFormatter.format_error(\"Amount must be positive\")",
+     "replace": "            if self.errors:\n                self.errors.format_error(\"Amount must be positive\")"
+    }
+   ],
+   "content": null,
+   "violation_ids": [
+    "domain.payment_rule->presentation.controllers"
+   ],
+   "rationale": "Inject an optional ErrorReporter instead of importing the presentation formatter"
+  },
+  {
+   "path": "infrastructure/audit_logger.py",
+   "operation": "modify",
+   "edits": [
+    {
+     "search": "from presentation.auth_middleware import get_current_user_context  # VIOLATION: Infrastructure -> Presentation",
+     "replace": "from typing import Any, Callable, Optional"
+    },
+    {
+     "search": "class AuditLogger:\n    @staticmethod\n    def log_action(action: str):\n        # Infrastructure reaches into presentation auth token context\n        user = get_current_user_context()",
+     "replace": "class AuditLogger:\n    user_context: Optional[Callable[[], Any]] = None  # wired by the composition root\n\n    @staticmethod\n    def log_action(action: str, user_context: Optional[Callable[[], Any]] = None):\n        provider = user_context or AuditLogger.user_context\n        user = provider() if provider else \"unknown\""
+    }
+   ],
+   "content": null,
+   "violation_ids": [
+    "infrastructure.audit_logger->presentation.auth_middleware"
+   ],
+   "rationale": "Receive the current-user provider by injection instead of importing presentation auth"
+  },
+  {
+   "path": "application/order_queries.py",
+   "operation": "create",
+   "edits": [],
+   "content": "from domain.ports import QueryPort\n\n\nclass OrderQueryService:\n    \"\"\"Read-side use case: presentation asks this instead of running SQL itself.\"\"\"\n\n    def __init__(self, db: QueryPort):\n        self.db = db\n\n    def get_order_details(self, order_id: str):\n        return self.db.query(\"SELECT * FROM orders WHERE id = %s\", order_id)\n",
+   "violation_ids": [
+    "presentation.order_routes->infrastructure.database"
+   ],
+   "rationale": "Application use case for reading an order, backed by the QueryPort"
+  },
+  {
+   "path": "presentation/order_routes.py",
+   "operation": "modify",
+   "edits": [
+    {
+     "search": "from fastapi import APIRouter\n",
+     "replace": "from fastapi import APIRouter, Request\n"
+    },
+    {
+     "search": "from infrastructure.database import DatabaseConnection  # VIOLATION: Presentation -> Infrastructure (Bypasses Use-Case)\n",
+     "replace": ""
+    },
+    {
+     "search": "def get_order_details(order_id: str):\n    # Presentation directly running SQL on Infrastructure instead of asking Application layer\n    db = DatabaseConnection()\n    data = db.query(\"SELECT * FROM orders WHERE id = %s\", order_id)",
+     "replace": "def get_order_details(order_id: str, request: Request):\n    data = request.app.state.order_queries.get_order_details(order_id)"
+    }
+   ],
+   "content": null,
+   "violation_ids": [
+    "presentation.order_routes->infrastructure.database"
+   ],
+   "rationale": "Route asks the application layer (wired on app.state) instead of running SQL"
+  },
+  {
+   "path": "main.py",
+   "operation": "modify",
+   "edits": [
+    {
+     "search": "from application.order_service import OrderService\nfrom infrastructure.database import init_db\n",
+     "replace": "from application.order_service import OrderService\nfrom application.order_queries import OrderQueryService\nfrom infrastructure.database import DatabaseConnection, init_db\n\napp.state.order_queries = OrderQueryService(DatabaseConnection())\n"
+    }
+   ],
+   "content": null,
+   "violation_ids": [
+    "presentation.order_routes->infrastructure.database"
+   ],
+   "rationale": "Composition root wires the database adapter into the order query use case"
+  }
+ ]
+}

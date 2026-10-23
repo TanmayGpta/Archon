@@ -66,3 +66,6 @@ copilot_ide/targets/
 archon_agai/.runs/
 test_codebases/_bench/
 test_codebases/imported/
+
+# Graphify local graph output
+graphify-out/

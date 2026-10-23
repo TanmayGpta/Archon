@@ -4,9 +4,13 @@
                                    ^                                   |
                                    +---------- retry with feedback ----+   (evaluator-optimizer)
 
-Verification is deterministic (engine.verify); the Verifier agent explains it and a task
-guardrail rejects any report that disagrees with the real result.
+Verification is deterministic (engine.verify) and the review is rendered from its result.
+
+The bundled e-commerce demo reuses a precomputed plan + patches (demo_cache.json) when its sources and
+violations match the run that produced them, so a live demo heals in seconds. The cached patches still
+go through the real sandbox verification; if they fail, the flow falls back to the LLM agents.
 """
+import hashlib
 import json
 import os
 import sys
@@ -19,17 +23,12 @@ from crewai.mcp import MCPServerStdio, create_static_tool_filter
 from pydantic import BaseModel
 
 from archon_agai import engine
-from archon_agai.config import (CREW_MODEL, FS_MCP_COMMAND, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, LLM_TIMEOUT_S,
-                                REPO_ROOT, fs_mcp_args)
+from archon_agai.config import (CREW_MODEL, DEMO_CODEBASE, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, LLM_TIMEOUT_S,
+                                REPO_ROOT, FS_MCP_COMMAND, fs_mcp_args)
 from archon_agai.events import emit
 from archon_agai.guardrails import check_patch_file
 from archon_agai.schemas import (FilePatch, HealingPlan, HealingReport, HealingRequest, PatchSet,
                                  VerificationResult)
-
-
-class VerifierReport(BaseModel):
-    passed: bool
-    summary_markdown: str
 
 
 class HealState(BaseModel):
@@ -42,6 +41,8 @@ class HealState(BaseModel):
     attempt: int = 0
     feedback: str = ""
     usage: dict = {}
+    cache_key: Optional[str] = None  # set only for the bundled demo codebase
+    from_cache: bool = False
 
 
 # --------------------------------------------------------------------------- tools (MCP)
@@ -124,7 +125,47 @@ def patch_guardrail(codebase: str):
     return _g
 
 
+# --------------------------------------------------------------------------- demo cache
+
+DEMO_CACHE = Path(__file__).with_name("demo_cache.json")
+
+
+def _demo_key(req: HealingRequest, sources: str) -> Optional[str]:
+    if Path(req.codebase_path).resolve() != Path(DEMO_CODEBASE).resolve():
+        return None
+    ids = sorted(v.id for v in req.audit.violations)
+    return hashlib.sha256(json.dumps([req.blueprint_id, ids, sources]).encode()).hexdigest()
+
+
+def _load_demo(key: Optional[str]) -> Optional[dict]:
+    if not key or not DEMO_CACHE.exists():
+        return None
+    data = json.loads(DEMO_CACHE.read_text(encoding="utf-8"))
+    return data if data.get("key") == key else None
+
+
+def _save_demo(key: str, plan: Optional[HealingPlan], patches: List[FilePatch]) -> None:
+    DEMO_CACHE.write_text(json.dumps({"key": key, "plan": plan.model_dump() if plan else None,
+                                      "patches": [p.model_dump() for p in patches]}, indent=1), encoding="utf-8")
+
+
 # --------------------------------------------------------------------------- flow
+
+def _review_markdown(r, patches: List[FilePatch]) -> str:
+    tests = {True: "passed", False: "failed", None: "not run"}[r.tests_passed]
+    lines = [f"**{'Passed' if r.passed else 'Rejected'}**: verified in a sandbox before any file is touched.", "",
+             "| | Before | After |", "|---|---|---|",
+             f"| Health score | {r.health_before} | {r.health_after} |",
+             f"| Violations | {r.violations_before} | {r.violations_after} |", "",
+             f"- Tests: {tests}",
+             f"- Resolved: {', '.join(r.resolved_violation_ids) or 'none'}"]
+    if r.new_violation_ids:
+        lines.append(f"- New violations: {', '.join(r.new_violation_ids)}")
+    for why in r.guardrail_rejections + r.syntax_errors:
+        lines.append(f"- Rejected: {why}")
+    lines += ["", "**Patches**", *[f"- `{p.path}` ({p.operation}): {p.rationale}" for p in patches]]
+    return "\n".join(lines)
+
 
 class HealingFlow(Flow[HealState]):
     def __init__(self, session_id: str, **kw):
@@ -154,11 +195,20 @@ class HealingFlow(Flow[HealState]):
         files = sorted({v.file_path for v in req.audit.violations if v.file_path})
         self.state.sources = "\n\n".join(
             f"### {f}\n```python\n{engine.read_module(req.codebase_path, f)}\n```" for f in files)
+        self.state.cache_key = _demo_key(req, self.state.sources)
+        cached = _load_demo(self.state.cache_key)
+        if cached:
+            self.state.plan = HealingPlan.model_validate(cached["plan"]) if cached["plan"] else None
+            self.state.patches = [FilePatch.model_validate(p) for p in cached["patches"]]
+            self.state.from_cache = True
+            emit(self.session_id, "crewai", "cache_hit", "Demo codebase: reusing precomputed plan + patches",
+                 agent="ChiefArchitect")
+            return
         architect = Agent(
             role="Chief Architect",
             goal="Design minimal Dependency Inversion ports that remove every layer violation without changing behaviour",
             backstory="Clean Architecture expert. Inner layers own interfaces (typing.Protocol); outer layers implement them.",
-            llm=self.llm, mcps=[archon_mcp()], allow_delegation=False, max_iter=4,
+            llm=self.llm, mcps=[archon_mcp()], allow_delegation=False, max_iter=2,
         )
         task = Task(
             description=(
@@ -184,6 +234,10 @@ class HealingFlow(Flow[HealState]):
     @listen(or_(plan, "retry"))
     def patch(self):
         self.state.attempt += 1
+        if self.state.from_cache and self.state.attempt == 1:
+            emit(self.session_id, "crewai", "flow_step", "Refactoring Specialist: precomputed patches loaded",
+                 agent="RefactoringSpecialist")
+            return
         req = self.state.request
         emit(self.session_id, "crewai", "flow_step", f"Refactoring Specialist: writing patches (attempt {self.state.attempt})",
              agent="RefactoringSpecialist")
@@ -225,37 +279,10 @@ class HealingFlow(Flow[HealState]):
         emit(self.session_id, "crewai", "verification", f"passed={result.passed} health {result.health_before}->{result.health_after}",
              data=result.model_dump())
 
-        verifier = Agent(
-            role="Conformance Verifier",
-            goal="Report the deterministic verification result truthfully and explain it for a reviewer",
-            backstory="QA lead. Trusts only the verification tool output, never opinions.",
-            llm=self.llm, allow_delegation=False, max_iter=2,
-        )
-
-        def truthful(output) -> Tuple[bool, Any]:
-            try:
-                rep = parse_output(output, VerifierReport)
-            except Exception:
-                rep = None
-            if rep is None or rep.passed != result.passed:
-                return False, f"Your 'passed' must equal the tool result ({result.passed})."
-            return True, output
-
-        task = Task(
-            description=("Verification result (ground truth):\n{result}\n\nPatches:\n{patches}\n\n"
-                         "Write a concise Markdown review: a table of violations resolved/remaining, health score "
-                         "before -> after, test status, and any rejection reasons."),
-            expected_output="VerifierReport JSON", agent=verifier, output_pydantic=VerifierReport,
-            guardrail=truthful, guardrail_max_retries=1,
-        )
-        out = self._kickoff(verifier, task, {
-            "result": result.model_dump_json(indent=1),
-            "patches": json.dumps([p.model_dump(include={"path", "operation", "rationale"}) for p in self.state.patches]),
-        })
-        try:
-            self.state.summary_markdown = parse_output(out, VerifierReport).summary_markdown
-        except Exception:
-            self.state.summary_markdown = out.raw
+        # The verdict is deterministic; render the review from it rather than paying an LLM call to restate it.
+        self.state.summary_markdown = _review_markdown(result, self.state.patches)
+        if result.passed and self.state.cache_key and not (self.state.from_cache and self.state.attempt == 1):
+            _save_demo(self.state.cache_key, self.state.plan, self.state.patches)
 
         if result.passed:
             return "done"
