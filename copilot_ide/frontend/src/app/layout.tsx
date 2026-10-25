@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Archon — Enterprise API Copilot & Agent IDE",
+  title: {
+    default: "Archon Copilot",
+    template: "%s · Archon Copilot",
+  },
   description: "Archon enterprise multi-service RAG retrieval engine and AI pair programmer workspace.",
   icons: {
     icon: "/aionlabs.svg",

@@ -18,13 +18,13 @@ export function EvaluationDashboard() {
 
   const tabs = [
     { id: 0, label: 'Overview', sub: 'Executive Summary', icon: '🏆' },
-    { id: 1, label: 'Ex 1: Models', sub: 'Profiles & Invariants', icon: '🤖' },
-    { id: 2, label: 'Ex 2: Dataset', sub: '26-Question Bank', icon: '📋' },
-    { id: 3, label: 'Ex 3: Metrics', sub: 'Formulas & Charts', icon: '📊' },
-    { id: 4, label: 'Ex 4: Analysis', sub: 'Trade-offs & Router', icon: '⚖️' },
-    { id: 5, label: 'Ex 5: Traces', sub: 'RAG Pipeline Flow', icon: '🔍' },
-    { id: 6, label: 'Ex 6: Multi-Hop', sub: 'Repository Graph', icon: '🕸️' },
-    { id: 7, label: 'SCIP Ablation', sub: 'Code Intelligence Δ', icon: '⚡' },
+    { id: 1, label: 'Models', sub: 'Profiles & Invariants', icon: '🤖' },
+    { id: 2, label: 'Dataset', sub: '26-Question Bank', icon: '📋' },
+    { id: 3, label: 'Metrics', sub: 'Formulas & Charts', icon: '📊' },
+    { id: 4, label: 'Trade-offs', sub: 'Trade-offs & Router', icon: '⚖️' },
+    { id: 5, label: 'Traces', sub: 'RAG Pipeline Flow', icon: '🔍' },
+    { id: 6, label: 'Multi-hop', sub: 'Repository Graph', icon: '🕸️' },
+    { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: '⚡' },
   ];
 
   return (
@@ -39,7 +39,7 @@ export function EvaluationDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-[#f1f5f9] font-mono tracking-tight">
-                  Lab 4 Evaluation &amp; Benchmark Dashboard
+                  Evaluation &amp; Benchmark Dashboard
                 </span>
                 <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 font-semibold">
                   OFFLINE SNAPSHOT

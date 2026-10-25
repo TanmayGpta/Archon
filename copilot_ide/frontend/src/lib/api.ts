@@ -1,0 +1,31 @@
+/* ── Service base URLs ─────────────────────────────────────────
+ * The one place the frontend decides where each backend lives.
+ * Set NEXT_PUBLIC_API_URL / NEXT_PUBLIC_EVALUATION_API_URL to override.
+ */
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+function resolveServiceBase(configured: string | undefined, defaultPort: number): string {
+  const base = (configured || `http://127.0.0.1:${defaultPort}`).replace(/\/+$/, '');
+  if (typeof window === 'undefined') return base;
+
+  const pageHost = window.location.hostname;
+  if (!pageHost || LOOPBACK_HOSTS.has(pageHost)) return base;
+
+  // Opened from another host (e.g. a WSL or LAN IP): a loopback URL would point at the
+  // viewer's own machine, so reach the service on the host that served the page instead.
+  try {
+    const url = new URL(base);
+    if (!LOOPBACK_HOSTS.has(url.hostname)) return base;
+    url.hostname = pageHost;
+    return url.origin;
+  } catch {
+    return base;
+  }
+}
+
+/** Orchestrator gateway: RAG, workspace, agent, ArcGen and conformance routes. */
+export const API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_API_URL, 8000);
+
+/** Evaluation service (benchmarks and SCIP ablation runs). */
+export const EVALUATION_API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_EVALUATION_API_URL, 8003);

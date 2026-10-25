@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { DEFAULT_ABLATION_DATA, AblationReport, QuestionComparisonItem } from './ablationReportData';
+import { EVALUATION_API_BASE } from '@/lib/api';
 
 export function AblationTab() {
   const [report, setReport] = useState<AblationReport>(DEFAULT_ABLATION_DATA);
@@ -13,7 +14,7 @@ export function AblationTab() {
   useEffect(() => {
     async function loadLatestReport() {
       try {
-        const res = await fetch('http://localhost:8003/api/evaluate/ablation/latest');
+        const res = await fetch(`${EVALUATION_API_BASE}/api/evaluate/ablation/latest`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.aggregate_deltas) {
@@ -31,7 +32,7 @@ export function AblationTab() {
     setIsRunningLive(true);
     setLiveStatus('Starting ablation study on gemma3:4b...');
     try {
-      const res = await fetch('http://localhost:8003/api/evaluate/ablation', {
+      const res = await fetch(`${EVALUATION_API_BASE}/api/evaluate/ablation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'gemma3:4b', judge_model: 'qwen2.5:7b' })
@@ -44,14 +45,14 @@ export function AblationTab() {
         // Poll status every 4 seconds
         const poller = setInterval(async () => {
           try {
-            const stRes = await fetch(`http://localhost:8003/api/evaluate/ablation/status/${ablationId}`);
+            const stRes = await fetch(`${EVALUATION_API_BASE}/api/evaluate/ablation/status/${ablationId}`);
             if (stRes.ok) {
               const stData = await stRes.json();
               if (stData.status === 'completed') {
                 clearInterval(poller);
                 setIsRunningLive(false);
                 setLiveStatus('Ablation benchmark completed!');
-                const repRes = await fetch(`http://localhost:8003/api/evaluate/ablation/report/${ablationId}`);
+                const repRes = await fetch(`${EVALUATION_API_BASE}/api/evaluate/ablation/report/${ablationId}`);
                 if (repRes.ok) {
                   const repData = await repRes.json();
                   setReport(repData);

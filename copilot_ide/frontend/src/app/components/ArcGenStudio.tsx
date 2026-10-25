@@ -138,13 +138,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
   // Notification / Copy state
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Compute effective API base dynamically for WSL / Host compatibility
-  const effectiveApiBase = useMemo(() => {
-    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return `${window.location.protocol}//${window.location.hostname}:8000`;
-    }
-    return apiBase || 'http://localhost:8000';
-  }, [apiBase]);
+  // apiBase arrives already resolved for the page's host (see lib/api.ts)
+  const effectiveApiBase = apiBase;
 
   // Defensive parser for options so multiple benchmark targets never collapse into one single button
   const currentOptions = useMemo(() => {
