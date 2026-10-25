@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { IdeStudio } from '../../components/AskAndIdeStudios';
+import { IdeStudio } from './IDE';
 
 export const metadata: Metadata = { title: 'IDE' };
 

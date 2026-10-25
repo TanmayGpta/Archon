@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AskStudio } from '../../components/AskAndIdeStudios';
+import { AskStudio } from './AskStudio';
 
 export const metadata: Metadata = { title: 'Ask' };
 
