@@ -2,7 +2,9 @@
 import React from 'react';
 import { Icons } from '../../components/Icons';
 import { getFileIcon } from './FileTree';
-import { ARCHON_ASCII_ART, highlightCodeLine } from './editorText';
+import { ARCHON_ASCII_ART } from './editorText';
+import { CodeEditor } from './CodeEditor';
+import { EditReview } from './EditReview';
 import { useIde } from './IdeContext';
 import { TerminalPanel } from './TerminalPanel';
 
@@ -13,16 +15,13 @@ export function EditorPane() {
     activeTabPath,
     currentProjectName,
     currentProjectPath,
-    cursorPos,
     editorContent,
-    foldedLines,
+    editorStates,
+    finishReview,
     gitBranch,
-    gutterRef,
     handleCloseTab,
+    handleCursorChange,
     handleEditorChange,
-    handleEditorScroll,
-    handleEditorSelection,
-    handleKeyDown,
     handleOpenFile,
     handleOpenProject,
     handleSaveFile,
@@ -31,7 +30,7 @@ export function EditorPane() {
     knowledgeGraphData,
     lastAppliedNotice,
     openTabs,
-    rawLines,
+    pendingEdit,
     recentProjects,
     saveStatus,
     setActiveTabPath,
@@ -43,9 +42,6 @@ export function EditorPane() {
     setShowIndexDrawer,
     setShowKnowledgeGraph,
     setShowOpenProjectModal,
-    syntaxRef,
-    textareaRef,
-    toggleFold,
   } = useIde();
 
   return (
@@ -165,80 +161,22 @@ export function EditorPane() {
           </div>
         )}
 
-        {/* Code Textarea & Gutter with Synchronized Scrolling */}
+        {/* Editor (CodeMirror), or the diff review of a pending agent edit */}
         {activeTab ? (
-          <div className="flex-1 flex overflow-hidden relative font-mono text-base leading-[20px]">
-            {/* Line Gutter with Folding Arrows */}
-            <div
-              ref={gutterRef}
-              className="w-[54px] bg-canvas border-r border-line-subtle text-right py-3 px-1 text-sm font-mono text-fg-subtle select-none overflow-hidden leading-[20px] flex-shrink-0"
-            >
-              {rawLines.map((lineText, i) => {
-                const isFoldable = /^(?:\s*)(?:def|class|function|async\s+function|const\s+\w+\s*=\s*(?:async\s*)?\(|if|elif|else|for|while|try|catch).*(?:\{|:)\s*$/.test(lineText);
-                const isFolded = foldedLines[i];
-                return (
-                  <div key={i} className="flex items-center justify-end gap-1 px-1 h-[20px]">
-                    {isFoldable ? (
-                      <button
-                        onClick={() => toggleFold(i)}
-                        title={isFolded ? "Unfold block" : "Fold block"}
-                        className="hover:text-accent-fg cursor-pointer text-xs p-0.5"
-                      >
-                        {isFolded ? '▸' : '▾'}
-                      </button>
-                    ) : (
-                      <span className="w-2.5 inline-block" />
-                    )}
-                    <span className={cursorPos.line === i + 1 ? 'text-accent-fg font-bold' : ''}>
-                      {i + 1}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Code Editor Container */}
+          pendingEdit && pendingEdit.path === activeTab.path ? (
+            <EditReview key={pendingEdit.id} edit={pendingEdit} onFinish={finishReview} />
+          ) : (
             <div className="flex-1 relative overflow-hidden bg-canvas">
-              {/* Syntax Highlight Overlay (Synchronized with Textarea Scroll) */}
-              <div
-                ref={syntaxRef}
-                aria-hidden="true"
-                className="absolute inset-0 p-3 pointer-events-none whitespace-pre overflow-hidden leading-[20px] select-none text-base font-mono font-normal"
-              >
-                {rawLines.map((lineText, i) => (
-                  <div
-                    key={i}
-                    className={`h-[20px] leading-[20px] ${cursorPos.line === i + 1 ? 'bg-selected/25 rounded-sm' : ''}`}
-                  >
-                    {foldedLines[i] ? (
-                      <span>
-                        {highlightCodeLine(lineText)}
-                        <span className="text-accent bg-selected/60 px-1.5 py-0.2 rounded border border-accent/30 ml-2 text-xs select-none">
-                          ... folded
-                        </span>
-                      </span>
-                    ) : (
-                      highlightCodeLine(lineText)
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Actual Typing Input Textarea */}
-              <textarea
-                ref={textareaRef}
+              <CodeEditor
+                path={activeTab.path}
                 value={editorContent}
+                states={editorStates}
                 onChange={handleEditorChange}
-                onScroll={handleEditorScroll}
-                onKeyDown={handleKeyDown}
-                onSelect={handleEditorSelection}
-                onClick={handleEditorSelection}
-                onKeyUp={handleEditorSelection}
-                spellCheck={false}
-                className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-accent-fg p-3 text-base font-mono leading-[20px] resize-none focus:outline-none custom-scrollbar select-text overflow-y-auto whitespace-pre tab-4 z-10 font-normal"
+                onCursor={handleCursorChange}
+                onSave={handleSaveFile}
               />
             </div>
-          </div>
+          )
         ) : !currentProjectPath && !isGitHubWorkspace ? (
           /* No project yet: offer the ways to open one */
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-canvas select-none overflow-y-auto custom-scrollbar">

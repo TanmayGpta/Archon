@@ -10,6 +10,7 @@ import { useIde } from './IdeContext';
 export function AgentChat() {
   const {
     activeTab,
+    agentEdits,
     agentInput,
     agentLoading,
     agentMessages,
@@ -25,6 +26,8 @@ export function AgentChat() {
     handleRemoveContextFile,
     handleSendAgentMessage,
     includeFileContext,
+    openTabs,
+    revertAgentEdit,
     isDraggingOverChat,
     knowledgeGraphData,
     models,
@@ -88,6 +91,46 @@ export function AgentChat() {
             </button>
           </div>
         </div>
+
+        {/* Agent edits applied this session, newest first, each revertible */}
+        {agentEdits.length > 0 && (
+          <details className="px-3 py-1.5 bg-surface border-b border-line-subtle text-xs">
+            <summary className="cursor-pointer text-fg-muted select-none">
+              Edits this session ({agentEdits.length})
+            </summary>
+            <ul className="mt-1.5 space-y-1 max-h-[140px] overflow-y-auto custom-scrollbar">
+              {[...agentEdits].reverse().map(edit => {
+                const tab = openTabs.find(t => t.path === edit.path);
+                const canRevert = !edit.reverted && tab?.content === edit.after;
+                const why = !tab
+                  ? `Open ${edit.name} to revert this edit`
+                  : canRevert
+                    ? `Restore ${edit.name} to how it was before this edit`
+                    : 'The file changed after this edit; use Ctrl+Z in the editor';
+                return (
+                  <li key={edit.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate" title={edit.path}>
+                      <span className="font-mono text-fg-soft">{edit.name}</span>
+                      <span className="text-fg-subtle"> · {edit.summary}</span>
+                    </span>
+                    {edit.reverted ? (
+                      <span className="text-fg-subtle flex-shrink-0">Reverted</span>
+                    ) : (
+                      <button
+                        onClick={() => revertAgentEdit(edit.id)}
+                        disabled={!canRevert}
+                        title={why}
+                        className="flex-shrink-0 px-2 py-0.5 rounded-md border border-line text-fg-soft hover:border-danger/50 hover:text-danger-fg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Revert
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
 
         <div className="px-3 py-1.5 bg-canvas border-b border-line-subtle/60 flex items-center justify-between text-xs font-mono">
           <label className="flex items-center gap-1.5 cursor-pointer text-fg-muted">

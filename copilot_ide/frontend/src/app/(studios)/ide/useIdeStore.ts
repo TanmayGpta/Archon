@@ -4,7 +4,8 @@ import type { KnowledgeGraphData, FlowStep } from '../../components/CodeKnowledg
 import type { GitHubRepoInfo } from '../../components/GitHubOpenModal';
 import type { ContextFileItem, SuggestedFileItem } from '../../components/ContextFileChips';
 import type { TreeNode } from './FileTree';
-import type { TerminalTab, AgentMessage } from './types';
+import type { EditorState } from '@codemirror/state';
+import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit } from './types';
 
 /* -- All IDE state in one place; the action hooks and panels read it through IdeContext - */
 export function useIdeStore() {
@@ -58,13 +59,15 @@ export function useIdeStore() {
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [saveStatus, setSaveStatus] = useState<string>('');
-  const [foldedLines, setFoldedLines] = useState<Record<number, boolean>>({});
   const [lastAppliedNotice, setLastAppliedNotice] = useState<string | null>(null);
+
+  // CodeMirror state per open tab (text, undo history, folds), keyed by path
+  const editorStates = useRef(new Map<string, EditorState>());
+
+  // Agent edits: one waiting for review, and those applied this session
+  const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
+  const [agentEdits, setAgentEdits] = useState<AgentEdit[]>([]);
   
-  // Synchronized Scroll Refs
-  const gutterRef = useRef<HTMLDivElement>(null);
-  const syntaxRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Layout & Activity State
   const [activeActivity, setActiveActivity] = useState<'explorer' | 'search' | 'copilot' | 'diagnostics'>('explorer');
@@ -194,13 +197,13 @@ export function useIdeStore() {
     setCursorPos,
     saveStatus,
     setSaveStatus,
-    foldedLines,
-    setFoldedLines,
     lastAppliedNotice,
     setLastAppliedNotice,
-    gutterRef,
-    syntaxRef,
-    textareaRef,
+    editorStates,
+    pendingEdit,
+    setPendingEdit,
+    agentEdits,
+    setAgentEdits,
     activeActivity,
     setActiveActivity,
     showBottomPanel,

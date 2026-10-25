@@ -29,3 +29,17 @@ export interface AgentMessage {
   flowSequence?: string[];
   flowSteps?: FlowStep[];
 }
+
+/* -- Agent edits: proposed for review, or applied and logged so they can be reverted - */
+export interface PendingEdit {
+  id: string;
+  path: string;
+  name: string;
+  before: string;
+  after: string;
+  summary: string;
+}
+
+export interface AgentEdit extends PendingEdit {
+  reverted?: boolean;
+}

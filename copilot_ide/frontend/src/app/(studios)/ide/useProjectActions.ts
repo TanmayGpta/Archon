@@ -23,7 +23,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     setCurrentProjectName,
     setCurrentProjectPath,
     setEditorContent,
-    setFoldedLines,
+    editorStates,
     setGitBranch,
     setInlineCreateName,
     setInlineCreateState,
@@ -59,7 +59,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         setOpenTabs([]);
         setActiveTabPath('');
         setEditorContent('');
-        setFoldedLines({});
+        editorStates.current.clear();
         setTerminals(prev => prev.map(t => ({ ...t, cwd: data.project_path })));
         
         // Refresh File Explorer Tree immediately

@@ -199,7 +199,7 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
                   if (autoApplyEdits) {
                     const diffBlocks = parseDiffBlocks(streamedResponse);
                     if (diffBlocks.length > 0) {
-                      handleApplyDiff(streamedResponse);
+                      handleApplyDiff(streamedResponse, { review: false });
                     } else {
                       const codeMatch = /```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/.exec(streamedResponse);
                       if (codeMatch && codeMatch[1]) {
@@ -208,7 +208,7 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
                         if (detected && current && detected.toLowerCase() !== current.toLowerCase()) {
                           handleCreateAndOpenFile(detected, codeMatch[1].trim());
                         } else {
-                          handleApplyCodeToEditor(codeMatch[1].trim());
+                          handleApplyCodeToEditor(codeMatch[1].trim(), { review: false });
                         }
                       }
                     }

@@ -40,6 +40,14 @@
   --color-danger-fg: #f87171;
   --color-ai: #a78bfa;              /* architecture / generation */
 
+  /* Code syntax (editor and code blocks) */
+  --color-syntax-keyword: #bb9af7;
+  --color-syntax-string: #9ece6a;
+  --color-syntax-constant: #ff9e64;
+  --color-syntax-function: #7aa2f7;
+  --color-syntax-builtin: #7dcfff;
+  --color-syntax-punct: #89ddff;
+
   /* Type scale: five steps, 13px is the UI default, 11px the minimum */
   --text-xs: 11px;
   --text-xs--line-height: 16px;

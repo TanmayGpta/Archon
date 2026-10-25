@@ -4,47 +4,38 @@ import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import { parseDiffBlocks, applyDiffBlocks } from '@/lib/diff';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
+import type { PendingEdit } from './types';
 
 /* -- Tabs and editor buffer: open, close, edit, save, apply agent edits, shortcuts - */
 export function useEditorActions(ide: IdeProps & IdeStore) {
   const {
     activeTabPath,
+    agentEdits,
     apiBase,
     currentGitHubBranch,
     editorContent,
+    editorStates,
     githubRepoInfo,
     githubToken,
-    gutterRef,
     isGitHubWorkspace,
     openTabs,
     remoteFileShas,
     setActiveTabPath,
     setCursorPos,
+    setAgentEdits,
     setEditorContent,
-    setFoldedLines,
     setInlineCreateState,
     setIsDirty,
     setLastAppliedNotice,
     setOpenTabs,
+    setPendingEdit,
     setRemoteFileShas,
     setSaveStatus,
     setShowOpenProjectModal,
     setShowQuickOpen,
     setWorkspaceTree,
-    syntaxRef,
+    pendingEdit,
   } = ide;
-
-  // Synchronized Editor Scrolling (Textarea -> Gutter & Syntax Highlight Layer)
-  const handleEditorScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    const target = e.currentTarget;
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = target.scrollTop;
-    }
-    if (syntaxRef.current) {
-      syntaxRef.current.scrollTop = target.scrollTop;
-      syntaxRef.current.scrollLeft = target.scrollLeft;
-    }
-  };
 
   // Open a file from explorer (Local or Remote GitHub)
   const handleOpenFile = async (path: string) => {
@@ -72,11 +63,11 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
             content: data.content,
             original: data.content
           };
+          editorStates.current.delete(data.path);
           setOpenTabs(prev => [...prev, newTab]);
           setActiveTabPath(data.path);
           setEditorContent(data.content);
           setIsDirty(false);
-          setFoldedLines({});
           return;
         }
       } catch (err) {
@@ -95,11 +86,11 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
           content: data.content,
           original: data.content
         };
+        editorStates.current.delete(data.path);
         setOpenTabs(prev => [...prev, newTab]);
         setActiveTabPath(data.path);
         setEditorContent(data.content);
         setIsDirty(false);
-        setFoldedLines({});
       }
     } catch (e) {
       console.error("Could not read file", e);
@@ -116,6 +107,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
       });
       if (res.ok) {
         const newTab = { path: filename, name: filename, content: content, original: content };
+        editorStates.current.delete(filename);
         setOpenTabs(prev => {
           const idx = prev.findIndex(t => t.path === filename);
           if (idx >= 0) {
@@ -148,6 +140,8 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     if (e) e.stopPropagation();
     const filtered = openTabs.filter(t => t.path !== path);
     setOpenTabs(filtered);
+    editorStates.current.delete(path);
+    if (pendingEdit?.path === path) setPendingEdit(null);
     if (activeTabPath === path) {
       if (filtered.length > 0) {
         const next = filtered[filtered.length - 1];
@@ -163,8 +157,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   };
 
   // Update editor content
-  const handleEditorChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
+  const handleEditorChange = (val: string) => {
     setEditorContent(val);
     const active = openTabs.find(t => t.path === activeTabPath);
     if (active) {
@@ -174,15 +167,8 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   };
 
   // Track cursor position
-  const handleEditorSelection = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-    const target = e.currentTarget;
-    const pos = target.selectionStart;
-    const textBefore = target.value.substring(0, pos);
-    const lines = textBefore.split('\n');
-    setCursorPos({
-      line: lines.length,
-      col: lines[lines.length - 1].length + 1
-    });
+  const handleCursorChange = (line: number, col: number) => {
+    setCursorPos({ line, col });
   };
 
   // Save file to backend or GitHub commit (Ctrl+S)
@@ -254,11 +240,6 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     }
   };
 
-  // Code Folding Toggle
-  const toggleFold = (lineIndex: number) => {
-    setFoldedLines(prev => ({ ...prev, [lineIndex]: !prev[lineIndex] }));
-  };
-
   // Global Shortcut Listener (Ctrl+P Quick Open, Ctrl+W Close Tab, Ctrl+S Save, Escape)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -280,28 +261,57 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [activeTabPath, openTabs]);
 
-  // Keyboard shortcut handler
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      handleSaveFile();
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const val = target.value;
-      const nextVal = val.substring(0, start) + '  ' + val.substring(end);
-      setEditorContent(nextVal);
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 2;
-      }, 0);
+  // Put new text into a tab's buffer; the editor takes it in as one undo step
+  const setTabContent = (path: string, content: string) => {
+    const tab = openTabs.find(t => t.path === path);
+    if (!tab) return;
+    setOpenTabs(prev => prev.map(t => t.path === path ? { ...t, content } : t));
+    if (path === activeTabPath) {
+      setEditorContent(content);
+      setIsDirty(content !== tab.original);
     }
   };
 
-  // Surgically apply Diff blocks to active editor buffer
-  const handleApplyDiff = (diffSnippet: string) => {
+  // Apply an agent edit and log it, so Ctrl+Z or Revert in the chat panel undoes it
+  const commitAgentEdit = (edit: PendingEdit) => {
+    setTabContent(edit.path, edit.after);
+    setAgentEdits(prev => [...prev, edit]);
+  };
+
+  // Review the edit as a diff, or (auto-apply) apply it straight away
+  const deliverAgentEdit = (edit: Omit<PendingEdit, 'id'>, notice: string, noticeMs: number, review: boolean) => {
+    if (edit.after === edit.before) return;
+    const withId = { ...edit, id: `edit-${Date.now()}` };
+    if (review) {
+      setPendingEdit(withId);
+      return;
+    }
+    commitAgentEdit(withId);
+    setLastAppliedNotice(notice);
+    setTimeout(() => setLastAppliedNotice(null), noticeMs);
+  };
+
+  // Close the diff review with the text the user kept
+  const finishReview = (keptText: string) => {
+    if (!pendingEdit) return;
+    const edit = pendingEdit;
+    setPendingEdit(null);
+    if (keptText === edit.before) return;
+    commitAgentEdit({ ...edit, after: keptText });
+    setLastAppliedNotice(`✓ Applied reviewed edit to ${edit.name} • (Ctrl+S to save)`);
+    setTimeout(() => setLastAppliedNotice(null), 5000);
+  };
+
+  // Restore a file to how it was before an agent edit (only while the edit is still the latest text)
+  const revertAgentEdit = (id: string) => {
+    const edit = agentEdits.find(e => e.id === id);
+    if (!edit) return;
+    setTabContent(edit.path, edit.before);
+    setAgentEdits(prev => prev.map(e => e.id === id ? { ...e, reverted: true } : e));
+  };
+
+  // Surgically apply Diff blocks to active editor buffer (review first unless auto-applying)
+  const handleApplyDiff = (diffSnippet: string, { review = true } = {}) => {
     const active = openTabs.find(t => t.path === activeTabPath);
     if (!active) {
       alert("Please open a file in the editor to apply this surgical diff.");
@@ -329,11 +339,10 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
           ? blocks[0].replace
           : blocks[0].search;
         if (codeToUse.trim().length > 0) {
-          setEditorContent(codeToUse);
-          setIsDirty(codeToUse !== active.original);
-          setOpenTabs(prev => prev.map(t => t.path === activeTabPath ? { ...t, content: codeToUse } : t));
-          setLastAppliedNotice(`✓ Populated ${active.name} with code • (Ctrl+S to save)`);
-          setTimeout(() => setLastAppliedNotice(null), 5000);
+          deliverAgentEdit(
+            { path: active.path, name: active.name, before: editorContent, after: codeToUse, summary: 'filled an empty file' },
+            `✓ Populated ${active.name} with code • (Ctrl+S to save)`, 5000, review,
+          );
           return;
         }
       }
@@ -341,26 +350,25 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
 
     const result = applyDiffBlocks(editorContent, diffSnippet);
     if (result.success) {
-      setEditorContent(result.newContent);
-      setIsDirty(result.newContent !== active.original);
-      setOpenTabs(prev => prev.map(t => t.path === activeTabPath ? { ...t, content: result.newContent } : t));
-      setLastAppliedNotice(`✓ Surgically applied ${result.appliedCount} diff ${result.appliedCount === 1 ? 'edit' : 'edits'} to ${active.name} • (Ctrl+S to save)`);
-      setTimeout(() => setLastAppliedNotice(null), 6000);
+      const edits = `${result.appliedCount} diff ${result.appliedCount === 1 ? 'edit' : 'edits'}`;
+      deliverAgentEdit(
+        { path: active.path, name: active.name, before: editorContent, after: result.newContent, summary: edits },
+        `✓ Surgically applied ${edits} to ${active.name} • (Ctrl+S to save)`, 6000, review,
+      );
     } else {
       const errDetail = result.errors.join(' ');
       alert(`Could not apply diff surgically: ${errDetail}\n\nFalling back to manual inspection.`);
     }
   };
 
-  // Apply AI code snippet into active editor buffer
-  const handleApplyCodeToEditor = (snippet: string) => {
+  // Apply AI code snippet into active editor buffer (review first unless auto-applying)
+  const handleApplyCodeToEditor = (snippet: string, { review = true } = {}) => {
     const active = openTabs.find(t => t.path === activeTabPath);
     if (active) {
-      setEditorContent(snippet);
-      setIsDirty(snippet !== active.original);
-      setOpenTabs(prev => prev.map(t => t.path === activeTabPath ? { ...t, content: snippet } : t));
-      setLastAppliedNotice(`Archon Agent applied edits to ${active.name} • (Ctrl+S to save)`);
-      setTimeout(() => setLastAppliedNotice(null), 5000);
+      deliverAgentEdit(
+        { path: active.path, name: active.name, before: editorContent, after: snippet, summary: 'replaced the file' },
+        `Archon Agent applied edits to ${active.name} • (Ctrl+S to save)`, 5000, review,
+      );
     } else {
       const tempPath = detectTargetFilename(snippet) || 'solution.py';
       handleCreateAndOpenFile(tempPath, snippet);
@@ -368,15 +376,14 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   };
 
   return {
-    handleEditorScroll,
     handleOpenFile,
     handleCreateAndOpenFile,
     handleCloseTab,
     handleEditorChange,
-    handleEditorSelection,
+    handleCursorChange,
     handleSaveFile,
-    toggleFold,
-    handleKeyDown,
+    finishReview,
+    revertAgentEdit,
     handleApplyDiff,
     handleApplyCodeToEditor,
   };
