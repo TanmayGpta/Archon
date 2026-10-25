@@ -51,10 +51,10 @@ export function EditorPane() {
   return (
     <>
       {/* ── 3. Central Code Editor Panel (Flex-1) ────────────────── */}
-      <div className="flex-1 flex flex-col bg-[#090b0e] overflow-hidden">
+      <div className="flex-1 flex flex-col bg-canvas overflow-hidden">
         
         {/* Tab Bar */}
-        <div className="flex items-center bg-[#07080a] border-b border-[#161922] overflow-x-auto custom-scrollbar flex-shrink-0 h-[38px] select-none">
+        <div className="flex items-center bg-canvas border-b border-line-subtle overflow-x-auto custom-scrollbar flex-shrink-0 h-[38px] select-none">
           {openTabs.map(tab => {
             const isActive = tab.path === activeTabPath;
             const dirty = tab.content !== tab.original;
@@ -66,18 +66,18 @@ export function EditorPane() {
                   setEditorContent(tab.content);
                   setIsDirty(dirty);
                 }}
-                className={`flex items-center gap-2 px-3.5 h-full border-r border-[#161922] cursor-pointer text-[12px] font-mono transition-colors relative group ${
+                className={`flex items-center gap-2 px-3.5 h-full border-r border-line-subtle cursor-pointer text-sm font-mono transition-colors relative group ${
                   isActive
-                    ? 'bg-[#0e1015] text-[#e2e5ea] border-t-2 border-t-[#3b82f6]'
-                    : 'text-[#6b7280] hover:bg-[#0a0c10] hover:text-[#94a3b8]'
+                    ? 'bg-surface text-fg border-t-2 border-t-accent'
+                    : 'text-fg-subtle hover:bg-surface hover:text-fg-muted'
                 }`}
               >
                 {getFileIcon(tab.name)}
                 <span className="truncate max-w-[140px]">{tab.name}</span>
-                {dirty && <span className="w-2 h-2 rounded-full bg-[#3b82f6] ml-1" title="Unsaved changes" />}
-                <button
+                {dirty && <span className="w-2 h-2 rounded-full bg-accent ml-1" title="Unsaved changes" />}
+                <button aria-label={`Close ${tab.name}`}
                   onClick={(e) => handleCloseTab(tab.path, e)}
-                  className="opacity-0 group-hover:opacity-100 hover:text-[#ef4444] p-0.5 rounded transition-opacity ml-1"
+                  className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5 rounded transition-opacity ml-1"
                 >
                   <Icons.Close />
                 </button>
@@ -85,7 +85,7 @@ export function EditorPane() {
             );
           })}
           {openTabs.length === 0 && (
-            <div className="px-4 text-[11px] font-mono text-[#475569] italic">
+            <div className="px-4 text-xs font-mono text-fg-subtle italic">
               Select a file from the explorer to open in editor
             </div>
           )}
@@ -93,62 +93,62 @@ export function EditorPane() {
 
         {/* Archon Agent Auto-Apply Notification Bar */}
         {lastAppliedNotice && (
-          <div className="bg-[#10b981]/15 border-b border-[#10b981]/30 px-4 py-1.5 text-[11.5px] font-mono text-[#10b981] flex justify-between items-center animate-fade-in select-none">
+          <div className="bg-success/15 border-b border-success/30 px-4 py-1.5 text-sm font-mono text-success flex justify-between items-center animate-fade-in select-none">
             <div className="flex items-center gap-2">
-              <span className="text-[#10b981] flex items-center"><Icons.Sparkles /></span>
+              <span className="text-success flex items-center"><Icons.Sparkles /></span>
               <span>{lastAppliedNotice}</span>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSaveFile}
-                className="bg-[#10b981]/20 hover:bg-[#10b981]/35 text-[#10b981] px-2 py-0.5 rounded border border-[#10b981]/40 text-[10.5px] cursor-pointer font-semibold"
+                className="bg-success/20 hover:bg-success/35 text-success px-2 py-0.5 rounded border border-success/40 text-xs cursor-pointer font-semibold"
               >
                 Save (Ctrl+S)
               </button>
-              <button onClick={() => setLastAppliedNotice(null)} className="hover:text-white cursor-pointer px-1">✕</button>
+              <button aria-label="Dismiss" onClick={() => setLastAppliedNotice(null)} className="hover:text-white cursor-pointer px-1">✕</button>
             </div>
           </div>
         )}
 
         {/* Breadcrumbs & Quick Toolbar */}
         {activeTab && (
-          <div className="flex justify-between items-center px-4 py-1.5 bg-[#0a0c10] border-b border-[#161922] text-[11px] font-mono text-[#64748b] select-none">
+          <div className="flex justify-between items-center px-4 py-1.5 bg-surface border-b border-line-subtle text-xs font-mono text-fg-subtle select-none">
             <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[#3b82f6]">{currentProjectName}</span>
+              <span className="text-accent">{currentProjectName}</span>
               {activeTab.path.split('/').map((seg, i, arr) => (
                 <React.Fragment key={i}>
                   <span>›</span>
-                  <span className={i === arr.length - 1 ? 'text-[#e2e5ea] font-medium' : ''}>{seg}</span>
+                  <span className={i === arr.length - 1 ? 'text-fg font-medium' : ''}>{seg}</span>
                 </React.Fragment>
               ))}
             </div>
             <div className="flex items-center gap-3">
               {saveStatus && (
-                <span className="text-[11px] text-[#10b981] font-mono font-medium">
+                <span className="text-xs text-success font-mono font-medium">
                   {saveStatus}
                 </span>
               )}
               {isDirty && (
-                <span className="text-[10.5px] text-[#f59e0b] font-mono flex items-center gap-1">
+                <span className="text-xs text-warning font-mono flex items-center gap-1">
                   ● Unsaved
                 </span>
               )}
               <button
                 onClick={() => setShowIndexDrawer(true)}
                 title="Index Codebase with SCIP & Knowledge Graph"
-                className="bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 px-2.5 py-1 rounded text-[11px] font-mono transition-colors border border-cyan-800/40 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                className="bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 px-2.5 py-1 rounded text-xs font-mono transition-colors border border-cyan-800/40 cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 <span>⚡ Index Codebase</span>
               </button>
               <button
                 onClick={() => setShowKnowledgeGraph(true)}
                 title="Open Knowledge Graph Visualizer"
-                className="bg-[#121622] hover:bg-[#1a2030] text-slate-300 px-2.5 py-1 rounded text-[11px] font-mono transition-colors border border-[#252f44] cursor-pointer flex items-center gap-1.5 shadow-sm"
+                className="bg-raised hover:bg-overlay text-slate-300 px-2.5 py-1 rounded text-xs font-mono transition-colors border border-line-strong cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 <span>🌐 Graph</span>
                 {knowledgeGraphData?.nodes?.length ? (
-                  <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                  <span className="text-xs px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
                     {knowledgeGraphData.nodes.length}
                   </span>
                 ) : null}
@@ -156,7 +156,7 @@ export function EditorPane() {
               <button
                 onClick={handleSaveFile}
                 title="Save (Ctrl+S)"
-                className="bg-[#1e293b] hover:bg-[#334155] text-[#cbd5e1] px-2.5 py-1 rounded text-[11px] font-mono transition-colors border border-[#334155] cursor-pointer flex items-center gap-1.5"
+                className="bg-selected hover:bg-[#334155] text-fg-soft px-2.5 py-1 rounded text-xs font-mono transition-colors border border-[#334155] cursor-pointer flex items-center gap-1.5"
               >
                 <Icons.Save />
                 <span>Save</span>
@@ -167,11 +167,11 @@ export function EditorPane() {
 
         {/* Code Textarea & Gutter with Synchronized Scrolling */}
         {activeTab ? (
-          <div className="flex-1 flex overflow-hidden relative font-mono text-[12.5px] leading-[20px]">
+          <div className="flex-1 flex overflow-hidden relative font-mono text-base leading-[20px]">
             {/* Line Gutter with Folding Arrows */}
             <div
               ref={gutterRef}
-              className="w-[54px] bg-[#07080a] border-r border-[#161922] text-right py-3 px-1 text-[11.5px] font-mono text-[#475569] select-none overflow-hidden leading-[20px] flex-shrink-0"
+              className="w-[54px] bg-canvas border-r border-line-subtle text-right py-3 px-1 text-sm font-mono text-fg-subtle select-none overflow-hidden leading-[20px] flex-shrink-0"
             >
               {rawLines.map((lineText, i) => {
                 const isFoldable = /^(?:\s*)(?:def|class|function|async\s+function|const\s+\w+\s*=\s*(?:async\s*)?\(|if|elif|else|for|while|try|catch).*(?:\{|:)\s*$/.test(lineText);
@@ -182,14 +182,14 @@ export function EditorPane() {
                       <button
                         onClick={() => toggleFold(i)}
                         title={isFolded ? "Unfold block" : "Fold block"}
-                        className="hover:text-[#60a5fa] cursor-pointer text-[9px] p-0.5"
+                        className="hover:text-accent-fg cursor-pointer text-xs p-0.5"
                       >
                         {isFolded ? '▸' : '▾'}
                       </button>
                     ) : (
                       <span className="w-2.5 inline-block" />
                     )}
-                    <span className={cursorPos.line === i + 1 ? 'text-[#60a5fa] font-bold' : ''}>
+                    <span className={cursorPos.line === i + 1 ? 'text-accent-fg font-bold' : ''}>
                       {i + 1}
                     </span>
                   </div>
@@ -198,22 +198,22 @@ export function EditorPane() {
             </div>
 
             {/* Code Editor Container */}
-            <div className="flex-1 relative overflow-hidden bg-[#090b0e]">
+            <div className="flex-1 relative overflow-hidden bg-canvas">
               {/* Syntax Highlight Overlay (Synchronized with Textarea Scroll) */}
               <div
                 ref={syntaxRef}
                 aria-hidden="true"
-                className="absolute inset-0 p-3 pointer-events-none whitespace-pre overflow-hidden leading-[20px] select-none text-[12.5px] font-mono font-normal"
+                className="absolute inset-0 p-3 pointer-events-none whitespace-pre overflow-hidden leading-[20px] select-none text-base font-mono font-normal"
               >
                 {rawLines.map((lineText, i) => (
                   <div
                     key={i}
-                    className={`h-[20px] leading-[20px] ${cursorPos.line === i + 1 ? 'bg-[#1e293b]/25 rounded-sm' : ''}`}
+                    className={`h-[20px] leading-[20px] ${cursorPos.line === i + 1 ? 'bg-selected/25 rounded-sm' : ''}`}
                   >
                     {foldedLines[i] ? (
                       <span>
                         {highlightCodeLine(lineText)}
-                        <span className="text-[#3b82f6] bg-[#1e293b]/60 px-1.5 py-0.2 rounded border border-[#3b82f6]/30 ml-2 text-[10px] select-none">
+                        <span className="text-accent bg-selected/60 px-1.5 py-0.2 rounded border border-accent/30 ml-2 text-xs select-none">
                           ... folded
                         </span>
                       </span>
@@ -235,15 +235,15 @@ export function EditorPane() {
                 onClick={handleEditorSelection}
                 onKeyUp={handleEditorSelection}
                 spellCheck={false}
-                className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-[#60a5fa] p-3 text-[12.5px] font-mono leading-[20px] resize-none focus:outline-none custom-scrollbar select-text overflow-y-auto whitespace-pre tab-4 z-10 font-normal"
+                className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-accent-fg p-3 text-base font-mono leading-[20px] resize-none focus:outline-none custom-scrollbar select-text overflow-y-auto whitespace-pre tab-4 z-10 font-normal"
               />
             </div>
           </div>
         ) : !currentProjectPath && !isGitHubWorkspace ? (
           /* No project yet: offer the ways to open one */
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#090b0e] select-none overflow-y-auto custom-scrollbar">
-            <h3 className="text-[15px] font-semibold text-[#e2e5ea] mb-1">No folder open</h3>
-            <p className="text-[12px] text-[#94a3b8] mb-5">Open a folder or a GitHub repository to start.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-canvas select-none overflow-y-auto custom-scrollbar">
+            <h3 className="text-lg font-semibold text-fg mb-1">No folder open</h3>
+            <p className="text-sm text-fg-muted mb-5">Open a folder or a GitHub repository to start.</p>
 
             <div className="flex items-center gap-3">
               <button
@@ -251,14 +251,14 @@ export function EditorPane() {
                   setProjectPathInput('');
                   setShowOpenProjectModal(true);
                 }}
-                className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg text-[12px] transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
+                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
               >
                 <Icons.FolderClosed />
                 <span>Open folder</span>
               </button>
               <button
                 onClick={() => setShowGitHubModal(true)}
-                className="bg-[#12151c] hover:bg-[#1a1e26] text-[#cbd5e1] border border-[#1e232e] hover:border-[#3b82f6]/30 px-4 py-2 rounded-lg text-[12px] transition-all cursor-pointer flex items-center gap-2"
+                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-lg text-sm transition-all cursor-pointer flex items-center gap-2"
               >
                 <Icons.GitHub />
                 <span>Open from GitHub</span>
@@ -267,13 +267,13 @@ export function EditorPane() {
 
             {recentProjects.length > 0 && (
               <div className="mt-6 w-full max-w-[420px] text-left">
-                <div className="text-[11px] text-[#94a3b8] uppercase tracking-wider mb-2">Recent</div>
+                <div className="text-xs text-fg-muted uppercase tracking-wider mb-2">Recent</div>
                 <div className="space-y-1.5">
                   {recentProjects.map(p => (
                     <button
                       key={p}
                       onClick={() => handleOpenProject(p, false)}
-                      className="w-full text-left p-2 rounded bg-[#08090a] hover:bg-[#12151c] border border-[#1a1e26] hover:border-[#3b82f6]/40 text-[12px] font-mono text-[#94a3b8] hover:text-[#60a5fa] transition-colors flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left p-2 rounded bg-canvas hover:bg-raised border border-line hover:border-accent/40 text-sm font-mono text-fg-muted hover:text-accent-fg transition-colors flex items-center gap-2 cursor-pointer"
                     >
                       <Icons.FolderClosed />
                       <span className="truncate">{p}</span>
@@ -284,38 +284,38 @@ export function EditorPane() {
             )}
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-[#090b0e] select-none overflow-y-auto custom-scrollbar">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-canvas select-none overflow-y-auto custom-scrollbar">
             {/* Pure Clean ASCII Art Display */}
             <div className="mb-4 flex justify-center items-center">
-              <pre className="text-[8.5px] sm:text-[9.5px] md:text-[10px] font-mono font-bold leading-[11px] sm:leading-[12px] text-[#38bdf8]/85 hover:text-[#38bdf8] transition-colors select-none">
+              <pre className="text-[8.5px] sm:text-[9.5px] md:text-[10px] font-mono font-bold leading-[11px] sm:leading-[12px] text-info/85 hover:text-info transition-colors select-none">
                 {ARCHON_ASCII_ART}
               </pre>
             </div>
 
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-[15px] font-mono font-bold text-[#e2e5ea]">
+              <h3 className="text-lg font-mono font-bold text-fg">
                 {currentProjectName} Workspace
               </h3>
-              <span className="text-[10px] font-mono text-[#60a5fa] px-1.5 py-0.2 bg-[#3b82f6]/10 rounded border border-[#3b82f6]/20">
+              <span className="text-xs font-mono text-accent-fg px-1.5 py-0.2 bg-accent/10 rounded border border-accent/20">
                 ⎇ {gitBranch}
               </span>
             </div>
 
-            <p className="text-[11.5px] font-mono text-[#64748b] max-w-[420px] leading-relaxed mb-5 truncate" title={currentProjectPath}>
-              Path: <span className="text-[#94a3b8]">{currentProjectPath}</span>
+            <p className="text-sm font-mono text-fg-subtle max-w-[420px] leading-relaxed mb-5 truncate" title={currentProjectPath}>
+              Path: <span className="text-fg-muted">{currentProjectPath}</span>
             </p>
 
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowOpenProjectModal(true)}
-                className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg text-[11.5px] font-mono transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
+                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-mono transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
               >
                 <Icons.FolderPlus />
                 <span>Open or Create Project...</span>
               </button>
               <button
                 onClick={() => handleOpenFile('README.md')}
-                className="bg-[#12151c] hover:bg-[#1a1e26] text-[#cbd5e1] border border-[#1e232e] hover:border-[#3b82f6]/30 px-4 py-2 rounded-lg text-[11.5px] font-mono transition-all cursor-pointer flex items-center gap-2"
+                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-lg text-sm font-mono transition-all cursor-pointer flex items-center gap-2"
               >
                 <Icons.FileCode />
                 <span>Open README.md</span>

@@ -362,52 +362,52 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
   // Dimension color mapping
   const getDimensionColor = (dim: string) => {
     switch (dim) {
-      case "Throughput / Scale": return "text-[#38bdf8] border-[#38bdf8]/40 bg-[#38bdf8]/10";
-      case "Latency Budget": return "text-[#f59e0b] border-[#f59e0b]/40 bg-[#f59e0b]/10";
-      case "Data Consistency Model": return "text-[#ef4444] border-[#ef4444]/40 bg-[#ef4444]/10";
-      case "Availability / Fault Tolerance": return "text-[#10b981] border-[#10b981]/40 bg-[#10b981]/10";
+      case "Throughput / Scale": return "text-info border-info/40 bg-info/10";
+      case "Latency Budget": return "text-warning border-warning/40 bg-warning/10";
+      case "Data Consistency Model": return "text-danger border-danger/40 bg-danger/10";
+      case "Availability / Fault Tolerance": return "text-success border-success/40 bg-success/10";
       case "Security / Compliance": return "text-[#a855f7] border-[#a855f7]/40 bg-[#a855f7]/10";
       case "Deployment Target": return "text-[#06b6d4] border-[#06b6d4]/40 bg-[#06b6d4]/10";
       case "Cost Constraint": return "text-[#84cc16] border-[#84cc16]/40 bg-[#84cc16]/10";
-      default: return "text-[#94a3b8] border-[#94a3b8]/40 bg-[#94a3b8]/10";
+      default: return "text-fg-muted border-[#94a3b8]/40 bg-[#94a3b8]/10";
     }
   };
 
   return (
-    <div className="w-full min-h-[calc(100vh-56px)] bg-[#07090e] text-[#f1f5f9] flex flex-col font-sans select-text">
+    <div className="w-full min-h-[calc(100vh-56px)] bg-canvas text-fg-strong flex flex-col font-sans select-text">
       
       {/* ── TOP HEADER BANNER ────────────────────────────────────────── */}
-      <div className="border-b border-[#1e293b] bg-[#0c1017] px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div className="border-b border-line-strong bg-surface px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0284c7] to-[#2563eb] flex items-center justify-center shadow-lg shadow-[#0284c7]/20 border border-[#38bdf8]/30">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-info-strong to-accent-strong flex items-center justify-center shadow-lg shadow-[#0284c7]/20 border border-info/30">
             <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-base font-bold text-[#f8fafc] tracking-tight">ArcGen Studio</h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-[#38bdf8]/15 text-[#38bdf8] border border-[#38bdf8]/30">
+              <h1 className="text-base font-bold text-fg-strong tracking-tight">ArcGen Studio</h1>
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-info/15 text-info border border-info/30">
                 Stage 1 • Architecture Synthesis
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30">
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-success/15 text-success border border-success/30">
                 20 Curated Patterns
               </span>
             </div>
-            <p className="text-[11px] text-[#64748b]">
+            <p className="text-xs text-fg-subtle">
               Interactive ASR Elicitation • Stopping Criteria • Relational Graph Generation (Edge F1 &gt; 0.40) • ATAM Decision Tradeoffs
             </p>
           </div>
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="flex items-center bg-[#111827] border border-[#1f293d] rounded-xl p-1 gap-1">
+        <div className="flex items-center bg-raised border border-line-strong rounded-xl p-1 gap-1">
           <button
             onClick={() => setStudioMode('elicitation')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               studioMode === 'elicitation'
-                ? 'bg-[#1e293b] text-[#38bdf8] font-semibold border border-[#38bdf8]/30 shadow-sm'
-                : 'text-[#94a3b8] hover:text-[#f8fafc]'
+                ? 'bg-selected text-info font-semibold border border-info/30 shadow-sm'
+                : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
             Interactive ASR Elicitation
@@ -416,8 +416,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
             onClick={() => setStudioMode('direct_srs')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               studioMode === 'direct_srs'
-                ? 'bg-[#1e293b] text-[#38bdf8] font-semibold border border-[#38bdf8]/30 shadow-sm'
-                : 'text-[#94a3b8] hover:text-[#f8fafc]'
+                ? 'bg-selected text-info font-semibold border border-info/30 shadow-sm'
+                : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
             Direct SRS Document
@@ -426,8 +426,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
             onClick={() => setStudioMode('patterns_catalog')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               studioMode === 'patterns_catalog'
-                ? 'bg-[#1e293b] text-[#38bdf8] font-semibold border border-[#38bdf8]/30 shadow-sm'
-                : 'text-[#94a3b8] hover:text-[#f8fafc]'
+                ? 'bg-selected text-info font-semibold border border-info/30 shadow-sm'
+                : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
             Pattern Knowledge Base ({patterns.length})
@@ -436,8 +436,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
             onClick={() => setStudioMode('qualitative_analysis')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               studioMode === 'qualitative_analysis'
-                ? 'bg-[#1e293b] text-[#38bdf8] font-semibold border border-[#38bdf8]/30 shadow-sm'
-                : 'text-[#94a3b8] hover:text-[#f8fafc]'
+                ? 'bg-selected text-info font-semibold border border-info/30 shadow-sm'
+                : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
             Qualitative Analysis
@@ -447,12 +447,12 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
       {/* ── STATUS BAR NOTIFICATION ──────────────────────────────────── */}
       {statusMsg && (
-        <div className="bg-[#0f172a] border-b border-[#1e293b] px-6 py-1.5 flex items-center justify-between text-xs text-[#94a3b8]">
+        <div className="bg-overlay border-b border-line-strong px-6 py-1.5 flex items-center justify-between text-xs text-fg-muted">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#38bdf8] animate-pulse"></span>
-            <span className="font-mono text-[#cbd5e1]">{statusMsg}</span>
+            <span className="w-2 h-2 rounded-full bg-info animate-pulse"></span>
+            <span className="font-mono text-fg-soft">{statusMsg}</span>
           </div>
-          <button onClick={() => setStatusMsg('')} className="text-[#64748b] hover:text-[#cbd5e1]">✕</button>
+          <button aria-label="Close" onClick={() => setStatusMsg('')} className="text-fg-subtle hover:text-fg-soft">✕</button>
         </div>
       )}
 
@@ -462,19 +462,19 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
         <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div>
-              <h2 className="text-xl font-bold text-[#f8fafc]">ISO/IEC 25010 Architectural Pattern Catalog</h2>
-              <p className="text-xs text-[#64748b] mt-0.5">
+              <h2 className="text-xl font-bold text-fg-strong">ISO/IEC 25010 Architectural Pattern Catalog</h2>
+              <p className="text-xs text-fg-subtle mt-0.5">
                 Curated enterprise patterns with forces resolved, limits, and calibrated quality attribute impact ratings
               </p>
             </div>
-            <div className="flex items-center gap-2 bg-[#0c1017] p-1 border border-[#1e293b] rounded-lg text-xs font-mono">
-              <span className="text-[#64748b] px-2">Filter:</span>
+            <div className="flex items-center gap-2 bg-surface p-1 border border-line-strong rounded-lg text-xs font-mono">
+              <span className="text-fg-subtle px-2">Filter:</span>
               {['all', 'monolithic', 'distributed', 'macrostyle', 'companion'].map(f => (
                 <button
                   key={f}
                   onClick={() => setPatternFilter(f)}
                   className={`px-2.5 py-1 rounded text-xs capitalize ${
-                    patternFilter === f ? 'bg-[#1e293b] text-[#38bdf8] font-semibold' : 'text-[#94a3b8] hover:text-white'
+                    patternFilter === f ? 'bg-selected text-info font-semibold' : 'text-fg-muted hover:text-white'
                   }`}
                 >
                   {f}
@@ -485,30 +485,30 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPatterns.map(p => (
-              <div key={p.pattern_id} className="bg-[#0e131f] border border-[#1e293b] rounded-xl p-5 hover:border-[#38bdf8]/40 transition-all flex flex-col justify-between">
+              <div key={p.pattern_id} className="bg-raised border border-line-strong rounded-xl p-5 hover:border-info/40 transition-all flex flex-col justify-between">
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#38bdf8]/15 text-[#38bdf8] border border-[#38bdf8]/25 font-bold">
+                    <span className="px-2 py-0.5 rounded text-xs font-mono bg-info/15 text-info border border-info/25 font-bold">
                       {p.pattern_id}
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#1e293b] text-[#cbd5e1]">
+                    <span className="px-2 py-0.5 rounded text-xs font-mono bg-selected text-fg-soft">
                       {p.topology_type} • {p.role}
                     </span>
                   </div>
-                  <h3 className="text-base font-semibold text-[#f8fafc] mb-1.5">{p.name}</h3>
-                  <p className="text-xs text-[#94a3b8] mb-3 leading-relaxed">{p.summary}</p>
+                  <h3 className="text-base font-semibold text-fg-strong mb-1.5">{p.name}</h3>
+                  <p className="text-xs text-fg-muted mb-3 leading-relaxed">{p.summary}</p>
                   
                   {p.catalog_source && (
-                    <div className="text-[10px] font-mono text-[#64748b] mb-3">
+                    <div className="text-xs font-mono text-fg-subtle mb-3">
                       Source: {p.catalog_source}
                     </div>
                   )}
 
                   <div className="mb-3">
-                    <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1">Forces Resolved:</span>
+                    <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1">Forces Resolved:</span>
                     <div className="flex flex-wrap gap-1">
                       {p.forces_resolved.slice(0, 3).map((f, i) => (
-                        <span key={i} className="px-1.5 py-0.5 rounded text-[10px] bg-[#10b981]/10 text-[#34d399] border border-[#10b981]/20">
+                        <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-success/10 text-success-fg border border-success/20">
                           ✓ {f}
                         </span>
                       ))}
@@ -516,10 +516,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#1e293b]/70 flex items-center justify-between text-[11px] font-mono text-[#64748b]">
-                  <span>Complexity: <strong className="text-[#f1f5f9]">{p.limits.operational_complexity}/5</strong></span>
-                  <span>Cost: <strong className="text-[#f1f5f9]">{p.limits.cost_factor}/5</strong></span>
-                  <span>Consistency: <strong className="text-[#38bdf8]">{p.limits.supported_consistency.join(", ")}</strong></span>
+                <div className="pt-3 border-t border-line-strong/70 flex items-center justify-between text-xs font-mono text-fg-subtle">
+                  <span>Complexity: <strong className="text-fg-strong">{p.limits.operational_complexity}/5</strong></span>
+                  <span>Cost: <strong className="text-fg-strong">{p.limits.cost_factor}/5</strong></span>
+                  <span>Consistency: <strong className="text-info">{p.limits.supported_consistency.join(", ")}</strong></span>
                 </div>
               </div>
             ))}
@@ -533,15 +533,15 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden h-[calc(100vh-105px)]">
           
           {/* ── LEFT COLUMN: INPUT & ELICITATION PANEL (5 COLS) ───────── */}
-          <div className="lg:col-span-5 border-r border-[#1e293b] bg-[#090d14] p-5 flex flex-col gap-4 overflow-y-auto">
+          <div className="lg:col-span-5 border-r border-line-strong bg-surface p-5 flex flex-col gap-4 overflow-y-auto">
             
             {/* Quick Templates Selection */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-[#f8fafc] uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                <label className="text-xs font-bold text-fg-strong uppercase tracking-wider flex items-center gap-1.5 font-mono">
                   <span>Architecture Requirements Prompt</span>
                 </label>
-                <span className="text-[11px] text-[#64748b]">Presets:</span>
+                <span className="text-xs text-fg-subtle">Presets:</span>
               </div>
               <div className="flex flex-wrap gap-1.5 mb-2.5">
                 {exampleTemplates.map(t => (
@@ -553,7 +553,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                       setAsrSummary(null);
                       setCurrentQuestion(null);
                     }}
-                    className="px-2 py-1 rounded-md text-[11px] bg-[#111827] border border-[#1f293d] text-[#cbd5e1] hover:border-[#38bdf8]/50 hover:text-[#38bdf8] transition-all cursor-pointer font-mono"
+                    className="px-2 py-1 rounded-md text-xs bg-raised border border-line-strong text-fg-soft hover:border-info/50 hover:text-info transition-all cursor-pointer font-mono"
                   >
                     {t.title}
                   </button>
@@ -567,13 +567,13 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                     onChange={e => setPrompt(e.target.value)}
                     rows={4}
                     placeholder="Describe your software system requirements, scale, or business concept..."
-                    className="w-full bg-[#0d121c] border border-[#1e293b] rounded-xl p-3 text-xs text-[#f1f5f9] placeholder-[#475569] focus:outline-none focus:border-[#38bdf8]/60 focus:ring-1 focus:ring-[#38bdf8]/40 font-mono transition-all resize-none"
+                    className="w-full bg-raised border border-line-strong rounded-xl p-3 text-xs text-fg-strong placeholder-fg-subtle focus:outline-none focus:border-info/60 focus:ring-1 focus:ring-info/40 font-mono transition-all resize-none"
                   />
                   {!sessionId && (
                     <button
                       onClick={handleStartElicitation}
                       disabled={isEliciting || !prompt.trim()}
-                      className="mt-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0284c7] to-[#2563eb] text-white text-xs font-semibold hover:from-[#0369a1] hover:to-[#1d4ed8] transition-all shadow-md shadow-[#0284c7]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="mt-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-info-strong to-accent-strong text-white text-xs font-semibold hover:from-[#0369a1] hover:to-accent-hover transition-all shadow-md shadow-[#0284c7]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {isEliciting ? "Extracting Drivers..." : "Start Interactive ASR Elicitation (Phase A)"}
                     </button>
@@ -586,7 +586,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                     onChange={e => setSrsText(e.target.value)}
                     rows={6}
                     placeholder="Paste full Software Requirements Specification (SRS) text or capability statements..."
-                    className="w-full bg-[#0d121c] border border-[#1e293b] rounded-xl p-3 text-xs text-[#f1f5f9] placeholder-[#475569] focus:outline-none focus:border-[#38bdf8]/60 font-mono transition-all resize-none"
+                    className="w-full bg-raised border border-line-strong rounded-xl p-3 text-xs text-fg-strong placeholder-fg-subtle focus:outline-none focus:border-info/60 font-mono transition-all resize-none"
                   />
                   <button
                     onClick={handleGenerateArchitecture}
@@ -601,24 +601,24 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
             {/* ASR Coverage Tracker (Live Slot Progress) */}
             {asrSummary && (
-              <div className="bg-[#0d131f] border border-[#1e293b] rounded-xl p-4 shadow-sm">
+              <div className="bg-raised border border-line-strong rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold font-mono uppercase text-[#38bdf8]">ASR Coverage Metric</span>
-                    <span className="text-[10px] text-[#64748b] font-mono">Turn {asrSummary.turn_count} / 6</span>
+                    <span className="text-xs font-bold font-mono uppercase text-info">ASR Coverage Metric</span>
+                    <span className="text-xs text-fg-subtle font-mono">Turn {asrSummary.turn_count} / 6</span>
                   </div>
                   <span className={`text-sm font-bold font-mono ${
-                    asrSummary.coverage_ratio >= 0.85 ? 'text-[#34d399]' : 'text-[#38bdf8]'
+                    asrSummary.coverage_ratio >= 0.85 ? 'text-success-fg' : 'text-info'
                   }`}>
                     {asrSummary.coverage_percentage.toFixed(1)}%
                   </span>
                 </div>
 
                 {/* Progress bar */}
-                <div className="w-full h-2 rounded-full bg-[#1e293b] overflow-hidden mb-3">
+                <div className="w-full h-2 rounded-full bg-selected overflow-hidden mb-3">
                   <div
                     className={`h-full transition-all duration-500 rounded-full ${
-                      asrSummary.coverage_ratio >= 0.85 ? 'bg-gradient-to-r from-[#10b981] to-[#34d399]' : 'bg-gradient-to-r from-[#0284c7] to-[#38bdf8]'
+                      asrSummary.coverage_ratio >= 0.85 ? 'bg-gradient-to-r from-success to-success-fg' : 'bg-gradient-to-r from-info-strong to-info'
                     }`}
                     style={{ width: `${Math.min(100, asrSummary.coverage_percentage)}%` }}
                   />
@@ -629,19 +629,19 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                   {Object.entries(asrSummary.slots).map(([dimName, slot]) => (
                     <div
                       key={dimName}
-                      className={`p-2 rounded-lg border text-[11px] flex items-center justify-between ${
-                        slot.filled ? 'bg-[#10b981]/5 border-[#10b981]/30 text-[#f1f5f9]' : 'bg-[#111827]/40 border-[#1f293d] text-[#64748b]'
+                      className={`p-2 rounded-lg border text-xs flex items-center justify-between ${
+                        slot.filled ? 'bg-success/5 border-success/30 text-fg-strong' : 'bg-raised/40 border-line-strong text-fg-subtle'
                       }`}
                     >
                       <div className="overflow-hidden pr-2">
                         <span className="font-semibold block truncate">{dimName}</span>
                         {slot.filled && slot.value && (
-                          <span className="text-[10px] text-[#34d399] font-mono truncate block">
+                          <span className="text-xs text-success-fg font-mono truncate block">
                             ✓ {slot.value}
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1e293b] text-[#94a3b8] flex-shrink-0">
+                      <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-selected text-fg-muted flex-shrink-0">
                         w: {slot.weight}
                       </span>
                     </div>
@@ -652,23 +652,23 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
             {/* Current Elicitation Question Card */}
             {currentQuestion && !shouldStop && (
-              <div className="bg-[#0f172a] border border-[#38bdf8]/40 rounded-xl p-4 shadow-lg shadow-[#0284c7]/5 relative">
+              <div className="bg-overlay border border-info/40 rounded-xl p-4 shadow-lg shadow-[#0284c7]/5 relative">
                 <div className="flex items-center justify-between mb-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${getDimensionColor(currentQuestion.target_dimension)}`}>
+                  <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold border ${getDimensionColor(currentQuestion.target_dimension)}`}>
                     {currentQuestion.target_dimension}
                   </span>
-                  <span className="text-[10px] font-mono text-[#64748b]">
+                  <span className="text-xs font-mono text-fg-subtle">
                     {currentQuestion.question_id}
                   </span>
                 </div>
 
-                <h3 className="text-sm font-semibold text-[#f8fafc] mb-2 leading-snug">
+                <h3 className="text-sm font-semibold text-fg-strong mb-2 leading-snug">
                   {currentQuestion.question_text}
                 </h3>
 
                 {currentQuestion.why_it_matters && (
-                  <div className="mb-3 text-[11px] text-[#94a3b8] bg-[#0b101b] p-2.5 rounded-lg border border-[#1e293b]">
-                    <span className="font-semibold text-[#38bdf8] font-mono">Why it matters: </span>
+                  <div className="mb-3 text-xs text-fg-muted bg-raised p-2.5 rounded-lg border border-line-strong">
+                    <span className="font-semibold text-info font-mono">Why it matters: </span>
                     {currentQuestion.why_it_matters}
                   </div>
                 )}
@@ -676,7 +676,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                 {/* Suggested options chips */}
                 {currentOptions.length > 0 && (
                   <div className="mb-3">
-                    <span className="text-[10px] font-mono text-[#64748b] block mb-1.5 uppercase tracking-wider">
+                    <span className="text-xs font-mono text-fg-subtle block mb-1.5 uppercase tracking-wider">
                       Suggested benchmark targets:
                     </span>
                     <div className="flex flex-col gap-1.5">
@@ -689,23 +689,23 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                             disabled={isEliciting}
                             className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all font-mono flex items-start gap-2.5 ${
                               isSelected
-                                ? 'bg-[#0284c7]/25 text-[#f8fafc] border-2 border-[#38bdf8] ring-1 ring-[#38bdf8]/50 shadow-md shadow-[#0284c7]/20'
+                                ? 'bg-info-strong/25 text-fg-strong border-2 border-info ring-1 ring-info/50 shadow-md shadow-[#0284c7]/20'
                                 : isEliciting
-                                ? 'bg-[#111827]/40 text-[#475569] border border-[#1e293b] cursor-not-allowed opacity-30 pointer-events-none'
-                                : 'bg-[#111827]/80 hover:bg-[#1e293b] hover:text-[#38bdf8] hover:border-[#38bdf8]/40 text-[#cbd5e1] border border-[#1e293b] cursor-pointer'
+                                ? 'bg-raised/40 text-fg-subtle border border-line-strong cursor-not-allowed opacity-30 pointer-events-none'
+                                : 'bg-raised/80 hover:bg-selected hover:text-info hover:border-info/40 text-fg-soft border border-line-strong cursor-pointer'
                             }`}
                           >
                             {isSelected ? (
-                              <svg className="w-3.5 h-3.5 mt-0.5 text-[#38bdf8] animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5 mt-0.5 text-info animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
                             ) : (
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8]/60 mt-1.5 flex-shrink-0"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-info/60 mt-1.5 flex-shrink-0"></span>
                             )}
-                            <span className="flex-1 leading-relaxed text-[11px]">{opt}</span>
+                            <span className="flex-1 leading-relaxed text-xs">{opt}</span>
                             {isSelected && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#38bdf8] text-[#090d14] uppercase tracking-wider flex-shrink-0">
+                              <span className="px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-info text-fg-subtle uppercase tracking-wider flex-shrink-0">
                                 Evaluating
                               </span>
                             )}
@@ -725,12 +725,12 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                     placeholder={isEliciting ? "Evaluation in progress..." : "Or type custom specification..."}
                     disabled={isEliciting}
                     onKeyDown={e => e.key === 'Enter' && !isEliciting && handleAnswerQuestion(false)}
-                    className="flex-1 bg-[#0b101b] border border-[#1e293b] rounded-lg px-3 py-1.5 text-xs text-[#f1f5f9] focus:outline-none focus:border-[#38bdf8]/60 font-mono disabled:opacity-40"
+                    className="flex-1 bg-raised border border-line-strong rounded-lg px-3 py-1.5 text-xs text-fg-strong focus:outline-none focus:border-info/60 font-mono disabled:opacity-40"
                   />
                   <button
                     onClick={() => handleAnswerQuestion(false)}
                     disabled={isEliciting || !userAnswer.trim()}
-                    className="px-3.5 py-1.5 rounded-lg bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-lg bg-info-strong hover:bg-[#0369a1] text-white text-xs font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                   >
                     {isEliciting && !selectedOption && !isSkipping && (
                       <svg className="w-3 h-3 text-white animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -743,11 +743,11 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                   <button
                     onClick={() => handleAnswerQuestion(true)}
                     disabled={isEliciting}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-[#94a3b8] text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                    className="px-2.5 py-1.5 rounded-lg bg-selected hover:bg-[#334155] text-fg-muted text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
                     title="Accept sensible architectural default"
                   >
                     {isSkipping && (
-                      <svg className="w-3 h-3 text-[#94a3b8] animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3 text-fg-muted animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -758,22 +758,22 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
                 {/* Real-time Elicitation Inference Spinner Banner */}
                 {isEliciting && (
-                  <div className="mt-3 p-3 rounded-lg bg-[#081020] border border-[#0284c7]/50 flex items-center justify-between text-xs text-[#38bdf8] shadow-lg">
+                  <div className="mt-3 p-3 rounded-lg bg-raised border border-info-strong/50 flex items-center justify-between text-xs text-info shadow-lg">
                     <div className="flex items-center gap-2.5">
-                      <svg className="w-4 h-4 text-[#38bdf8] animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-info animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       <div>
-                        <div className="font-semibold text-[#f1f5f9] text-[11px]">
+                        <div className="font-semibold text-fg-strong text-xs">
                           {selectedOption ? "Calibrating requirement selection" : isSkipping ? "Applying architectural default" : "Processing specification"}
                         </div>
-                        <div className="text-[10px] text-[#94a3b8] font-mono">
+                        <div className="text-xs text-fg-muted font-mono">
                           Evaluating ISO/IEC 25010 metrics and synthesizing next question...
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e293b] text-[#38bdf8] border border-[#0284c7]/30 uppercase tracking-wider animate-pulse flex-shrink-0">
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-selected text-info border border-info-strong/30 uppercase tracking-wider animate-pulse flex-shrink-0">
                       Inference Active
                     </span>
                   </div>
@@ -783,17 +783,17 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
             {/* Stopping Condition Notification & Generation Trigger */}
             {shouldStop && (
-              <div className="bg-[#10b981]/10 border border-[#10b981]/40 rounded-xl p-4 text-center">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#10b981]/20 text-[#34d399] text-xs font-mono font-semibold mb-2">
+              <div className="bg-success/10 border border-success/40 rounded-xl p-4 text-center">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/20 text-success-fg text-xs font-mono font-semibold mb-2">
                   ✓ Mathematical Stopping Criterion Reached
                 </div>
-                <p className="text-xs text-[#cbd5e1] mb-3 leading-relaxed">
+                <p className="text-xs text-fg-soft mb-3 leading-relaxed">
                   {stopReason || "Target ASR coverage has reached sufficiency threshold (≥85%). Anti-fatigue stop triggered."}
                 </p>
                 <button
                   onClick={handleGenerateArchitecture}
                   disabled={isGenerating}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold transition-all shadow-lg shadow-[#10b981]/20 flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-success to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold transition-all shadow-lg shadow-[#10b981]/20 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isGenerating ? "Synthesizing Architecture..." : "⚡ Generate Formally Grounded Architecture (Phase B)"}
                 </button>
@@ -801,8 +801,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
             )}
 
             {/* Quick Load Pre-Generated Samples */}
-            <div className="mt-auto pt-3 border-t border-[#1e293b]/70">
-              <span className="text-[10px] font-mono text-[#64748b] uppercase block mb-1.5">Load Pre-Generated Reference Graphs:</span>
+            <div className="mt-auto pt-3 border-t border-line-strong/70">
+              <span className="text-xs font-mono text-fg-subtle uppercase block mb-1.5">Load Pre-Generated Reference Graphs:</span>
               <div className="flex flex-wrap gap-2">
                 {preGeneratedSamples.map(sample => (
                   <button
@@ -811,7 +811,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                       setGeneratedArch(sample.data);
                       setActiveOutputTab('diagram');
                     }}
-                    className="px-2.5 py-1 rounded-md text-[11px] bg-[#0f172a] border border-[#1e293b] text-[#94a3b8] hover:text-[#38bdf8] hover:border-[#38bdf8]/40 transition-all font-mono cursor-pointer"
+                    className="px-2.5 py-1 rounded-md text-xs bg-overlay border border-line-strong text-fg-muted hover:text-info hover:border-info/40 transition-all font-mono cursor-pointer"
                   >
                     {sample.name} ({sample.nodes_count}n, {sample.edges_count}e)
                   </button>
@@ -822,40 +822,40 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
           </div>
 
           {/* ── RIGHT COLUMN: MULTI-VIEW ARCHITECTURE STUDIO (7 COLS) ──── */}
-          <div className="lg:col-span-7 bg-[#070a10] p-5 flex flex-col overflow-y-auto">
+          <div className="lg:col-span-7 bg-canvas p-5 flex flex-col overflow-y-auto">
             
             {generatedArch ? (
               <div className="flex-1 flex flex-col gap-4">
                 
                 {/* Architecture Header Info Card */}
-                <div className="bg-[#0c1017] border border-[#1e293b] rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="bg-surface border border-line-strong rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-[#f8fafc]">{generatedArch.project_name}</h2>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#38bdf8]/15 text-[#38bdf8] border border-[#38bdf8]/30 font-semibold">
+                      <h2 className="text-base font-bold text-fg-strong">{generatedArch.project_name}</h2>
+                      <span className="px-2 py-0.5 rounded text-xs font-mono bg-info/15 text-info border border-info/30 font-semibold">
                         {generatedArch.style}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-[#64748b] font-mono mt-1">
-                      <span>Nodes: <strong className="text-[#f1f5f9]">{generatedArch.nodes.length}</strong></span>
+                    <div className="flex items-center gap-3 text-xs text-fg-subtle font-mono mt-1">
+                      <span>Nodes: <strong className="text-fg-strong">{generatedArch.nodes.length}</strong></span>
                       <span>•</span>
-                      <span>Edges: <strong className="text-[#f1f5f9]">{generatedArch.edges.length}</strong></span>
+                      <span>Edges: <strong className="text-fg-strong">{generatedArch.edges.length}</strong></span>
                       <span>•</span>
-                      <span>Orphans: <strong className="text-[#10b981]">0 (Guaranteed)</strong></span>
+                      <span>Orphans: <strong className="text-success">0 (Guaranteed)</strong></span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSaveToWorkspace}
-                      className="px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-xs font-mono text-[#cbd5e1] border border-[#334155] transition-all cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg bg-selected hover:bg-[#334155] text-xs font-mono text-fg-soft border border-[#334155] transition-all cursor-pointer flex items-center gap-1.5"
                     >
                       <span>Save to Workspace</span>
                     </button>
                     {onOpenInIDE && (
                       <button
                         onClick={() => onOpenInIDE()}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#0284c7] to-[#2563eb] text-white text-xs font-mono font-semibold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-info-strong to-accent-strong text-white text-xs font-mono font-semibold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                       >
                         <span>Open in IDE</span>
                       </button>
@@ -864,7 +864,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                 </div>
 
                 {/* Sub-Tabs Selector */}
-                <div className="flex items-center border-b border-[#1e293b] gap-2 pb-2">
+                <div className="flex items-center border-b border-line-strong gap-2 pb-2">
                   {[
                     { id: 'diagram', label: 'Graph & Diagram' },
                     { id: 'components', label: `Components (${generatedArch.nodes.length})` },
@@ -877,8 +877,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                       onClick={() => setActiveOutputTab(tab.id as any)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer ${
                         activeOutputTab === tab.id
-                          ? 'bg-[#1e293b] text-[#38bdf8] font-semibold border border-[#38bdf8]/40'
-                          : 'text-[#64748b] hover:text-[#cbd5e1]'
+                          ? 'bg-selected text-info font-semibold border border-info/40'
+                          : 'text-fg-subtle hover:text-fg-soft'
                       }`}
                     >
                       {tab.label}
@@ -900,10 +900,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
                 {/* TAB 2: COMPONENT BREAKDOWN TABLE */}
                 {activeOutputTab === 'components' && (
-                  <div className="flex-1 bg-[#090d14] border border-[#1e293b] rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex-1 bg-surface border border-line-strong rounded-xl overflow-hidden flex flex-col">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
-                        <thead className="bg-[#0c1017] text-[#64748b] font-mono uppercase text-[10px] border-b border-[#1e293b]">
+                        <thead className="bg-surface text-fg-subtle font-mono uppercase text-xs border-b border-line-strong">
                           <tr>
                             <th className="p-3">Node ID</th>
                             <th className="p-3">Component Name</th>
@@ -913,28 +913,28 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                             <th className="p-3">KB Citations</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#1e293b]/60 font-mono">
+                        <tbody className="divide-y divide-line-strong/60 font-mono">
                           {generatedArch.nodes.map(n => (
-                            <tr key={n.node_id} className="hover:bg-[#111827]/50">
-                              <td className="p-3 font-bold text-[#38bdf8]">{n.node_id}</td>
-                              <td className="p-3 font-semibold text-[#f8fafc] font-sans">{n.name}</td>
+                            <tr key={n.node_id} className="hover:bg-raised/50">
+                              <td className="p-3 font-bold text-info">{n.node_id}</td>
+                              <td className="p-3 font-semibold text-fg-strong font-sans">{n.name}</td>
                               <td className="p-3">
-                                <span className="px-2 py-0.5 rounded text-[10px] bg-[#1e293b] text-[#cbd5e1]">
+                                <span className="px-2 py-0.5 rounded text-xs bg-selected text-fg-soft">
                                   {n.node_type}
                                 </span>
                               </td>
-                              <td className="p-3 text-[#94a3b8]">{n.layer || '—'}</td>
+                              <td className="p-3 text-fg-muted">{n.layer || '—'}</td>
                               <td className="p-3">
                                 <div className="flex flex-wrap gap-1">
                                   {Array.from(new Set(n.traced_requirements || [])).map((r, rIdx) => (
-                                    <span key={`${n.node_id}-req-${r}-${rIdx}`} className="px-1.5 py-0.5 rounded text-[9px] bg-[#0284c7]/15 text-[#38bdf8] border border-[#0284c7]/30">
+                                    <span key={`${n.node_id}-req-${r}-${rIdx}`} className="px-1.5 py-0.5 rounded text-xs bg-info-strong/15 text-info border border-info-strong/30">
                                       {r}
                                     </span>
                                   ))}
                                 </div>
 
                               </td>
-                              <td className="p-3 text-[#64748b] text-[10px]">
+                              <td className="p-3 text-fg-subtle text-xs">
                                 {n.kb_citations.join(", ") || '—'}
                               </td>
                             </tr>
@@ -947,10 +947,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
                 {/* TAB 3: RELATIONAL COUPLINGS (EDGES) */}
                 {activeOutputTab === 'couplings' && (
-                  <div className="flex-1 bg-[#090d14] border border-[#1e293b] rounded-xl overflow-hidden flex flex-col">
+                  <div className="flex-1 bg-surface border border-line-strong rounded-xl overflow-hidden flex flex-col">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
-                        <thead className="bg-[#0c1017] text-[#64748b] font-mono uppercase text-[10px] border-b border-[#1e293b]">
+                        <thead className="bg-surface text-fg-subtle font-mono uppercase text-xs border-b border-line-strong">
                           <tr>
                             <th className="p-3">Edge ID</th>
                             <th className="p-3">Path (Source → Target)</th>
@@ -959,20 +959,20 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                             <th className="p-3">Architectural Justification</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#1e293b]/60 font-mono">
+                        <tbody className="divide-y divide-line-strong/60 font-mono">
                           {generatedArch.edges.map(e => (
-                            <tr key={e.edge_id} className="hover:bg-[#111827]/50">
-                              <td className="p-3 font-bold text-[#38bdf8]">{e.edge_id}</td>
-                              <td className="p-3 text-[#f8fafc] whitespace-nowrap">
-                                <span className="text-[#38bdf8]">{e.source}</span> → <span className="text-[#34d399]">{e.target}</span>
+                            <tr key={e.edge_id} className="hover:bg-raised/50">
+                              <td className="p-3 font-bold text-info">{e.edge_id}</td>
+                              <td className="p-3 text-fg-strong whitespace-nowrap">
+                                <span className="text-info">{e.source}</span> → <span className="text-success-fg">{e.target}</span>
                               </td>
                               <td className="p-3">
-                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#1e293b] text-[#f59e0b]">
+                                <span className="px-1.5 py-0.5 rounded text-xs bg-selected text-warning">
                                   {e.edge_type}
                                 </span>
                               </td>
-                              <td className="p-3 text-[#94a3b8] text-[11px] whitespace-nowrap">{e.protocol || '—'}</td>
-                              <td className="p-3 text-[#cbd5e1] font-sans text-[11px] max-w-xs">{e.justification}</td>
+                              <td className="p-3 text-fg-muted text-xs whitespace-nowrap">{e.protocol || '—'}</td>
+                              <td className="p-3 text-fg-soft font-sans text-xs max-w-xs">{e.justification}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -993,32 +993,32 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
                 {/* TAB 5: CONFORMANCE AUDIT REPORT */}
                 {activeOutputTab === 'validation' && (
-                  <div className="flex-1 bg-[#090d14] border border-[#1e293b] rounded-xl p-5 overflow-y-auto font-mono text-xs">
+                  <div className="flex-1 bg-surface border border-line-strong rounded-xl p-5 overflow-y-auto font-mono text-xs">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                      <div className="bg-[#0e1320] p-3 rounded-lg border border-[#1e293b]">
-                        <span className="text-[#64748b] text-[10px] block">Total Nodes:</span>
-                        <span className="text-base font-bold text-[#f8fafc]">{generatedArch.nodes.length}</span>
+                      <div className="bg-raised p-3 rounded-lg border border-line-strong">
+                        <span className="text-fg-subtle text-xs block">Total Nodes:</span>
+                        <span className="text-base font-bold text-fg-strong">{generatedArch.nodes.length}</span>
                       </div>
-                      <div className="bg-[#0e1320] p-3 rounded-lg border border-[#1e293b]">
-                        <span className="text-[#64748b] text-[10px] block">Valid Edges:</span>
-                        <span className="text-base font-bold text-[#34d399]">{generatedArch.edges.length}</span>
+                      <div className="bg-raised p-3 rounded-lg border border-line-strong">
+                        <span className="text-fg-subtle text-xs block">Valid Edges:</span>
+                        <span className="text-base font-bold text-success-fg">{generatedArch.edges.length}</span>
                       </div>
-                      <div className="bg-[#0e1320] p-3 rounded-lg border border-[#1e293b]">
-                        <span className="text-[#64748b] text-[10px] block">Orphan Components:</span>
-                        <span className="text-base font-bold text-[#10b981]">0</span>
+                      <div className="bg-raised p-3 rounded-lg border border-line-strong">
+                        <span className="text-fg-subtle text-xs block">Orphan Components:</span>
+                        <span className="text-base font-bold text-success">0</span>
                       </div>
-                      <div className="bg-[#0e1320] p-3 rounded-lg border border-[#1e293b]">
-                        <span className="text-[#64748b] text-[10px] block">Topology Integrity:</span>
-                        <span className="text-base font-bold text-[#38bdf8]">100% Certified</span>
+                      <div className="bg-raised p-3 rounded-lg border border-line-strong">
+                        <span className="text-fg-subtle text-xs block">Topology Integrity:</span>
+                        <span className="text-base font-bold text-info">100% Certified</span>
                       </div>
                     </div>
 
-                    <div className="bg-[#0c1017] p-4 rounded-xl border border-[#1e293b]">
-                      <h4 className="text-xs font-bold text-[#f8fafc] mb-2">Relational Reasoning Certification</h4>
-                      <p className="text-[11px] text-[#94a3b8] font-sans leading-relaxed mb-3">
+                    <div className="bg-surface p-4 rounded-xl border border-line-strong">
+                      <h4 className="text-xs font-bold text-fg-strong mb-2">Relational Reasoning Certification</h4>
+                      <p className="text-xs text-fg-muted font-sans leading-relaxed mb-3">
                         Every architectural node is strictly reachable through validated, typed contracts with zero orphan islands. All edges cite ISO/IEC 25010 patterns and formal requirement IDs, directly solving the R2ABench 0.18 Edge F1 bottleneck.
                       </p>
-                      <div className="flex items-center gap-2 text-[#34d399] text-[11px]">
+                      <div className="flex items-center gap-2 text-success-fg text-xs">
                         <span>✓ Zero Orphan Guarantee Passed</span>
                         <span>•</span>
                         <span>✓ Bidirectional Citation Traceability Certified</span>
@@ -1030,14 +1030,14 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
               </div>
             ) : (
               /* Empty state before generation */
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-[#1e293b] rounded-2xl">
-                <div className="w-16 h-16 rounded-2xl bg-[#0e1320] border border-[#1e293b] flex items-center justify-center mb-4 text-[#38bdf8]">
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-line-strong rounded-2xl">
+                <div className="w-16 h-16 rounded-2xl bg-raised border border-line-strong flex items-center justify-center mb-4 text-info">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                 </div>
-                <h3 className="text-base font-bold text-[#f8fafc] mb-1">No Architecture Generated Yet</h3>
-                <p className="text-xs text-[#64748b] max-w-md mb-4">
+                <h3 className="text-base font-bold text-fg-strong mb-1">No Architecture Generated Yet</h3>
+                <p className="text-xs text-fg-subtle max-w-md mb-4">
                   Select a template on the left and start interactive elicitation, or load one of our pre-generated reference models (FleetMonitor-IoT or ASPERA-3 APAF).
                 </p>
                 <div className="flex items-center gap-2">
@@ -1045,7 +1045,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                     <button
                       key={sample.id}
                       onClick={() => setGeneratedArch(sample.data)}
-                      className="px-3 py-1.5 rounded-lg bg-[#1e293b] hover:bg-[#334155] text-xs font-mono text-[#cbd5e1] border border-[#334155] cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-selected hover:bg-[#334155] text-xs font-mono text-fg-soft border border-[#334155] cursor-pointer"
                     >
                       Load {sample.name}
                     </button>

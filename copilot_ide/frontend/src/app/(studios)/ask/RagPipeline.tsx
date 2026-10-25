@@ -61,15 +61,15 @@ export function RagPipeline({
   const [hoveredNode, setHoveredNode] = useState<number | null>(null);
 
   return (
-    <div className="border border-[#1a1e26] bg-[#090b0e] rounded-xl p-5 mb-8 relative overflow-hidden transition-all duration-500 animate-fade-in">
+    <div className="border border-line bg-canvas rounded-xl p-5 mb-8 relative overflow-hidden transition-all duration-500 animate-fade-in">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6] animate-pulse-slow" />
-          <span className="text-[10px] font-mono text-[#4a5060] tracking-[0.2em] uppercase font-semibold">
+          <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-slow" />
+          <span className="text-xs font-mono text-fg-subtle tracking-[0.2em] uppercase font-semibold">
             Interactive Retrieval Pipeline
           </span>
         </div>
-        <span className="text-[10px] font-mono text-[#333a48]">
+        <span className="text-xs font-mono text-fg-subtle">
           Click any stage node to jump to diagnostic inspector
         </span>
       </div>
@@ -89,37 +89,37 @@ export function RagPipeline({
                 onMouseLeave={() => setHoveredNode(null)}
                 className={`group flex-1 min-w-[130px] p-3 rounded-lg border text-left transition-all duration-300 cursor-pointer relative ${
                   isActive
-                    ? 'bg-[#3b82f6]/10 border-[#3b82f6]/50 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-[#3b82f6]/30'
+                    ? 'bg-accent/10 border-accent/50 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-accent/30'
                     : isDone
-                      ? 'bg-[#10b981]/5 border-[#10b981]/30 hover:border-[#10b981]/50'
+                      ? 'bg-success/5 border-success/30 hover:border-success/50'
                       : isHovered
-                        ? 'bg-[#0e1015] border-[#282e3a] shadow-lg'
-                        : 'bg-[#08090a] border-[#1a1e26] hover:border-[#282e3a]'
+                        ? 'bg-surface border-line-strong shadow-lg'
+                        : 'bg-canvas border-line hover:border-line-strong'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-[9px] font-mono font-bold tracking-wider uppercase ${
-                    isActive ? 'text-[#60a5fa]' : isDone ? 'text-[#10b981]' : 'text-[#4a5060]'
+                  <span className={`text-xs font-mono font-bold tracking-wider uppercase ${
+                    isActive ? 'text-accent-fg' : isDone ? 'text-success' : 'text-fg-subtle'
                   }`}>
                     0{s.id + 1}
                   </span>
                   <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                    isActive ? 'bg-[#3b82f6] animate-ping' : isDone ? 'bg-[#10b981]' : 'bg-[#1a1e26] group-hover:bg-[#4a5060]'
+                    isActive ? 'bg-accent animate-ping' : isDone ? 'bg-success' : 'bg-overlay group-hover:bg-[#4a5060]'
                   }`} />
                 </div>
-                <div className={`text-[12px] font-mono font-semibold truncate transition-colors duration-300 ${
-                  isActive ? 'text-[#e2e5ea]' : isDone ? 'text-[#c8ccd0]' : 'text-[#8b92a0] group-hover:text-[#e2e5ea]'
+                <div className={`text-sm font-mono font-semibold truncate transition-colors duration-300 ${
+                  isActive ? 'text-fg' : isDone ? 'text-fg-soft' : 'text-fg-muted group-hover:text-fg'
                 }`}>
                   {s.label}
                 </div>
-                <div className="text-[10px] font-mono text-[#4a5060] truncate mt-0.5">
+                <div className="text-xs font-mono text-fg-subtle truncate mt-0.5">
                   {s.sub}
                 </div>
               </button>
               {i < PIPELINE_STAGES.length - 1 && (
                 <div className="w-4 h-px relative flex-shrink-0">
                   <div className={`h-full transition-all duration-700 ${
-                    currentStage > i ? 'bg-[#10b981]/60' : 'bg-[#1a1e26]'
+                    currentStage > i ? 'bg-success/60' : 'bg-overlay'
                   }`} />
                 </div>
               )}

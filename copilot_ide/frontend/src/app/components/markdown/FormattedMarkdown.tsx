@@ -22,33 +22,33 @@ export function FormattedMarkdown({
   const processedContent = useMemo(() => preprocessMarkdownDiffs(content), [content]);
 
   return (
-    <div className="markdown-body space-y-2 font-sans leading-relaxed text-[#a0a6b5] text-[13.5px]">
+    <div className="markdown-body space-y-2 font-sans leading-relaxed text-fg-muted text-base">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           pre: ({ children }) => <>{children}</>,
           p: ({ children }) => (
-            <div className="leading-[1.8] my-2 text-[#9da5b4]">
+            <div className="leading-[1.8] my-2 text-fg-muted">
               {children}
             </div>
           ),
           h1: ({ children }) => (
-            <h1 className="text-[20px] font-semibold text-[#e2e5ea] border-b border-[#1a1e26] pb-2 mt-6 mb-3 tracking-tight">
+            <h1 className="text-xl font-semibold text-fg border-b border-line pb-2 mt-6 mb-3 tracking-tight">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-[17px] font-semibold text-[#d0d5dd] border-b border-[#1a1e26]/60 pb-1.5 mt-5 mb-2.5 tracking-tight">
+            <h2 className="text-xl font-semibold text-fg-soft border-b border-line/60 pb-1.5 mt-5 mb-2.5 tracking-tight">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-[15px] font-medium text-[#c0c6d4] mt-4 mb-2 tracking-tight">
+            <h3 className="text-lg font-medium text-fg-soft mt-4 mb-2 tracking-tight">
               {children}
             </h3>
           ),
           strong: ({ children }) => (
-            <strong className="text-[#e2e5ea] font-semibold">
+            <strong className="text-fg font-semibold">
               {children}
             </strong>
           ),
@@ -72,7 +72,7 @@ export function FormattedMarkdown({
             }
             return (
               <code
-                className="bg-[#12151c] text-[#60a5fa] border border-[#1e232e] px-1.5 py-0.5 rounded text-[11.5px] font-mono font-medium"
+                className="bg-raised text-accent-fg border border-line px-1.5 py-0.5 rounded text-sm font-mono font-medium"
                 {...props}
               >
                 {children}
@@ -80,22 +80,22 @@ export function FormattedMarkdown({
             );
           },
           ul: ({ children }) => (
-            <ul className="list-disc pl-5 my-2 space-y-1 text-[#9da5b4]">
+            <ul className="list-disc pl-5 my-2 space-y-1 text-fg-muted">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal pl-5 my-2 space-y-1 text-[#9da5b4]">
+            <ol className="list-decimal pl-5 my-2 space-y-1 text-fg-muted">
               {children}
             </ol>
           ),
           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-[#3b82f6]/40 pl-3 py-1 my-2 bg-[#0e1015] rounded-r text-[#8892a0] text-[12.5px] italic">
+            <blockquote className="border-l-2 border-accent/40 pl-3 py-1 my-2 bg-surface rounded-r text-fg-subtle text-base italic">
               {children}
             </blockquote>
           ),
-          hr: () => <hr className="border-[#1a1e26] my-4" />
+          hr: () => <hr className="border-line my-4" />
         }}
       >
         {processedContent}

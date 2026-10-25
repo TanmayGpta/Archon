@@ -772,23 +772,23 @@ export default function CodeKnowledgeGraph({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#07080a]/95 backdrop-blur-md flex flex-col select-none text-[#e2e5ea]">
+    <div className="fixed inset-0 z-50 bg-canvas/95 backdrop-blur-md flex flex-col select-none text-fg">
       {/* ── Top Header Toolbar ────────────────────────────────────────── */}
-      <div className="h-[54px] border-b border-[#1b202c] px-5 flex items-center justify-between bg-[#0b0e14]">
+      <div className="h-[54px] border-b border-line px-5 flex items-center justify-between bg-surface">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#121622] border border-[#252f44] flex items-center justify-center text-cyan-400 font-mono text-sm shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-raised border border-line-strong flex items-center justify-center text-cyan-400 font-mono text-sm shadow-sm">
             🌐
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold tracking-tight text-[#f1f5f9]">
+              <h2 className="text-sm font-semibold tracking-tight text-fg-strong">
                 Codebase Knowledge Graph
               </h2>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
                 Sourcegraph SCIP Engine
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-xs text-slate-400">
               {graphData?.project ? `Project: ${graphData.project}` : 'Multi-Language AST Symbol & API Graph'} • {nodes.length} Nodes • {links.length} Edges
             </p>
           </div>
@@ -802,13 +802,13 @@ export default function CodeKnowledgeGraph({
               placeholder="Search symbol, function, API..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-56 h-8 bg-[#121622] border border-[#252f44] rounded-lg px-3 pl-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all font-mono"
+              className="w-56 h-8 bg-raised border border-line-strong rounded-lg px-3 pl-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all font-mono"
             />
             <span className="absolute left-2.5 top-2 text-xs text-slate-500">🔍</span>
           </form>
 
           {/* Kind Filters */}
-          <div className="flex items-center gap-1 bg-[#10141e] p-1 rounded-lg border border-[#1e2638]">
+          <div className="flex items-center gap-1 bg-raised p-1 rounded-lg border border-line-strong">
             {(['endpoint', 'function', 'class', 'file'] as const).map((kind) => {
               const info = KIND_COLORS[kind];
               const active = filterKinds[kind];
@@ -816,8 +816,8 @@ export default function CodeKnowledgeGraph({
                 <button
                   key={kind}
                   onClick={() => setFilterKinds(prev => ({ ...prev, [kind]: !prev[kind] }))}
-                  className={`px-2.5 py-1 rounded text-[10.5px] font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
-                    active ? 'bg-[#1e2638] text-white shadow-sm' : 'text-slate-500 opacity-50 hover:opacity-80'
+                  className={`px-2.5 py-1 rounded text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
+                    active ? 'bg-selected text-white shadow-sm' : 'text-slate-500 opacity-50 hover:opacity-80'
                   }`}
                 >
                   <span style={{ color: info.fill }}>{info.icon}</span>
@@ -831,7 +831,7 @@ export default function CodeKnowledgeGraph({
           <button
             onClick={() => setIsPhysicsActive(prev => !prev)}
             title={isPhysicsActive ? 'Freeze physics' : 'Unfreeze physics'}
-            className="h-8 px-3 rounded-lg bg-[#121622] border border-[#252f44] text-xs font-mono text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+            className="h-8 px-3 rounded-lg bg-raised border border-line-strong text-xs font-mono text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
           >
             <span>{isPhysicsActive ? '⏸️ Freeze' : '▶️ Resume'}</span>
           </button>
@@ -839,7 +839,7 @@ export default function CodeKnowledgeGraph({
           <button
             onClick={() => { cameraRef.current = { x: 0, y: 0, scale: 0.85 }; }}
             title="Reset View"
-            className="h-8 px-2.5 rounded-lg bg-[#121622] border border-[#252f44] text-xs text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="h-8 px-2.5 rounded-lg bg-raised border border-line-strong text-xs text-slate-300 hover:text-white transition-all cursor-pointer"
           >
             🎯 Reset
           </button>
@@ -855,12 +855,12 @@ export default function CodeKnowledgeGraph({
       </div>
 
       {/* ── Main Canvas Viewport ──────────────────────────────────────── */}
-      <div className="flex-1 relative overflow-hidden bg-[#07080a]">
+      <div className="flex-1 relative overflow-hidden bg-canvas">
         {/* Sleek Minimalist Flow Stepper Bar (Linear / Vercel style) */}
         {flowSequence.length > 0 && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-xl bg-[#0b0e14]/95 border border-[#1e2638] shadow-2xl backdrop-blur-xl flex items-center gap-2.5 text-xs font-mono select-none animate-in fade-in-50 slide-in-from-top-2 duration-200">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-xl bg-surface/95 border border-line-strong shadow-2xl backdrop-blur-xl flex items-center gap-2.5 text-xs font-mono select-none animate-in fade-in-50 slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
                 <span>⚡ Flow:</span>
               </span>
               <div className="flex items-center gap-1.5">
@@ -872,13 +872,13 @@ export default function CodeKnowledgeGraph({
                       key={id}
                       type="button"
                       onClick={() => { setActiveStepIdx(idx); setIsFlowPlaying(false); }}
-                      className={`px-2 py-0.5 rounded text-[10.5px] transition-all cursor-pointer flex items-center gap-1 border ${
+                      className={`px-2 py-0.5 rounded text-xs transition-all cursor-pointer flex items-center gap-1 border ${
                         isCurrent
                           ? 'bg-cyan-950/80 border-cyan-500/80 text-cyan-200 font-bold shadow-[0_0_10px_rgba(6,182,212,0.3)]'
-                          : 'bg-[#141a27] border-slate-700/50 text-slate-400 hover:text-slate-200'
+                          : 'bg-overlay border-slate-700/50 text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      <span className="text-[9px] opacity-75">0{idx + 1}</span>
+                      <span className="text-xs opacity-75">0{idx + 1}</span>
                       <span className="max-w-[100px] truncate">{stepInfo?.label || id.split(':').pop()}</span>
                     </button>
                   );
@@ -900,8 +900,8 @@ export default function CodeKnowledgeGraph({
             <button
               type="button"
               onClick={() => { setActiveStepIdx(0); setIsFlowPlaying(true); }}
-              className="text-slate-400 hover:text-white text-[11px] p-1 cursor-pointer transition-colors"
-              title="Restart flow from Step 01"
+              className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer transition-colors"
+              title="Restart flow from Step 01" aria-label="Restart flow from Step 01"
             >
               ↺
             </button>
@@ -909,7 +909,7 @@ export default function CodeKnowledgeGraph({
               type="button"
               onClick={() => { setFlowSequence([]); setFlowSteps([]); }}
               className="text-slate-500 hover:text-rose-400 text-xs p-1 cursor-pointer transition-colors ml-1"
-              title="Clear flow inspection"
+              title="Clear flow inspection" aria-label="Clear flow inspection"
             >
               ✕
             </button>
@@ -929,15 +929,15 @@ export default function CodeKnowledgeGraph({
         {/* Floating Glassmorphic Hover Inspector Card */}
         {hoveredNode && hoverPos && !selectedNode && (
           <div
-            className="fixed z-50 pointer-events-none rounded-xl bg-[#0b0e14]/95 border border-[#222c3f] shadow-2xl backdrop-blur-xl p-3 text-xs font-mono max-w-sm transition-opacity duration-150 animate-in fade-in-50"
+            className="fixed z-50 pointer-events-none rounded-xl bg-surface/95 border border-line-strong shadow-2xl backdrop-blur-xl p-3 text-xs font-mono max-w-sm transition-opacity duration-150 animate-in fade-in-50"
             style={{
               left: `${Math.min(hoverPos.x + 16, typeof window !== 'undefined' ? window.innerWidth - 320 : hoverPos.x + 16)}px`,
               top: `${Math.min(hoverPos.y + 16, typeof window !== 'undefined' ? window.innerHeight - 220 : hoverPos.y + 16)}px`
             }}
           >
-            <div className="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-[#1b2332]">
+            <div className="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-line">
               <span
-                className="px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider flex items-center gap-1"
+                className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"
                 style={{
                   backgroundColor: `${KIND_COLORS[hoveredNode.kind]?.fill}20`,
                   color: KIND_COLORS[hoveredNode.kind]?.fill,
@@ -948,17 +948,17 @@ export default function CodeKnowledgeGraph({
                 <span>{KIND_COLORS[hoveredNode.kind]?.label}</span>
               </span>
               {hoveredNode.language && (
-                <span className="text-[9.5px] text-slate-400 uppercase font-semibold">
+                <span className="text-xs text-slate-400 uppercase font-semibold">
                   {hoveredNode.language}
                 </span>
               )}
             </div>
 
-            <div className="font-semibold text-white text-[12px] truncate mb-1">
+            <div className="font-semibold text-white text-sm truncate mb-1">
               {hoveredNode.label}
             </div>
 
-            <div className="text-[10px] text-cyan-400 truncate mb-1.5 flex items-center gap-1">
+            <div className="text-xs text-cyan-400 truncate mb-1.5 flex items-center gap-1">
               <span>📄</span>
               <span className="truncate">{hoveredNode.file_path}</span>
               {hoveredNode.line_start && (
@@ -967,18 +967,18 @@ export default function CodeKnowledgeGraph({
             </div>
 
             {hoveredNode.signature && (
-              <div className="text-[10px] text-emerald-300 bg-[#07090e] p-1.5 rounded border border-[#1b2332] truncate mb-1.5 font-mono">
+              <div className="text-xs text-emerald-300 bg-canvas p-1.5 rounded border border-line truncate mb-1.5 font-mono">
                 {hoveredNode.signature}
               </div>
             )}
 
             {hoveredNode.docstring && (
-              <div className="text-[10.5px] text-slate-300 font-sans line-clamp-2 mb-1.5 bg-[#121622]/60 p-1.5 rounded">
+              <div className="text-xs text-slate-300 font-sans line-clamp-2 mb-1.5 bg-raised/60 p-1.5 rounded">
                 {hoveredNode.docstring}
               </div>
             )}
 
-            <div className="flex items-center justify-between text-[9.5px] text-slate-400 pt-1 border-t border-[#1b2332]">
+            <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-line">
               <span>🔗 {neighborMap.get(hoveredNode.id)?.size || 0} connections</span>
               <span className="text-cyan-400 font-sans font-medium">Click to inspect code →</span>
             </div>
@@ -986,26 +986,26 @@ export default function CodeKnowledgeGraph({
         )}
 
         {/* Floating Legend */}
-        <div className="absolute bottom-4 left-4 p-3 rounded-xl bg-[#0b0e14]/90 border border-[#1e2638] backdrop-blur-md shadow-2xl flex flex-col gap-1.5 pointer-events-none">
-          <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase">
+        <div className="absolute bottom-4 left-4 p-3 rounded-xl bg-surface/90 border border-line-strong backdrop-blur-md shadow-2xl flex flex-col gap-1.5 pointer-events-none">
+          <span className="text-xs font-mono text-slate-400 font-semibold tracking-wider uppercase">
             Graph Topology
           </span>
-          <div className="flex items-center gap-3 text-[11px] font-mono">
+          <div className="flex items-center gap-3 text-xs font-mono">
             <span className="flex items-center gap-1 text-amber-400">⚡ API Route</span>
             <span className="flex items-center gap-1 text-cyan-400">𝑓 Function</span>
             <span className="flex items-center gap-1 text-emerald-400">🏛️ Class</span>
             <span className="flex items-center gap-1 text-slate-400">📁 File</span>
           </div>
-          <span className="text-[9.5px] text-slate-500 font-sans">
+          <span className="text-xs text-slate-500 font-sans">
             Scroll to zoom • Drag canvas to pan • Click node to inspect code
           </span>
         </div>
 
         {/* ── Node Detail Slide-Over Inspector ────────────────────────── */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 w-96 max-h-[calc(100%-32px)] overflow-y-auto bg-[#0d111a]/95 border border-[#222c3f] rounded-2xl p-5 shadow-2xl backdrop-blur-lg flex flex-col gap-4 text-xs font-sans animate-in slide-in-from-right-4 duration-200">
+          <div className="absolute top-4 right-4 w-96 max-h-[calc(100%-32px)] overflow-y-auto bg-raised/95 border border-line-strong rounded-2xl p-5 shadow-2xl backdrop-blur-lg flex flex-col gap-4 text-xs font-sans animate-in slide-in-from-right-4 duration-200">
             {/* Header */}
-            <div className="flex items-start justify-between border-b border-[#1b2332] pb-3">
+            <div className="flex items-start justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
                 <span
                   className="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-sm"
@@ -1014,7 +1014,7 @@ export default function CodeKnowledgeGraph({
                   {KIND_COLORS[selectedNode.kind]?.icon}
                 </span>
                 <div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                  <span className="text-xs font-mono uppercase tracking-wider text-slate-400">
                     {KIND_COLORS[selectedNode.kind]?.label}
                   </span>
                   <h3 className="text-sm font-semibold text-white truncate max-w-[220px]">
@@ -1022,7 +1022,7 @@ export default function CodeKnowledgeGraph({
                   </h3>
                 </div>
               </div>
-              <button
+              <button aria-label="Close"
                 onClick={() => setSelectedNode(null)}
                 className="text-slate-400 hover:text-white text-base p-1 cursor-pointer"
               >
@@ -1031,7 +1031,7 @@ export default function CodeKnowledgeGraph({
             </div>
 
             {/* File & Line Info */}
-            <div className="flex flex-col gap-1 font-mono text-[11px] bg-[#121622] p-2.5 rounded-lg border border-[#1b2332]">
+            <div className="flex flex-col gap-1 font-mono text-xs bg-raised p-2.5 rounded-lg border border-line">
               <div className="flex items-center justify-between text-slate-400">
                 <span>File:</span>
                 <span className="text-cyan-300 truncate max-w-[180px]">{selectedNode.file_path}</span>
@@ -1047,8 +1047,8 @@ export default function CodeKnowledgeGraph({
             {/* Signature */}
             {selectedNode.signature && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Signature</span>
-                <pre className="p-2.5 rounded-lg bg-[#07090e] border border-[#1b2332] text-emerald-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Signature</span>
+                <pre className="p-2.5 rounded-lg bg-canvas border border-line text-emerald-300 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                   {selectedNode.signature}
                 </pre>
               </div>
@@ -1057,8 +1057,8 @@ export default function CodeKnowledgeGraph({
             {/* Docstring */}
             {selectedNode.docstring && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Documentation</span>
-                <p className="text-slate-300 text-[11.5px] leading-relaxed bg-[#121622] p-2.5 rounded-lg border border-[#1b2332]">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Documentation</span>
+                <p className="text-slate-300 text-sm leading-relaxed bg-raised p-2.5 rounded-lg border border-line">
                   {selectedNode.docstring}
                 </p>
               </div>
@@ -1067,7 +1067,7 @@ export default function CodeKnowledgeGraph({
             {/* Connected Relationships */}
             {connectedNodes.length > 0 && (
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
                   Connected Graph Hops ({connectedNodes.length})
                 </span>
                 <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
@@ -1075,7 +1075,7 @@ export default function CodeKnowledgeGraph({
                     <button
                       key={idx}
                       onClick={() => setSelectedNode(c.node)}
-                      className="flex items-center justify-between p-2 rounded-lg bg-[#121622] hover:bg-[#1a2030] border border-[#1e273a] text-[11px] font-mono transition-all text-left cursor-pointer"
+                      className="flex items-center justify-between p-2 rounded-lg bg-raised hover:bg-overlay border border-line-strong text-xs font-mono transition-all text-left cursor-pointer"
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         <span style={{ color: KIND_COLORS[c.node.kind]?.fill }}>
@@ -1083,7 +1083,7 @@ export default function CodeKnowledgeGraph({
                         </span>
                         <span className="text-slate-200 truncate max-w-[150px]">{c.node.label}</span>
                       </div>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1c2438] text-cyan-400 font-semibold">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-selected text-cyan-400 font-semibold">
                         {c.rel}
                       </span>
                     </button>
@@ -1095,15 +1095,15 @@ export default function CodeKnowledgeGraph({
             {/* Code Snippet Preview */}
             {selectedNode.code_snippet && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Source Snippet</span>
-                <pre className="p-3 rounded-lg bg-[#07090e] border border-[#1b2332] text-slate-300 font-mono text-[10.5px] max-h-40 overflow-auto whitespace-pre leading-snug">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Source Snippet</span>
+                <pre className="p-3 rounded-lg bg-canvas border border-line text-slate-300 font-mono text-xs max-h-40 overflow-auto whitespace-pre leading-snug">
                   {selectedNode.code_snippet}
                 </pre>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 pt-2 border-t border-[#1b2332]">
+            <div className="flex items-center gap-2 pt-2 border-t border-line">
               {onOpenFile && (
                 <button
                   onClick={() => {
@@ -1121,7 +1121,7 @@ export default function CodeKnowledgeGraph({
                     onTestQuery(selectedNode.label);
                     onClose();
                   }}
-                  className="py-2 px-3 rounded-lg bg-[#1a2130] hover:bg-[#252f44] border border-[#2b374e] text-slate-200 font-mono text-xs transition-all cursor-pointer flex items-center gap-1"
+                  className="py-2 px-3 rounded-lg bg-overlay hover:bg-selected border border-[#2b374e] text-slate-200 font-mono text-xs transition-all cursor-pointer flex items-center gap-1"
                   title="Test hybrid search in RAG"
                 >
                   <span>⚡ Query RAG</span>

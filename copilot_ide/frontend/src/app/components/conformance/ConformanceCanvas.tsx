@@ -1553,7 +1553,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         <button
           onClick={handleResetCamera}
           title="Reset Camera to Default View (Fit)"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e0e0d]/90 hover:bg-[#1a1a19] text-[#a0a0a0] hover:text-[#e8ff00] border border-[#2a2a29] hover:border-[#e8ff00]/40 transition-all font-mono text-[11px] shadow-xl backdrop-blur-md cursor-pointer group select-none active:scale-95"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e0e0d]/90 hover:bg-[#1a1a19] text-[#a0a0a0] hover:text-[#e8ff00] border border-[#2a2a29] hover:border-[#e8ff00]/40 transition-all font-mono text-xs shadow-xl backdrop-blur-md cursor-pointer group select-none active:scale-95"
         >
           <svg className="w-3.5 h-3.5 text-[#8b8b86] group-hover:text-[#e8ff00] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />

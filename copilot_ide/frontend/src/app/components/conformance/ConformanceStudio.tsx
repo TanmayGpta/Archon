@@ -247,7 +247,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           <button
             onClick={() => setIsRailOpen(!isRailOpen)}
             className="p-1.5 rounded border border-[#343434] hover:border-[#e8ff00] text-[#a0a0a0] hover:text-[#e8ff00] transition-colors"
-            title="Toggle Left Rail"
+            title="Toggle Left Rail" aria-label="Toggle Left Rail"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -258,7 +258,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#e8ff00] animate-pulse" />
             <b className="font-mono text-xs tracking-wider text-white">ARCHON // CONFORMANCE STUDIO</b>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1f1f1e] text-[#8b8b86] uppercase">
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-[#1f1f1e] text-[#8b8b86] uppercase">
               Reality Graph
             </span>
           </div>
@@ -276,7 +276,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               onFocus={() => setIsSearchFocused(true)}
               className="w-full bg-[#141413] border border-[#2b2b2a] focus:border-[#e8ff00] rounded px-3 py-1 text-xs font-mono text-white placeholder-[#5a5a58] outline-none transition-colors"
             />
-            <span className="absolute right-2 text-[10px] font-mono text-[#5a5a58] pointer-events-none">/</span>
+            <span className="absolute right-2 text-xs font-mono text-[#5a5a58] pointer-events-none">/</span>
           </div>
 
           {/* Search Results Dropdown */}
@@ -297,7 +297,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: n.color }} />
                     <span className="font-mono text-xs text-white">{n.label}</span>
                   </div>
-                  <span className="text-[10px] font-mono text-[#8b8b86]">{n.layer}</span>
+                  <span className="text-xs font-mono text-[#8b8b86]">{n.layer}</span>
                 </button>
               ))}
             </div>
@@ -306,7 +306,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
         {/* Target Project Path Selector */}
         <div className="flex items-center gap-1.5 bg-[#141413] border border-[#2b2b2a] rounded px-2.5 py-1">
-          <span className="text-[10px] font-mono text-[#8b8b86]">📁 PATH:</span>
+          <span className="text-xs font-mono text-[#8b8b86]">📁 PATH:</span>
           <input
             type="text"
             placeholder="Default: Workspace Root"
@@ -322,15 +322,15 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                 setTargetPath('');
                 runAudit(undefined, '');
               }}
-              className="text-[10px] font-mono text-[#8b8b86] hover:text-white"
-              title="Reset to Workspace Root"
+              className="text-xs font-mono text-[#8b8b86] hover:text-white"
+              title="Reset to Workspace Root" aria-label="Reset to Workspace Root"
             >
               ✕
             </button>
           )}
           <button
             onClick={() => runAudit(selectedBlueprintId, targetPath)}
-            className="px-2 py-0.5 rounded bg-[#e8ff00]/15 hover:bg-[#e8ff00] text-[#e8ff00] hover:text-black font-mono text-[10px] font-bold border border-[#e8ff00]/40 transition-all cursor-pointer"
+            className="px-2 py-0.5 rounded bg-[#e8ff00]/15 hover:bg-[#e8ff00] text-[#e8ff00] hover:text-black font-mono text-xs font-bold border border-[#e8ff00]/40 transition-all cursor-pointer"
             title="Scan this codebase folder"
           >
             SCAN
@@ -340,7 +340,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         {/* Blueprint & Audit Controls */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-mono text-[#8b8b86]">Blueprint:</span>
+            <span className="text-xs font-mono text-[#8b8b86]">Blueprint:</span>
             <select
               value={selectedBlueprintId}
               onChange={e => {
@@ -407,7 +407,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse" />
             <span>PREVIEW MODE: Orchestrator service offline on port 8000. Exploring interactive architectural demo. Start backend to scan live local files.</span>
           </div>
-          <span className="text-[10px] text-[#8b8b86]">Run: cd copilot_ide && docker compose up orchestrator-service</span>
+          <span className="text-xs text-[#8b8b86]">Run: cd copilot_ide && docker compose up orchestrator-service</span>
         </div>
       )}
 
@@ -420,10 +420,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Layer Filters */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-mono tracking-wider text-[#8b8b86] uppercase">
+                  <span className="text-xs font-mono tracking-wider text-[#8b8b86] uppercase">
                     ARCHITECTURAL LAYERS
                   </span>
-                  <span className="text-[10px] font-mono text-[#8b8b86]">
+                  <span className="text-xs font-mono text-[#8b8b86]">
                     {auditData?.layers.length || 0}
                   </span>
                 </div>
@@ -458,7 +458,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                             {layer.name}
                           </button>
                         </div>
-                        <span className="text-[10px] font-mono text-[#6b7280]">{layer.count}</span>
+                        <span className="text-xs font-mono text-[#6b7280]">{layer.count}</span>
                       </div>
                     );
                   })}
@@ -467,7 +467,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
               {/* Preset Case Studies */}
               <div>
-                <span className="text-[10px] font-mono tracking-wider text-[#8b8b86] uppercase block mb-2">
+                <span className="text-xs font-mono tracking-wider text-[#8b8b86] uppercase block mb-2">
                   CASE PRESETS
                 </span>
                 <div className="space-y-1.5">
@@ -489,7 +489,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                       }`}
                     >
                       <span className="truncate pr-1">{preset.name}</span>
-                      <span className="text-[9px] px-1 py-0.5 rounded bg-[#1f1f1e] text-[#8b8b86]">
+                      <span className="text-xs px-1 py-0.5 rounded bg-[#1f1f1e] text-[#8b8b86]">
                         {preset.tag}
                       </span>
                     </button>
@@ -499,7 +499,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             </div>
 
             {/* Left Rail Footer Info */}
-            <div className="p-4 border-t border-[#1f1f1e] text-[10px] font-mono text-[#5a5a58] space-y-1">
+            <div className="p-4 border-t border-[#1f1f1e] text-xs font-mono text-[#5a5a58] space-y-1">
               <div>AST PARSER: Python 3.12</div>
               <div>SIMULATION: HTML5 60 FPS Canvas</div>
               <div>GRAPH: NetworkX DiGraph</div>
@@ -540,7 +540,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                     {selectedEdge.isViolation ? 'ARCHITECTURAL VIOLATION' : 'CONFORMING DEPENDENCY'}
                   </b>
                 </div>
-                <button
+                <button aria-label="Close"
                   onClick={() => setSelectedEdge(null)}
                   className="text-[#8b8b86] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#1f1f1e]"
                 >
@@ -550,11 +550,11 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
               {/* Source -> Target Vector */}
               <div className="space-y-1 mb-3 bg-[#141413] p-2.5 rounded border border-[#1f1f1e]">
-                <div className="text-[#8b8b86] text-[10px]">VECTOR:</div>
+                <div className="text-[#8b8b86] text-xs">VECTOR:</div>
                 <div className="text-white font-bold truncate">
                   {selectedEdge.source} <span className="text-[#e8ff00]">───▶</span> {selectedEdge.target}
                 </div>
-                <div className="text-[10px] text-[#a0a0a0] flex gap-2 pt-1">
+                <div className="text-xs text-[#a0a0a0] flex gap-2 pt-1">
                   <span>Layer: <b className="text-[#e8ff00]">{selectedEdge.sourceLayer}</b></span>
                   <span>Target: <b className="text-[#4f9dff]">{selectedEdge.targetLayer}</b></span>
                 </div>
@@ -563,10 +563,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Code Snippet & Line Number */}
               {selectedEdge.codeSnippet && (
                 <div className="mb-3">
-                  <div className="text-[10px] text-[#8b8b86] mb-1">
+                  <div className="text-xs text-[#8b8b86] mb-1">
                     OFFENDING CODE {selectedEdge.lineNumber ? `(LINE ${selectedEdge.lineNumber})` : ''}:
                   </div>
-                  <pre className="p-2 bg-[#050505] border border-[#222221] rounded text-[11px] text-[#f87171] overflow-x-auto">
+                  <pre className="p-2 bg-[#050505] border border-[#222221] rounded text-xs text-[#f87171] overflow-x-auto">
                     {selectedEdge.codeSnippet}
                   </pre>
                 </div>
@@ -574,16 +574,16 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
               {/* XAI Explanation & Remediation */}
               {selectedEdge.violation && (
-                <div className="space-y-2 text-[11px]">
+                <div className="space-y-2 text-xs">
                   {selectedEdge.violation.explanation && (
                     <div className="p-2 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 text-[#fca5a5]">
-                      <b className="block text-[#ff5c2b] text-[10px] uppercase mb-0.5">Architectural Hazard:</b>
+                      <b className="block text-[#ff5c2b] text-xs uppercase mb-0.5">Architectural Hazard:</b>
                       {selectedEdge.violation.explanation}
                     </div>
                   )}
                   {selectedEdge.violation.remediation && (
                     <div className="p-2 rounded bg-[#10b981]/10 border border-[#10b981]/30 text-[#6ee7b7]">
-                      <b className="block text-[#10b981] text-[10px] uppercase mb-0.5">Recommended Remediation:</b>
+                      <b className="block text-[#10b981] text-xs uppercase mb-0.5">Recommended Remediation:</b>
                       {selectedEdge.violation.remediation}
                     </div>
                   )}
@@ -607,7 +607,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   <button
                     key={item.id}
                     onClick={() => setMode(item.id as LayoutMode)}
-                    className={`px-3 py-1.5 rounded text-[11px] font-mono tracking-wider transition-all flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded text-xs font-mono tracking-wider transition-all flex items-center gap-1.5 ${
                       isActive
                         ? 'bg-[#e8ff00]/15 text-[#e8ff00] border border-[#e8ff00]/40 font-bold'
                         : 'text-[#8b8b86] hover:text-white hover:bg-[#1f1f1e] border border-transparent'
@@ -632,10 +632,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             /* Selected Module Dossier */
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[#1f1f1e]">
-                <span className="text-[10px] font-mono text-[#8b8b86] tracking-wider uppercase">
+                <span className="text-xs font-mono text-[#8b8b86] tracking-wider uppercase">
                   MODULE DOSSIER
                 </span>
-                <button
+                <button aria-label="Close"
                   onClick={() => setSelectedNode(null)}
                   className="text-xs text-[#8b8b86] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#1f1f1e]"
                 >
@@ -645,17 +645,17 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
               <div>
                 <b className="text-base text-white font-mono break-all block">{selectedNode.label}</b>
-                <span className="text-[11px] font-mono text-[#8b8b86] break-all block mt-0.5">
+                <span className="text-xs font-mono text-[#8b8b86] break-all block mt-0.5">
                   {selectedNode.fullPath}
                 </span>
                 <div className="flex items-center gap-2 mt-2">
                   <span
-                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold"
+                    className="px-2 py-0.5 rounded text-xs font-mono font-bold"
                     style={{ backgroundColor: `${selectedNode.color}25`, color: selectedNode.color }}
                   >
                     {selectedNode.layer}
                   </span>
-                  <span className="text-[10px] font-mono text-[#8b8b86]">
+                  <span className="text-xs font-mono text-[#8b8b86]">
                     TYPE: {selectedNode.nodeType.toUpperCase()}
                   </span>
                 </div>
@@ -665,18 +665,18 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               <div className="grid grid-cols-2 gap-2 bg-[#141413] p-3 rounded border border-[#1f1f1e] text-center font-mono">
                 <div>
                   <div className="text-lg font-bold text-white">{selectedNode.inDegree}</div>
-                  <div className="text-[9px] text-[#8b8b86]">INBOUND (CALLERS)</div>
+                  <div className="text-xs text-[#8b8b86]">INBOUND (CALLERS)</div>
                 </div>
                 <div>
                   <div className="text-lg font-bold text-white">{selectedNode.outDegree}</div>
-                  <div className="text-[9px] text-[#8b8b86]">OUTBOUND (CALLEES)</div>
+                  <div className="text-xs text-[#8b8b86]">OUTBOUND (CALLEES)</div>
                 </div>
               </div>
 
               {/* Violations associated with this module */}
               {nodeViolations.length > 0 ? (
                 <div>
-                  <span className="text-[10px] font-mono text-[#ff3b30] tracking-wider uppercase block mb-1.5">
+                  <span className="text-xs font-mono text-[#ff3b30] tracking-wider uppercase block mb-1.5">
                     FLAGGED VIOLATIONS ({nodeViolations.length})
                   </span>
                   <div className="space-y-1.5">
@@ -688,7 +688,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                         <div className="text-[#ff5c2b] font-bold">
                           {v.source_module} ──▶ {v.target_module}
                         </div>
-                        <div className="text-[11px] text-[#fca5a5]">{v.reason}</div>
+                        <div className="text-xs text-[#fca5a5]">{v.reason}</div>
                       </div>
                     ))}
                   </div>
@@ -703,7 +703,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Dependencies List */}
               <div className="space-y-3 font-mono text-xs">
                 <div>
-                  <span className="text-[10px] text-[#8b8b86] uppercase block mb-1">
+                  <span className="text-xs text-[#8b8b86] uppercase block mb-1">
                     INCOMING DEPENDENCIES ({nodeConnections.incoming.length})
                   </span>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -711,17 +711,17 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                       <div
                         key={e.id}
                         onClick={() => setSelectedEdge(e)}
-                        className="px-2 py-1 rounded bg-[#141413] hover:bg-[#1f1f1e] cursor-pointer text-[11px] truncate flex items-center justify-between"
+                        className="px-2 py-1 rounded bg-[#141413] hover:bg-[#1f1f1e] cursor-pointer text-xs truncate flex items-center justify-between"
                       >
                         <span className="truncate">{e.source}</span>
-                        <span className="text-[9px] text-[#8b8b86]">{e.sourceLayer}</span>
+                        <span className="text-xs text-[#8b8b86]">{e.sourceLayer}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-[#8b8b86] uppercase block mb-1">
+                  <span className="text-xs text-[#8b8b86] uppercase block mb-1">
                     OUTGOING DEPENDENCIES ({nodeConnections.outgoing.length})
                   </span>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -729,10 +729,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                       <div
                         key={e.id}
                         onClick={() => setSelectedEdge(e)}
-                        className="px-2 py-1 rounded bg-[#141413] hover:bg-[#1f1f1e] cursor-pointer text-[11px] truncate flex items-center justify-between"
+                        className="px-2 py-1 rounded bg-[#141413] hover:bg-[#1f1f1e] cursor-pointer text-xs truncate flex items-center justify-between"
                       >
                         <span className="truncate">{e.target}</span>
-                        <span className="text-[9px] text-[#8b8b86]">{e.targetLayer}</span>
+                        <span className="text-xs text-[#8b8b86]">{e.targetLayer}</span>
                       </div>
                     ))}
                   </div>
@@ -743,7 +743,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             /* System Overview Dossier */
             <div className="p-4 space-y-5">
               <div>
-                <span className="text-[10px] font-mono text-[#8b8b86] tracking-wider uppercase block mb-1">
+                <span className="text-xs font-mono text-[#8b8b86] tracking-wider uppercase block mb-1">
                   ARCHITECTURAL HEALTH SCORE
                 </span>
                 <div className="flex items-baseline gap-2">
@@ -765,19 +765,19 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Metric Blocks (.kv grid) */}
               <div className="grid grid-cols-2 gap-2 font-mono text-xs">
                 <div className="p-2.5 rounded bg-[#141413] border border-[#1f1f1e]">
-                  <div className="text-[10px] text-[#8b8b86]">TOTAL MODULES</div>
+                  <div className="text-xs text-[#8b8b86]">TOTAL MODULES</div>
                   <div className="text-lg font-bold text-white mt-0.5">
                     {auditData?.metrics.totalModules || 0}
                   </div>
                 </div>
                 <div className="p-2.5 rounded bg-[#141413] border border-[#1f1f1e]">
-                  <div className="text-[10px] text-[#8b8b86]">DEPENDENCIES</div>
+                  <div className="text-xs text-[#8b8b86]">DEPENDENCIES</div>
                   <div className="text-lg font-bold text-white mt-0.5">
                     {auditData?.metrics.totalDependencies || 0}
                   </div>
                 </div>
                 <div className="p-2.5 rounded bg-[#141413] border border-[#1f1f1e]">
-                  <div className="text-[10px] text-[#8b8b86]">VIOLATIONS</div>
+                  <div className="text-xs text-[#8b8b86]">VIOLATIONS</div>
                   <div
                     className={`text-lg font-bold mt-0.5 ${
                       (auditData?.metrics.totalViolations || 0) > 0 ? 'text-[#ff3b30]' : 'text-[#10b981]'
@@ -787,7 +787,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   </div>
                 </div>
                 <div className="p-2.5 rounded bg-[#141413] border border-[#1f1f1e]">
-                  <div className="text-[10px] text-[#8b8b86]">CYCLES</div>
+                  <div className="text-xs text-[#8b8b86]">CYCLES</div>
                   <div
                     className={`text-lg font-bold mt-0.5 ${
                       (auditData?.metrics.cyclesCount || 0) > 0 ? 'text-[#ff3b30]' : 'text-[#10b981]'
@@ -801,9 +801,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Blueprint Summary */}
               {auditData?.blueprint && (
                 <div className="p-3 rounded bg-[#141413] border border-[#1f1f1e] font-mono text-xs space-y-1">
-                  <div className="text-[10px] text-[#8b8b86] uppercase">ACTIVE BLUEPRINT</div>
+                  <div className="text-xs text-[#8b8b86] uppercase">ACTIVE BLUEPRINT</div>
                   <div className="text-white font-bold">{auditData.blueprint.name}</div>
-                  <div className="text-[11px] text-[#a0a0a0] leading-relaxed">
+                  <div className="text-xs text-[#a0a0a0] leading-relaxed">
                     {auditData.blueprint.description}
                   </div>
                 </div>
@@ -812,7 +812,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {/* Violations List */}
               {(auditData?.violations || []).length > 0 && (
                 <div>
-                  <span className="text-[10px] font-mono text-[#ff3b30] uppercase block mb-1.5">
+                  <span className="text-xs font-mono text-[#ff3b30] uppercase block mb-1.5">
                     VIOLATIONS SUMMARY
                   </span>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -824,7 +824,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                         <div className="text-white font-bold truncate">
                           {v.source_module} ──▶ {v.target_module}
                         </div>
-                        <div className="text-[10px] text-[#fca5a5]">{v.reason}</div>
+                        <div className="text-xs text-[#fca5a5]">{v.reason}</div>
                       </div>
                     ))}
                   </div>
@@ -834,7 +834,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           )}
 
           {/* Dossier Footer */}
-          <div className="p-4 border-t border-[#1f1f1e] font-mono text-[10px] text-[#5a5a58]">
+          <div className="p-4 border-t border-[#1f1f1e] font-mono text-xs text-[#5a5a58]">
             CLICK A NODE TO OPEN DOSSIER · CLICK AN EDGE TO INSPECT HAZARDS
           </div>
         </aside>

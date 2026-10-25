@@ -39,26 +39,26 @@ export function IdeDialogs() {
       {/* ── Open / Create Project Workspace Modal ─────────────────── */}
       {showOpenProjectModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0c0e12] border border-[#1a1e26] rounded-xl max-w-[550px] w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-[#1a1e26] pb-3">
+          <div className="bg-surface border border-line rounded-xl max-w-[550px] w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-line pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded bg-[#12151c] border border-[#1e232e] flex items-center justify-center p-0.5 shadow-sm">
+                <div className="w-6 h-6 rounded bg-raised border border-line flex items-center justify-center p-0.5 shadow-sm">
                   <img src="/aionlabs.svg" alt="Archon" className="w-full h-full object-contain" />
                 </div>
-                <h3 className="text-[14px] font-mono font-bold text-[#e2e5ea]">
+                <h3 className="text-lg font-mono font-bold text-fg">
                   Open or Create Folder / Project Workspace
                 </h3>
               </div>
-              <button
+              <button aria-label="Close"
                 onClick={() => setShowOpenProjectModal(false)}
-                className="text-[#64748b] hover:text-[#cbd5e1] p-1 cursor-pointer"
+                className="text-fg-subtle hover:text-fg-soft p-1 cursor-pointer"
               >
                 <Icons.Close />
               </button>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-mono text-[#8b949e]">
+              <label className="text-xs font-mono text-fg-muted">
                 Enter local folder path:
               </label>
               <div className="flex gap-2">
@@ -67,18 +67,18 @@ export function IdeDialogs() {
                   value={projectPathInput}
                   onChange={(e) => setProjectPathInput(e.target.value)}
                   placeholder="e.g. C:/projects/my-app or /home/me/my-app"
-                  className="flex-1 bg-[#08090a] border border-[#1a1e26] rounded-lg px-3 py-2 text-[12px] font-mono text-[#e2e5ea] focus:outline-none focus:border-[#3b82f6]"
+                  className="flex-1 bg-canvas border border-line rounded-lg px-3 py-2 text-sm font-mono text-fg focus:outline-none focus:border-accent"
                 />
                 <button
                   onClick={() => handleOpenProject(projectPathInput, false)}
-                  className="bg-[#1e293b] hover:bg-[#334155] text-[#cbd5e1] px-3.5 py-2 rounded-lg text-[12px] font-mono font-semibold transition-all cursor-pointer border border-[#334155]"
+                  className="bg-selected hover:bg-[#334155] text-fg-soft px-3.5 py-2 rounded-lg text-sm font-mono font-semibold transition-all cursor-pointer border border-[#334155]"
                 >
                   Open
                 </button>
                 <button
                   onClick={() => handleOpenProject(projectPathInput, true)}
                   title="Create folder and initialize project if missing"
-                  className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-3.5 py-2 rounded-lg text-[12px] font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                  className="bg-accent-strong hover:bg-accent-hover text-white px-3.5 py-2 rounded-lg text-sm font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <Icons.Sparkles />
                   <span>Create & Open</span>
@@ -87,8 +87,8 @@ export function IdeDialogs() {
             </div>
 
             {recentProjects.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-[#161922]">
-                <div className="text-[11px] font-mono text-[#64748b] uppercase tracking-wider">
+              <div className="space-y-2 pt-2 border-t border-line-subtle">
+                <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">
                   Recent Workspaces:
                 </div>
                 <div className="space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar">
@@ -96,7 +96,7 @@ export function IdeDialogs() {
                     <button
                       key={i}
                       onClick={() => handleOpenProject(p, false)}
-                      className="w-full text-left p-2 rounded bg-[#08090a] hover:bg-[#12151c] border border-[#1a1e26] hover:border-[#3b82f6]/40 text-[11.5px] font-mono text-[#8b949e] hover:text-[#60a5fa] transition-colors truncate flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left p-2 rounded bg-canvas hover:bg-raised border border-line hover:border-accent/40 text-sm font-mono text-fg-muted hover:text-accent-fg transition-colors truncate flex items-center gap-2 cursor-pointer"
                     >
                       <Icons.FolderClosed />
                       <span className="truncate">{p}</span>
@@ -109,7 +109,7 @@ export function IdeDialogs() {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setShowOpenProjectModal(false)}
-                className="bg-[#12151c] hover:bg-[#1a1e26] text-[#8b949e] px-4 py-1.5 rounded-lg text-[12px] font-mono cursor-pointer border border-[#1e232e]"
+                className="bg-raised hover:bg-overlay text-fg-muted px-4 py-1.5 rounded-lg text-sm font-mono cursor-pointer border border-line"
               >
                 Cancel
               </button>
@@ -125,43 +125,43 @@ export function IdeDialogs() {
           onClick={() => setShowApiKeysModal(false)}
         >
           <div 
-            className="bg-[#0c0e12] border border-[#1e232e] rounded-xl max-w-[520px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
+            className="bg-surface border border-line rounded-xl max-w-[520px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-[#161922] bg-[#090b0e] flex items-center justify-between">
+            <div className="p-4 border-b border-line-subtle bg-canvas flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
-                <span className="text-[13px] font-mono font-bold text-[#e2e5ea]">Cloud LLM API Keys</span>
+                <span className="text-base font-mono font-bold text-fg">Cloud LLM API Keys</span>
               </div>
-              <button onClick={() => setShowApiKeysModal(false)} className="text-[#64748b] hover:text-[#cbd5e1] cursor-pointer">
+              <button aria-label="Close" onClick={() => setShowApiKeysModal(false)} className="text-fg-subtle hover:text-fg-soft cursor-pointer">
                 <Icons.Close />
               </button>
             </div>
 
             <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto custom-scrollbar">
-              <p className="text-[11px] font-mono text-[#64748b] leading-relaxed">
+              <p className="text-xs font-mono text-fg-subtle leading-relaxed">
                 Configure API keys for cloud LLM providers. Keys are stored persistently on the server and remain until manually cleared.
               </p>
 
               {/* OpenAI */}
-              <div className="border border-[#1e232e] rounded-lg p-3 bg-[#090b0e] space-y-2">
+              <div className="border border-line rounded-lg p-3 bg-canvas space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/></svg>
-                    <span className="text-[12px] font-mono font-bold text-[#e2e5ea]">OpenAI</span>
-                    <span className="text-[9px] font-mono text-[#475569]">gpt-4.1 / o3 / o4-mini</span>
+                    <span className="text-sm font-mono font-bold text-fg">OpenAI</span>
+                    <span className="text-xs font-mono text-fg-subtle">gpt-4.1 / o3 / o4-mini</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {apiKeyTestStatus.openai?.status === 'ok' && (
-                      <span className="text-[9px] font-mono text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.openai.latency}ms)</span>
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.openai.latency}ms)</span>
                     )}
                     {apiKeyTestStatus.openai?.status === 'error' && (
-                      <span className="text-[9px] font-mono text-[#ef4444] bg-[#ef4444]/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.openai.message}>{apiKeyTestStatus.openai.message}</span>
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.openai.message}>{apiKeyTestStatus.openai.message}</span>
                     )}
                     {apiKeys.openai?.configured && !apiKeyTestStatus.openai?.status && (
-                      <span className="text-[9px] font-mono text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded">Active: {apiKeys.openai.masked_key}</span>
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded">Active: {apiKeys.openai.masked_key}</span>
                     )}
                   </div>
                 </div>
@@ -171,41 +171,41 @@ export function IdeDialogs() {
                     value={apiKeyInputs.openai || ''}
                     onChange={(e) => setApiKeyInputs(prev => ({ ...prev, openai: e.target.value }))}
                     placeholder={apiKeys.openai?.configured ? 'Key configured — enter new to replace' : 'sk-...'}
-                    className="flex-1 bg-[#12151c] text-[11px] font-mono text-[#e2e5ea] px-2.5 py-1.5 rounded border border-[#1e232e] focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
                   />
-                  <button onClick={() => handleSaveApiKey('openai')} className="text-[10px] font-mono bg-[#1e293b] hover:bg-[#3b82f6] text-[#60a5fa] hover:text-white px-3 py-1.5 rounded border border-[#3b82f6]/40 cursor-pointer transition-colors">
+                  <button onClick={() => handleSaveApiKey('openai')} className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white px-3 py-1.5 rounded border border-accent/40 cursor-pointer transition-colors">
                     {apiKeySaveStatus.openai || 'Save'}
                   </button>
                   <button 
                     onClick={() => handleTestApiKey('openai')}
                     disabled={apiKeyTestStatus.openai?.status === 'testing' || (!apiKeys.openai?.configured && !apiKeyInputs.openai?.trim())}
-                    className="text-[10px] font-mono bg-[#12151c] hover:bg-[#1e293b] text-[#94a3b8] hover:text-[#e2e5ea] disabled:opacity-40 px-2.5 py-1.5 rounded border border-[#1e232e] cursor-pointer transition-colors"
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded border border-line cursor-pointer transition-colors"
                   >
                     {apiKeyTestStatus.openai?.status === 'testing' ? 'Testing...' : 'Test'}
                   </button>
                   {apiKeys.openai?.configured && (
-                    <button onClick={() => handleClearApiKey('openai')} className="text-[10px] font-mono text-[#ef4444] hover:bg-[#ef4444]/10 px-2 py-1.5 rounded border border-[#ef4444]/30 cursor-pointer transition-colors">Clear</button>
+                    <button onClick={() => handleClearApiKey('openai')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded border border-danger/30 cursor-pointer transition-colors">Clear</button>
                   )}
                 </div>
               </div>
 
               {/* Anthropic */}
-              <div className="border border-[#1e232e] rounded-lg p-3 bg-[#090b0e] space-y-2">
+              <div className="border border-line rounded-lg p-3 bg-canvas space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                    <span className="text-[12px] font-mono font-bold text-[#e2e5ea]">Anthropic</span>
-                    <span className="text-[9px] font-mono text-[#475569]">claude-sonnet-4 / claude-haiku-4</span>
+                    <span className="text-sm font-mono font-bold text-fg">Anthropic</span>
+                    <span className="text-xs font-mono text-fg-subtle">claude-sonnet-4 / claude-haiku-4</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {apiKeyTestStatus.anthropic?.status === 'ok' && (
-                      <span className="text-[9px] font-mono text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.anthropic.latency}ms)</span>
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.anthropic.latency}ms)</span>
                     )}
                     {apiKeyTestStatus.anthropic?.status === 'error' && (
-                      <span className="text-[9px] font-mono text-[#ef4444] bg-[#ef4444]/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.anthropic.message}>{apiKeyTestStatus.anthropic.message}</span>
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.anthropic.message}>{apiKeyTestStatus.anthropic.message}</span>
                     )}
                     {apiKeys.anthropic?.configured && !apiKeyTestStatus.anthropic?.status && (
-                      <span className="text-[9px] font-mono text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-0.5 rounded">Active: {apiKeys.anthropic.masked_key}</span>
+                      <span className="text-xs font-mono text-warning bg-warning/10 px-2 py-0.5 rounded">Active: {apiKeys.anthropic.masked_key}</span>
                     )}
                   </div>
                 </div>
@@ -215,41 +215,41 @@ export function IdeDialogs() {
                     value={apiKeyInputs.anthropic || ''}
                     onChange={(e) => setApiKeyInputs(prev => ({ ...prev, anthropic: e.target.value }))}
                     placeholder={apiKeys.anthropic?.configured ? 'Key configured — enter new to replace' : 'sk-ant-...'}
-                    className="flex-1 bg-[#12151c] text-[11px] font-mono text-[#e2e5ea] px-2.5 py-1.5 rounded border border-[#1e232e] focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
                   />
-                  <button onClick={() => handleSaveApiKey('anthropic')} className="text-[10px] font-mono bg-[#1e293b] hover:bg-[#3b82f6] text-[#60a5fa] hover:text-white px-3 py-1.5 rounded border border-[#3b82f6]/40 cursor-pointer transition-colors">
+                  <button onClick={() => handleSaveApiKey('anthropic')} className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white px-3 py-1.5 rounded border border-accent/40 cursor-pointer transition-colors">
                     {apiKeySaveStatus.anthropic || 'Save'}
                   </button>
                   <button 
                     onClick={() => handleTestApiKey('anthropic')}
                     disabled={apiKeyTestStatus.anthropic?.status === 'testing' || (!apiKeys.anthropic?.configured && !apiKeyInputs.anthropic?.trim())}
-                    className="text-[10px] font-mono bg-[#12151c] hover:bg-[#1e293b] text-[#94a3b8] hover:text-[#e2e5ea] disabled:opacity-40 px-2.5 py-1.5 rounded border border-[#1e232e] cursor-pointer transition-colors"
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded border border-line cursor-pointer transition-colors"
                   >
                     {apiKeyTestStatus.anthropic?.status === 'testing' ? 'Testing...' : 'Test'}
                   </button>
                   {apiKeys.anthropic?.configured && (
-                    <button onClick={() => handleClearApiKey('anthropic')} className="text-[10px] font-mono text-[#ef4444] hover:bg-[#ef4444]/10 px-2 py-1.5 rounded border border-[#ef4444]/30 cursor-pointer transition-colors">Clear</button>
+                    <button onClick={() => handleClearApiKey('anthropic')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded border border-danger/30 cursor-pointer transition-colors">Clear</button>
                   )}
                 </div>
               </div>
 
               {/* Google Gemini */}
-              <div className="border border-[#1e232e] rounded-lg p-3 bg-[#090b0e] space-y-2">
+              <div className="border border-line rounded-lg p-3 bg-canvas space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    <span className="text-[12px] font-mono font-bold text-[#e2e5ea]">Google Gemini</span>
-                    <span className="text-[9px] font-mono text-[#475569]">gemini-3.7-flash / gemini-3.1-pro / gemini-3.5-flash</span>
+                    <span className="text-sm font-mono font-bold text-fg">Google Gemini</span>
+                    <span className="text-xs font-mono text-fg-subtle">gemini-3.7-flash / gemini-3.1-pro / gemini-3.5-flash</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {apiKeyTestStatus.gemini?.status === 'ok' && (
-                      <span className="text-[9px] font-mono text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.gemini.latency}ms)</span>
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded">Connected ({apiKeyTestStatus.gemini.latency}ms)</span>
                     )}
                     {apiKeyTestStatus.gemini?.status === 'error' && (
-                      <span className="text-[9px] font-mono text-[#ef4444] bg-[#ef4444]/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.gemini.message}>{apiKeyTestStatus.gemini.message}</span>
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded max-w-[180px] truncate" title={apiKeyTestStatus.gemini.message}>{apiKeyTestStatus.gemini.message}</span>
                     )}
                     {apiKeys.gemini?.configured && !apiKeyTestStatus.gemini?.status && (
-                      <span className="text-[9px] font-mono text-[#818cf8] bg-[#818cf8]/10 px-2 py-0.5 rounded">Active: {apiKeys.gemini.masked_key}</span>
+                      <span className="text-xs font-mono text-[#818cf8] bg-[#818cf8]/10 px-2 py-0.5 rounded">Active: {apiKeys.gemini.masked_key}</span>
                     )}
                   </div>
                 </div>
@@ -259,20 +259,20 @@ export function IdeDialogs() {
                     value={apiKeyInputs.gemini || ''}
                     onChange={(e) => setApiKeyInputs(prev => ({ ...prev, gemini: e.target.value }))}
                     placeholder={apiKeys.gemini?.configured ? 'Key configured — enter new to replace' : 'AIza...'}
-                    className="flex-1 bg-[#12151c] text-[11px] font-mono text-[#e2e5ea] px-2.5 py-1.5 rounded border border-[#1e232e] focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
                   />
-                  <button onClick={() => handleSaveApiKey('gemini')} className="text-[10px] font-mono bg-[#1e293b] hover:bg-[#3b82f6] text-[#60a5fa] hover:text-white px-3 py-1.5 rounded border border-[#3b82f6]/40 cursor-pointer transition-colors">
+                  <button onClick={() => handleSaveApiKey('gemini')} className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white px-3 py-1.5 rounded border border-accent/40 cursor-pointer transition-colors">
                     {apiKeySaveStatus.gemini || 'Save'}
                   </button>
                   <button 
                     onClick={() => handleTestApiKey('gemini')}
                     disabled={apiKeyTestStatus.gemini?.status === 'testing' || (!apiKeys.gemini?.configured && !apiKeyInputs.gemini?.trim())}
-                    className="text-[10px] font-mono bg-[#12151c] hover:bg-[#1e293b] text-[#94a3b8] hover:text-[#e2e5ea] disabled:opacity-40 px-2.5 py-1.5 rounded border border-[#1e232e] cursor-pointer transition-colors"
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded border border-line cursor-pointer transition-colors"
                   >
                     {apiKeyTestStatus.gemini?.status === 'testing' ? 'Testing...' : 'Test'}
                   </button>
                   {apiKeys.gemini?.configured && (
-                    <button onClick={() => handleClearApiKey('gemini')} className="text-[10px] font-mono text-[#ef4444] hover:bg-[#ef4444]/10 px-2 py-1.5 rounded border border-[#ef4444]/30 cursor-pointer transition-colors">Clear</button>
+                    <button onClick={() => handleClearApiKey('gemini')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded border border-danger/30 cursor-pointer transition-colors">Clear</button>
                   )}
                 </div>
               </div>
@@ -288,11 +288,11 @@ export function IdeDialogs() {
           onClick={() => setShowQuickOpen(false)}
         >
           <div 
-            className="bg-[#0c0e12] border border-[#1e232e] rounded-xl max-w-[620px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
+            className="bg-surface border border-line rounded-xl max-w-[620px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-3 border-b border-[#161922] bg-[#090b0e] flex items-center gap-2">
-              <span className="text-[#60a5fa]"><Icons.Search /></span>
+            <div className="p-3 border-b border-line-subtle bg-canvas flex items-center gap-2">
+              <span className="text-accent-fg"><Icons.Search /></span>
               <input
                 ref={quickOpenInputRef}
                 type="text"
@@ -327,9 +327,9 @@ export function IdeDialogs() {
                   }
                 }}
                 placeholder="Type a file name or path across all drives (e.g. main.py, C:/projects/app/test.py)..."
-                className="w-full bg-transparent text-[12.5px] font-mono text-[#e2e5ea] focus:outline-none placeholder-[#475569]"
+                className="w-full bg-transparent text-base font-mono text-fg focus:outline-none placeholder-fg-subtle"
               />
-              <span className="text-[10px] font-mono text-[#64748b] bg-[#12151c] px-2 py-0.5 rounded border border-[#1e232e]">
+              <span className="text-xs font-mono text-fg-subtle bg-raised px-2 py-0.5 rounded border border-line">
                 ESC to close
               </span>
             </div>
@@ -343,7 +343,7 @@ export function IdeDialogs() {
                 );
                 if (filtered.length === 0) {
                   return (
-                    <div className="p-4 text-center text-[11.5px] font-mono text-[#64748b] space-y-2">
+                    <div className="p-4 text-center text-sm font-mono text-fg-subtle space-y-2">
                       <div>No matching files found in workspace tree.</div>
                       {quickOpenQuery.trim() && (
                         <button
@@ -351,7 +351,7 @@ export function IdeDialogs() {
                             handleOpenFile(quickOpenQuery.trim());
                             setShowQuickOpen(false);
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#1e293b] hover:bg-[#3b82f6] text-[#60a5fa] hover:text-white border border-[#3b82f6]/40 transition-colors text-[11px] cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-selected hover:bg-accent text-accent-fg hover:text-white border border-accent/40 transition-colors text-xs cursor-pointer"
                         >
                           <Icons.FileCode />
                           <span>Open "{quickOpenQuery.trim()}" from disk</span>
@@ -370,18 +370,18 @@ export function IdeDialogs() {
                         setShowQuickOpen(false);
                       }}
                       onMouseEnter={() => setQuickOpenIndex(idx)}
-                      className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer font-mono text-[12px] transition-colors ${
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer font-mono text-sm transition-colors ${
                         isSelected 
-                          ? 'bg-[#1a2234] text-[#60a5fa] border border-[#3b82f6]/30' 
-                          : 'text-[#9ca3af] hover:bg-[#12151c] hover:text-[#e2e5ea]'
+                          ? 'bg-selected text-accent-fg border border-accent/30' 
+                          : 'text-fg-muted hover:bg-raised hover:text-fg'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         {getFileIcon(file.name)}
-                        <span className="font-medium text-[#e2e5ea]">{file.name}</span>
-                        <span className="text-[10.5px] text-[#64748b] truncate">{file.path}</span>
+                        <span className="font-medium text-fg">{file.name}</span>
+                        <span className="text-xs text-fg-subtle truncate">{file.path}</span>
                       </div>
-                      <span className="text-[9.5px] text-[#475569] uppercase font-bold">{file.extension || 'file'}</span>
+                      <span className="text-xs text-fg-subtle uppercase font-bold">{file.extension || 'file'}</span>
                     </div>
                   );
                 });

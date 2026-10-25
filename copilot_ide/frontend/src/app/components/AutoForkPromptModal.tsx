@@ -63,10 +63,10 @@ export default function AutoForkPromptModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-md bg-[#0c0e14] border border-[#1e273a] rounded-2xl shadow-2xl overflow-hidden flex flex-col text-[#e2e5ea] animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col text-fg animate-in zoom-in-95 duration-200">
         
         {/* Header with Fork Icon */}
-        <div className="p-5 border-b border-[#182030] flex items-center gap-3 bg-[#080a0f]">
+        <div className="p-5 border-b border-line flex items-center gap-3 bg-canvas">
           <div className="w-10 h-10 rounded-xl bg-amber-950/50 border border-amber-600/40 flex items-center justify-center text-amber-400 font-mono text-lg shadow-sm">
             🍴
           </div>
@@ -74,7 +74,7 @@ export default function AutoForkPromptModal({
             <h3 className="text-sm font-semibold text-white">
               Read-Only Repository Detected
             </h3>
-            <span className="text-[11px] font-mono text-amber-300/90">
+            <span className="text-xs font-mono text-amber-300/90">
               {repoInfo.full_name}
             </span>
           </div>
@@ -83,13 +83,13 @@ export default function AutoForkPromptModal({
         {/* Modal Body */}
         <div className="p-6 flex flex-col gap-4 text-xs font-sans">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 font-mono text-[11px]">
+            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 font-mono text-xs">
               {error}
             </div>
           )}
 
-          <div className="p-3.5 rounded-xl bg-[#111624] border border-[#1e273a] flex flex-col gap-1.5">
-            <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">
+          <div className="p-3.5 rounded-xl bg-raised border border-line-strong flex flex-col gap-1.5">
+            <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
               Repository Access Level:
             </span>
             <div className="flex items-center gap-2">
@@ -98,13 +98,13 @@ export default function AutoForkPromptModal({
               <span className="text-slate-400 font-mono">({repoInfo.stars} ★)</span>
             </div>
             {repoInfo.description && (
-              <p className="text-[11.5px] text-slate-300 italic pt-1 line-clamp-2">
+              <p className="text-sm text-slate-300 italic pt-1 line-clamp-2">
                 &ldquo;{repoInfo.description}&rdquo;
               </p>
             )}
           </div>
 
-          <p className="text-slate-300 leading-relaxed text-[11.5px]">
+          <p className="text-slate-300 leading-relaxed text-sm">
             You do not have push permissions to <strong>{repoInfo.full_name}</strong>. Would you like Archon to automatically fork this repository to your GitHub account so you can edit and commit directly?
           </p>
 
@@ -133,7 +133,7 @@ export default function AutoForkPromptModal({
                 onContinueReadOnly();
               }}
               disabled={forking}
-              className="w-full py-2 rounded-xl bg-[#141926] hover:bg-[#1e2538] border border-[#222b3e] text-slate-300 text-xs font-mono transition-all cursor-pointer"
+              className="w-full py-2 rounded-xl bg-overlay hover:bg-selected border border-line-strong text-slate-300 text-xs font-mono transition-all cursor-pointer"
             >
               👁️ Continue in Read-Only Mode
             </button>

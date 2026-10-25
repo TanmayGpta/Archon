@@ -380,11 +380,11 @@ export function ArchitectureDiagramViewer({
   const getNodeStereotypeStyle = (type: string) => {
     switch (type.toLowerCase()) {
       case 'gateway':
-        return 'bg-[#0284c7]/20 text-[#38bdf8] border-[#0284c7]/40';
+        return 'bg-info-strong/20 text-info border-info-strong/40';
       case 'datastore':
-        return 'bg-[#f59e0b]/20 text-[#fcd34d] border-[#f59e0b]/40';
+        return 'bg-warning/20 text-[#fcd34d] border-warning/40';
       case 'queue':
-        return 'bg-[#10b981]/20 text-[#34d399] border-[#10b981]/40';
+        return 'bg-success/20 text-success-fg border-success/40';
       case 'module':
       case 'usecase':
         return 'bg-[#8b5cf6]/20 text-[#c4b5fd] border-[#8b5cf6]/40';
@@ -394,18 +394,18 @@ export function ArchitectureDiagramViewer({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#07090e] border border-[#1e293b] rounded-xl overflow-hidden relative select-none">
+    <div className="flex-1 flex flex-col bg-canvas border border-line-strong rounded-xl overflow-hidden relative select-none">
       {/* ── TOP CONTROL TOOLBAR ────────────────────────────────────── */}
-      <div className="bg-[#0c1017] border-b border-[#1e293b] px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+      <div className="bg-surface border-b border-line-strong px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
         {/* Left: Diagram View Tabs */}
-        <div className="flex items-center gap-1 bg-[#07090e] p-1 border border-[#1e293b] rounded-lg">
+        <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-lg">
           <button
             onClick={() => {
               setViewMode('canvas');
               setShowCode(false);
             }}
             className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'canvas' ? 'bg-[#1e293b] text-[#38bdf8] font-bold shadow-sm' : 'text-[#64748b] hover:text-[#cbd5e1]'
+              viewMode === 'canvas' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             Interactive Canvas
@@ -413,7 +413,7 @@ export function ArchitectureDiagramViewer({
           <button
             onClick={() => setViewMode('mermaid')}
             className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'mermaid' ? 'bg-[#1e293b] text-[#38bdf8] font-bold shadow-sm' : 'text-[#64748b] hover:text-[#cbd5e1]'
+              viewMode === 'mermaid' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             Mermaid (.mmd)
@@ -421,7 +421,7 @@ export function ArchitectureDiagramViewer({
           <button
             onClick={() => setViewMode('plantuml')}
             className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'plantuml' ? 'bg-[#1e293b] text-[#38bdf8] font-bold shadow-sm' : 'text-[#64748b] hover:text-[#cbd5e1]'
+              viewMode === 'plantuml' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             PlantUML (.puml)
@@ -430,19 +430,19 @@ export function ArchitectureDiagramViewer({
 
         {/* Center: Secondary Code / Render Toggle (when in Mermaid or PlantUML) */}
         {viewMode !== 'canvas' && (
-          <div className="flex items-center gap-1 bg-[#07090e] p-1 border border-[#1e293b] rounded-lg">
+          <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-lg">
             <button
               onClick={() => setShowCode(false)}
-              className={`px-2.5 py-0.5 rounded text-[11px] transition-all cursor-pointer ${
-                !showCode ? 'bg-[#1e293b] text-[#38bdf8] font-semibold' : 'text-[#64748b] hover:text-[#cbd5e1]'
+              className={`px-2.5 py-0.5 rounded text-xs transition-all cursor-pointer ${
+                !showCode ? 'bg-selected text-info font-semibold' : 'text-fg-subtle hover:text-fg-soft'
               }`}
             >
               Rendered Graphic
             </button>
             <button
               onClick={() => setShowCode(true)}
-              className={`px-2.5 py-0.5 rounded text-[11px] transition-all cursor-pointer ${
-                showCode ? 'bg-[#1e293b] text-[#38bdf8] font-semibold' : 'text-[#64748b] hover:text-[#cbd5e1]'
+              className={`px-2.5 py-0.5 rounded text-xs transition-all cursor-pointer ${
+                showCode ? 'bg-selected text-info font-semibold' : 'text-fg-subtle hover:text-fg-soft'
               }`}
             >
               Source Code
@@ -453,27 +453,27 @@ export function ArchitectureDiagramViewer({
         {/* Right: Zoom & Export Controls */}
         <div className="flex items-center gap-2">
           {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-[#07090e] border border-[#1e293b] rounded-lg px-1.5 py-0.5">
+          <div className="flex items-center gap-1 bg-canvas border border-line-strong rounded-lg px-1.5 py-0.5">
             <button
               onClick={() => setZoom(z => Math.max(0.4, z - 0.15))}
-              className="text-[#94a3b8] hover:text-white px-1 cursor-pointer font-bold"
-              title="Zoom Out"
+              className="text-fg-muted hover:text-white px-1 cursor-pointer font-bold"
+              title="Zoom Out" aria-label="Zoom Out"
             >
               -
             </button>
-            <span className="text-[10px] text-[#64748b] px-1 min-w-[38px] text-center">
+            <span className="text-xs text-fg-subtle px-1 min-w-[38px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <button
               onClick={() => setZoom(z => Math.min(2.5, z + 0.15))}
-              className="text-[#94a3b8] hover:text-white px-1 cursor-pointer font-bold"
-              title="Zoom In"
+              className="text-fg-muted hover:text-white px-1 cursor-pointer font-bold"
+              title="Zoom In" aria-label="Zoom In"
             >
               +
             </button>
             <button
               onClick={handleResetZoom}
-              className="text-[10px] text-[#38bdf8] hover:underline px-1 cursor-pointer ml-0.5"
+              className="text-xs text-info hover:underline px-1 cursor-pointer ml-0.5"
               title="Reset Zoom & Pan"
             >
               Reset
@@ -488,7 +488,7 @@ export function ArchitectureDiagramViewer({
                 'diagram_text'
               )
             }
-            className="px-2.5 py-1 rounded bg-[#1e293b] text-[#94a3b8] hover:text-[#f8fafc] text-xs cursor-pointer border border-[#334155] transition-all"
+            className="px-2.5 py-1 rounded bg-selected text-fg-muted hover:text-fg-strong text-xs cursor-pointer border border-[#334155] transition-all"
           >
             {copiedKey === 'diagram_text' ? 'Copied' : 'Copy Code'}
           </button>
@@ -497,7 +497,7 @@ export function ArchitectureDiagramViewer({
           {((viewMode === 'mermaid' && mermaidSvg) || (viewMode === 'plantuml' && pumlUrl)) && (
             <button
               onClick={handleExportSvg}
-              className="px-2.5 py-1 rounded bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs cursor-pointer transition-all font-semibold"
+              className="px-2.5 py-1 rounded bg-info-strong hover:bg-[#0369a1] text-white text-xs cursor-pointer transition-all font-semibold"
             >
               {viewMode === 'plantuml' ? 'Open High-Res' : 'Export SVG'}
             </button>
@@ -507,7 +507,7 @@ export function ArchitectureDiagramViewer({
 
       {/* ── MAIN CANVAS / RENDER VIEWPORT ─────────────────────────── */}
       <div
-        className="flex-1 relative overflow-hidden bg-[#07090e] cursor-grab active:cursor-grabbing"
+        className="flex-1 relative overflow-hidden bg-canvas cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -532,14 +532,14 @@ export function ArchitectureDiagramViewer({
               return (
                 <div
                   key={layerName}
-                  className="bg-[#0b0f19]/70 border border-[#1e293b] rounded-2xl p-4 shadow-xl backdrop-blur-sm relative"
+                  className="bg-surface/70 border border-line-strong rounded-2xl p-4 shadow-xl backdrop-blur-sm relative"
                 >
                   {/* Layer Header Pill */}
-                  <div className="flex items-center justify-between mb-3 border-b border-[#1e293b]/50 pb-2">
-                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#38bdf8]">
+                  <div className="flex items-center justify-between mb-3 border-b border-line-strong/50 pb-2">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-info">
                       {layerName} Layer
                     </span>
-                    <span className="text-[10px] font-mono text-[#64748b]">
+                    <span className="text-xs font-mono text-fg-subtle">
                       {layerNodes.length} {layerNodes.length === 1 ? 'component' : 'components'}
                     </span>
                   </div>
@@ -563,21 +563,21 @@ export function ArchitectureDiagramViewer({
                           }}
                           className={`p-3.5 rounded-xl border transition-all cursor-pointer relative ${
                             isSelected
-                              ? 'bg-[#0e172a] border-[#38bdf8] ring-2 ring-[#38bdf8]/50 shadow-lg shadow-[#0284c7]/20'
+                              ? 'bg-overlay border-info ring-2 ring-info/50 shadow-lg shadow-[#0284c7]/20'
                               : isHovered
-                              ? 'bg-[#0f172a] border-[#38bdf8]/80 shadow-md shadow-[#0284c7]/10'
+                              ? 'bg-overlay border-info/80 shadow-md shadow-[#0284c7]/10'
                               : isDimmed
-                              ? 'bg-[#080d16]/40 border-[#1e293b]/40 opacity-30'
-                              : 'bg-[#0b101c] border-[#1e293b] hover:border-[#334155]'
+                              ? 'bg-surface/40 border-line-strong/40 opacity-30'
+                              : 'bg-raised border-line-strong hover:border-[#334155]'
                           }`}
                         >
                           {/* Node Header */}
                           <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                            <span className="font-mono text-xs font-bold text-[#f8fafc] truncate">
+                            <span className="font-mono text-xs font-bold text-fg-strong truncate">
                               {node.name}
                             </span>
                             <span
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono uppercase font-semibold border ${getNodeStereotypeStyle(
+                              className={`px-1.5 py-0.5 rounded text-xs font-mono uppercase font-semibold border ${getNodeStereotypeStyle(
                                 node.node_type
                               )}`}
                             >
@@ -586,7 +586,7 @@ export function ArchitectureDiagramViewer({
                           </div>
 
                           {/* Node Description */}
-                          <p className="text-[11px] text-[#94a3b8] line-clamp-2 leading-relaxed mb-2.5">
+                          <p className="text-xs text-fg-muted line-clamp-2 leading-relaxed mb-2.5">
                             {node.description}
                           </p>
 
@@ -595,13 +595,13 @@ export function ArchitectureDiagramViewer({
                             {node.traced_requirements.slice(0, 3).map(req => (
                               <span
                                 key={req}
-                                className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-[#0284c7]/15 text-[#38bdf8] border border-[#0284c7]/25"
+                                className="px-1.5 py-0.5 rounded text-xs font-mono bg-info-strong/15 text-info border border-info-strong/25"
                               >
                                 {req}
                               </span>
                             ))}
                             {node.traced_requirements.length > 3 && (
-                              <span className="text-[9px] font-mono text-[#64748b]">
+                              <span className="text-xs font-mono text-fg-subtle">
                                 +{node.traced_requirements.length - 3}
                               </span>
                             )}
@@ -620,21 +620,21 @@ export function ArchitectureDiagramViewer({
         {viewMode === 'mermaid' && (
           <div className="w-full h-full flex flex-col items-center justify-center p-6">
             {showCode ? (
-              <pre className="w-full h-full bg-[#05070b] p-6 text-xs font-mono text-[#34d399] overflow-auto rounded-xl border border-[#1e293b]">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-success-fg overflow-auto rounded-xl border border-line-strong">
                 {effectiveMermaid || 'No Mermaid specification generated.'}
               </pre>
             ) : mermaidLoading ? (
-              <div className="flex flex-col items-center gap-3 text-xs text-[#38bdf8] font-mono">
-                <svg className="w-6 h-6 animate-spin text-[#38bdf8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <div className="flex flex-col items-center gap-3 text-xs text-info font-mono">
+                <svg className="w-6 h-6 animate-spin text-info" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 <span>Synthesizing vector graph with Mermaid.js...</span>
               </div>
             ) : mermaidError ? (
-              <div className="max-w-md bg-[#1f1315] border border-[#f43f5e]/40 p-4 rounded-xl text-xs text-[#fca5a5] font-mono">
+              <div className="max-w-md bg-raised border border-[#f43f5e]/40 p-4 rounded-xl text-xs text-[#fca5a5] font-mono">
                 <div className="font-bold text-[#f43f5e] mb-1">Mermaid Render Notice:</div>
-                <div className="mb-3 text-[11px] leading-relaxed">{mermaidError}</div>
+                <div className="mb-3 text-xs leading-relaxed">{mermaidError}</div>
                 <button
                   onClick={() => setShowCode(true)}
                   className="px-2.5 py-1 rounded bg-[#331b20] text-[#fca5a5] hover:text-white border border-[#f43f5e]/30 text-xs cursor-pointer"
@@ -658,12 +658,12 @@ export function ArchitectureDiagramViewer({
         {viewMode === 'plantuml' && (
           <div className="w-full h-full flex flex-col items-center justify-center p-6">
             {showCode ? (
-              <pre className="w-full h-full bg-[#05070b] p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-[#1e293b]">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-line-strong">
                 {effectivePlantUML || 'No PlantUML specification generated.'}
               </pre>
             ) : pumlLoading ? (
-              <div className="flex flex-col items-center gap-3 text-xs text-[#38bdf8] font-mono">
-                <svg className="w-6 h-6 animate-spin text-[#38bdf8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <div className="flex flex-col items-center gap-3 text-xs text-info font-mono">
+                <svg className="w-6 h-6 animate-spin text-info" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -680,7 +680,7 @@ export function ArchitectureDiagramViewer({
                 <img
                   src={pumlUrl}
                   alt="Rendered PlantUML Architecture Diagram"
-                  className="max-w-none max-h-none shadow-2xl rounded-lg border border-[#1e293b]/60 bg-[#07090e]"
+                  className="max-w-none max-h-none shadow-2xl rounded-lg border border-line-strong/60 bg-canvas"
                   onError={() => {
                     console.warn('Failed to load PlantUML SVG, falling back to source view');
                     setShowCode(true);
@@ -688,7 +688,7 @@ export function ArchitectureDiagramViewer({
                 />
               </div>
             ) : (
-              <pre className="w-full h-full bg-[#05070b] p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-[#1e293b]">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-line-strong">
                 {effectivePlantUML}
               </pre>
             )}
@@ -698,23 +698,23 @@ export function ArchitectureDiagramViewer({
         {/* ── SLIDE-OVER NODE CONTRACT INSPECTOR DRAWER ──────────────── */}
         {selectedNode && (
           <div
-            className="absolute top-4 right-4 bottom-4 w-96 bg-[#090d16]/95 border border-[#38bdf8]/40 rounded-2xl shadow-2xl backdrop-blur-md p-5 flex flex-col gap-4 overflow-y-auto z-20"
+            className="absolute top-4 right-4 bottom-4 w-96 bg-surface/95 border border-info/40 rounded-2xl shadow-2xl backdrop-blur-md p-5 flex flex-col gap-4 overflow-y-auto z-20"
             onClick={e => e.stopPropagation()}
           >
             {/* Inspector Header */}
-            <div className="flex items-start justify-between border-b border-[#1e293b] pb-3">
+            <div className="flex items-start justify-between border-b border-line-strong pb-3">
               <div>
-                <span className="text-[10px] font-mono text-[#38bdf8] font-bold block mb-1">
+                <span className="text-xs font-mono text-info font-bold block mb-1">
                   {selectedNode.node_id} • {selectedNode.layer || 'Application'}
                 </span>
-                <h3 className="text-base font-bold text-[#f8fafc] leading-snug">
+                <h3 className="text-base font-bold text-fg-strong leading-snug">
                   {selectedNode.name}
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedNodeId(null)}
-                className="text-[#64748b] hover:text-[#cbd5e1] text-sm p-1 cursor-pointer"
-                title="Close Inspector"
+                className="text-fg-subtle hover:text-fg-soft text-sm p-1 cursor-pointer"
+                title="Close Inspector" aria-label="Close Inspector"
               >
                 ✕
               </button>
@@ -722,10 +722,10 @@ export function ArchitectureDiagramViewer({
 
             {/* Description */}
             <div>
-              <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1">
+              <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1">
                 Architectural Role:
               </span>
-              <p className="text-xs text-[#cbd5e1] leading-relaxed">
+              <p className="text-xs text-fg-soft leading-relaxed">
                 {selectedNode.description}
               </p>
             </div>
@@ -733,13 +733,13 @@ export function ArchitectureDiagramViewer({
             {/* Responsibilities */}
             {selectedNode.responsibilities && selectedNode.responsibilities.length > 0 && (
               <div>
-                <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1.5">
+                <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1.5">
                   Responsibilities:
                 </span>
                 <ul className="space-y-1">
                   {selectedNode.responsibilities.map((resp, i) => (
-                    <li key={i} className="text-xs text-[#94a3b8] flex items-start gap-2 leading-snug">
-                      <span className="text-[#38bdf8] font-bold mt-0.5">•</span>
+                    <li key={i} className="text-xs text-fg-muted flex items-start gap-2 leading-snug">
+                      <span className="text-info font-bold mt-0.5">•</span>
                       <span>{resp}</span>
                     </li>
                   ))}
@@ -749,7 +749,7 @@ export function ArchitectureDiagramViewer({
 
             {/* Connected Relations (Inbound & Outbound) */}
             <div>
-              <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1.5">
+              <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1.5">
                 Connected Data Flows:
               </span>
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
@@ -763,22 +763,22 @@ export function ArchitectureDiagramViewer({
                     return (
                       <div
                         key={e.edge_id}
-                        className="p-2 rounded-lg bg-[#0f172a] border border-[#1e293b] text-[11px] font-mono flex items-center justify-between"
+                        className="p-2 rounded-lg bg-overlay border border-line-strong text-xs font-mono flex items-center justify-between"
                       >
                         <div>
-                          <span className={isSource ? 'text-[#38bdf8]' : 'text-[#34d399]'}>
+                          <span className={isSource ? 'text-info' : 'text-success-fg'}>
                             {isSource ? '→ OUT: ' : '← IN: '}
                           </span>
-                          <span className="text-[#f1f5f9] font-semibold">
+                          <span className="text-fg-strong font-semibold">
                             {otherNode?.name || otherNodeId}
                           </span>
                           {e.protocol && (
-                            <span className="text-[10px] text-[#64748b] block mt-0.5">
+                            <span className="text-xs text-fg-subtle block mt-0.5">
                               {e.protocol}
                             </span>
                           )}
                         </div>
-                        <span className="text-[10px] text-[#38bdf8] bg-[#0284c7]/20 px-1.5 py-0.5 rounded border border-[#0284c7]/30">
+                        <span className="text-xs text-info bg-info-strong/20 px-1.5 py-0.5 rounded border border-info-strong/30">
                           {e.edge_type}
                         </span>
                       </div>
@@ -790,14 +790,14 @@ export function ArchitectureDiagramViewer({
             {/* Traced Requirements */}
             {selectedNode.traced_requirements && selectedNode.traced_requirements.length > 0 && (
               <div>
-                <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1">
+                <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1">
                   Traced Requirements:
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {selectedNode.traced_requirements.map(req => (
                     <span
                       key={req}
-                      className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#0284c7]/15 text-[#38bdf8] border border-[#0284c7]/30 font-semibold"
+                      className="px-2 py-0.5 rounded text-xs font-mono bg-info-strong/15 text-info border border-info-strong/30 font-semibold"
                     >
                       {req}
                     </span>
@@ -808,15 +808,15 @@ export function ArchitectureDiagramViewer({
 
             {/* KB Citations */}
             {selectedNode.kb_citations && selectedNode.kb_citations.length > 0 && (
-              <div className="pt-2 border-t border-[#1e293b]/60">
-                <span className="text-[10px] font-mono text-[#64748b] uppercase tracking-wider block mb-1">
+              <div className="pt-2 border-t border-line-strong/60">
+                <span className="text-xs font-mono text-fg-subtle uppercase tracking-wider block mb-1">
                   Pattern Citations:
                 </span>
                 <div className="flex flex-wrap gap-1">
                   {selectedNode.kb_citations.map(cit => (
                     <span
                       key={cit}
-                      className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#10b981]/15 text-[#34d399] border border-[#10b981]/30"
+                      className="px-2 py-0.5 rounded text-xs font-mono bg-success/15 text-success-fg border border-success/30"
                     >
                       {cit}
                     </span>

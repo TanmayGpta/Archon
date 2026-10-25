@@ -56,13 +56,13 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
       onClick={onClose}
     >
       <div 
-        className="bg-[#0b0d12] border border-[#1e232e] rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-surface border border-line rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-[#0e1118] border-b border-[#1a1e28] flex flex-wrap items-center justify-between gap-3">
+        <div className="px-6 py-4 bg-raised border-b border-line flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#3b82f6]/15 border border-[#3b82f6]/30 flex items-center justify-center text-[#60a5fa]">
+            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
@@ -73,14 +73,14 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-[#e2e5ea] font-mono">
+                <h3 className="text-sm font-semibold text-fg font-mono">
                   evaluation_report.json
                 </h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 rounded-full font-semibold">
+                <span className="text-xs font-mono px-2 py-0.5 bg-success/15 text-success border border-success/30 rounded-full font-semibold">
                   STATUS: {EVALUATION_DATA.status.toUpperCase()}
                 </span>
               </div>
-              <p className="text-[11px] font-mono text-[#64748b] mt-0.5">
+              <p className="text-xs font-mono text-fg-subtle mt-0.5">
                 Run ID: {EVALUATION_DATA.run_id} • Evaluated 78 Runs
               </p>
             </div>
@@ -89,7 +89,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              className="px-3 py-1.5 rounded-lg text-xs font-mono bg-[#161b26] hover:bg-[#202738] text-[#94a3b8] hover:text-[#e2e5ea] border border-[#222a3a] transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono bg-overlay hover:bg-selected text-fg-muted hover:text-fg border border-line-strong transition-all flex items-center gap-1.5 cursor-pointer"
               title="Download Raw JSON File"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -104,8 +104,8 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
               onClick={handleCopy}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
                 copied
-                  ? 'bg-[#10b981]/20 text-[#10b981] border-[#10b981]/40'
-                  : 'bg-[#2563eb] hover:bg-[#1d4ed8] text-white border-[#3b82f6]/50'
+                  ? 'bg-success/20 text-success border-success/40'
+                  : 'bg-accent-strong hover:bg-accent-hover text-white border-accent/50'
               }`}
             >
               {copied ? (
@@ -126,9 +126,9 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
               )}
             </button>
 
-            <button
+            <button aria-label="Close"
               onClick={onClose}
-              className="p-1.5 text-[#64748b] hover:text-[#e2e5ea] rounded-lg hover:bg-[#1a1e28] transition-colors cursor-pointer"
+              className="p-1.5 text-fg-subtle hover:text-fg rounded-lg hover:bg-overlay transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -139,17 +139,17 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
         </div>
 
         {/* Section Filters & Search */}
-        <div className="px-6 py-2.5 bg-[#090b0f] border-b border-[#161a22] flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+        <div className="px-6 py-2.5 bg-surface border-b border-line-subtle flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-0.5">
-            <span className="text-[#64748b] text-[11px] mr-1">Section:</span>
+            <span className="text-fg-subtle text-xs mr-1">Section:</span>
             {(['all', 'exercise_1', 'exercise_2', 'exercise_3', 'exercise_4', 'exercise_5', 'exercise_6'] as const).map(sec => (
               <button
                 key={sec}
                 onClick={() => setSelectedSection(sec)}
-                className={`px-2.5 py-1 rounded-md text-[11px] transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer whitespace-nowrap ${
                   selectedSection === sec
-                    ? 'bg-[#1e293b] text-[#60a5fa] border border-[#3b82f6]/40 font-semibold'
-                    : 'bg-[#12151c] text-[#8b949e] hover:text-[#cbd5e1] border border-[#1a1e26]'
+                    ? 'bg-selected text-accent-fg border border-accent/40 font-semibold'
+                    : 'bg-raised text-fg-muted hover:text-fg-soft border border-line'
                 }`}
               >
                 {sec === 'all' ? 'All (Full Root)' : sec.replace('_', ' ').toUpperCase()}
@@ -163,12 +163,12 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search JSON text..."
-              className="w-full bg-[#12151c] border border-[#1e232e] focus:border-[#3b82f6]/60 rounded-lg px-3 py-1 text-xs text-[#e2e5ea] placeholder-[#475569] focus:outline-none"
+              className="w-full bg-raised border border-line focus:border-accent/60 rounded-lg px-3 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none"
             />
             {searchQuery && (
-              <button
+              <button aria-label="Close"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1.5 text-[#64748b] hover:text-[#cbd5e1] text-[10px]"
+                className="absolute right-2 top-1.5 text-fg-subtle hover:text-fg-soft text-xs"
               >
                 ✕
               </button>
@@ -177,10 +177,10 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
         </div>
 
         {/* JSON Code Window */}
-        <div className="flex-1 p-4 bg-[#07080b] overflow-y-auto custom-scrollbar select-text font-mono text-[11.5px] leading-relaxed text-[#93c5fd]">
+        <div className="flex-1 p-4 bg-canvas overflow-y-auto custom-scrollbar select-text font-mono text-sm leading-relaxed text-[#93c5fd]">
           {searchQuery ? (
             <div>
-              <div className="text-[#64748b] mb-2 text-[11px]">
+              <div className="text-fg-subtle mb-2 text-xs">
                 Showing {filteredLines.length} matching lines for &ldquo;{searchQuery}&rdquo;:
               </div>
               <pre className="whitespace-pre-wrap">
@@ -197,7 +197,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-2.5 bg-[#0e1118] border-t border-[#1a1e28] flex items-center justify-between text-[11px] font-mono text-[#64748b]">
+        <div className="px-6 py-2.5 bg-raised border-t border-line flex items-center justify-between text-xs font-mono text-fg-subtle">
           <span>Generated: {new Date(EVALUATION_DATA.created_at).toLocaleString()}</span>
           <span>Archon Lab 4 Evaluation Inspector</span>
         </div>

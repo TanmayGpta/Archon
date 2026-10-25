@@ -46,12 +46,12 @@ export function highlightCodeLine(line: string) {
 
   while ((match = regex.exec(line)) !== null) {
     if (match.index > lastIndex) {
-      tokens.push(<span key={lastIndex} className="text-[#c9d1d9]">{line.substring(lastIndex, match.index)}</span>);
+      tokens.push(<span key={lastIndex} className="text-fg-soft">{line.substring(lastIndex, match.index)}</span>);
     }
 
     const token = match[0];
     if (token.startsWith('//') || token.startsWith('#')) {
-      tokens.push(<span key={match.index} className="text-[#6a737d] italic">{token}</span>);
+      tokens.push(<span key={match.index} className="text-fg-subtle italic">{token}</span>);
     } else if (token.startsWith('"') || token.startsWith("'") || token.startsWith('`')) {
       tokens.push(<span key={match.index} className="text-[#9ece6a]">{token}</span>);
     } else if (/^\b(?:def|function|const|let|var|class|import|from|export|return|if|else|elif|for|while|try|except|catch|finally|async|await|type|interface|extends|implements|new)\b$/.test(token)) {
@@ -72,7 +72,7 @@ export function highlightCodeLine(line: string) {
   }
 
   if (lastIndex < line.length) {
-    tokens.push(<span key={lastIndex} className="text-[#c9d1d9]">{line.substring(lastIndex)}</span>);
+    tokens.push(<span key={lastIndex} className="text-fg-soft">{line.substring(lastIndex)}</span>);
   }
 
   return tokens;

@@ -135,10 +135,10 @@ export default function SourcegraphIndexDrawer({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-2xl bg-[#0c0f17] border border-[#1e2638] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-[#e2e5ea]">
+      <div className="w-full max-w-2xl bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-fg">
         
         {/* Modal Header */}
-        <div className="p-5 border-b border-[#192132] flex items-center justify-between bg-[#090b10]">
+        <div className="p-5 border-b border-line flex items-center justify-between bg-surface">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-cyan-950/60 border border-cyan-700/40 flex items-center justify-center text-cyan-400 font-mono text-base shadow-sm">
               ⚡
@@ -148,7 +148,7 @@ export default function SourcegraphIndexDrawer({
                 <h3 className="text-sm font-semibold text-white">
                   Index Codebase for RAG & Knowledge Graph
                 </h3>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
                   Sourcegraph SCIP
                 </span>
               </div>
@@ -157,9 +157,9 @@ export default function SourcegraphIndexDrawer({
               </p>
             </div>
           </div>
-          <button
+          <button aria-label="Close"
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-lg p-1.5 rounded-lg hover:bg-[#161c28] transition-all cursor-pointer"
+            className="text-slate-400 hover:text-white text-lg p-1.5 rounded-lg hover:bg-overlay transition-all cursor-pointer"
           >
             ✕
           </button>
@@ -169,16 +169,16 @@ export default function SourcegraphIndexDrawer({
         <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-5 text-xs font-sans">
           
           {/* Explanation Banner */}
-          <div className="p-3.5 rounded-xl bg-[#111624] border border-[#1e2638] flex items-start gap-3">
+          <div className="p-3.5 rounded-xl bg-raised border border-line-strong flex items-start gap-3">
             <span className="text-base">🧠</span>
-            <p className="text-slate-300 leading-relaxed text-[11.5px]">
+            <p className="text-slate-300 leading-relaxed text-sm">
               Extracts high-signal code intelligence across all languages using the <strong>Sourcegraph SCIP AST method</strong>. Strips comments and boilerplate, populating <strong>ChromaDB</strong> and building a connected <strong>Knowledge Graph</strong> of all APIs, functions, classes, and call dependencies.
             </p>
           </div>
 
           {/* Action Trigger or Progress State */}
           {stage === 'idle' ? (
-            <div className="py-6 flex flex-col items-center justify-center gap-4 bg-[#080a0f] rounded-xl border border-[#161d2b]">
+            <div className="py-6 flex flex-col items-center justify-center gap-4 bg-canvas rounded-xl border border-line">
               <div className="text-center max-w-md">
                 <h4 className="text-sm font-semibold text-white mb-1">
                   Ready to map and index {projectName}
@@ -209,12 +209,12 @@ export default function SourcegraphIndexDrawer({
                   return (
                     <div
                       key={s.id}
-                      className={`p-2 rounded-lg border flex items-center gap-1.5 text-[10.5px] font-mono transition-all ${
+                      className={`p-2 rounded-lg border flex items-center gap-1.5 text-xs font-mono transition-all ${
                         isDone
                           ? 'bg-emerald-950/40 border-emerald-800/40 text-emerald-300'
                           : isCurrent
                           ? 'bg-cyan-950/60 border-cyan-600 text-cyan-300 animate-pulse'
-                          : 'bg-[#111624] border-[#1e2638] text-slate-500'
+                          : 'bg-raised border-line-strong text-slate-500'
                       }`}
                     >
                       <span>{isDone ? '✓' : s.icon}</span>
@@ -225,7 +225,7 @@ export default function SourcegraphIndexDrawer({
               </div>
 
               {/* Progress Console Stream */}
-              <div className="p-3.5 rounded-xl bg-[#08090d] border border-[#182030] font-mono text-[11px] flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+              <div className="p-3.5 rounded-xl bg-canvas border border-line font-mono text-xs flex flex-col gap-1.5 max-h-36 overflow-y-auto">
                 {progressLog.map((line, idx) => (
                   <span
                     key={idx}
@@ -248,20 +248,20 @@ export default function SourcegraphIndexDrawer({
             <div className="flex flex-col gap-4 animate-in fade-in-50 duration-300">
               {/* Metric Badges */}
               <div className="grid grid-cols-4 gap-2.5">
-                <div className="p-3 rounded-xl bg-[#111624] border border-[#1e2638] flex flex-col">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase">Files Scanned</span>
+                <div className="p-3 rounded-xl bg-raised border border-line-strong flex flex-col">
+                  <span className="text-xs font-mono text-slate-400 uppercase">Files Scanned</span>
                   <span className="text-base font-semibold text-white font-mono">{indexResult.files_scanned}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-[#111624] border border-amber-800/30 flex flex-col">
-                  <span className="text-[10px] font-mono text-amber-400 uppercase">API Routes</span>
+                <div className="p-3 rounded-xl bg-raised border border-amber-800/30 flex flex-col">
+                  <span className="text-xs font-mono text-amber-400 uppercase">API Routes</span>
                   <span className="text-base font-semibold text-amber-300 font-mono">{indexResult.endpoints_count}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-[#111624] border border-cyan-800/30 flex flex-col">
-                  <span className="text-[10px] font-mono text-cyan-400 uppercase">Functions</span>
+                <div className="p-3 rounded-xl bg-raised border border-cyan-800/30 flex flex-col">
+                  <span className="text-xs font-mono text-cyan-400 uppercase">Functions</span>
                   <span className="text-base font-semibold text-cyan-300 font-mono">{indexResult.functions_count}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-[#111624] border border-emerald-800/30 flex flex-col">
-                  <span className="text-[10px] font-mono text-emerald-400 uppercase">Total Chunks</span>
+                <div className="p-3 rounded-xl bg-raised border border-emerald-800/30 flex flex-col">
+                  <span className="text-xs font-mono text-emerald-400 uppercase">Total Chunks</span>
                   <span className="text-base font-semibold text-emerald-300 font-mono">{indexResult.total_chunks}</span>
                 </div>
               </div>
@@ -271,7 +271,7 @@ export default function SourcegraphIndexDrawer({
                 <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 to-indigo-950/40 border border-cyan-700/40 flex items-center justify-between">
                   <div>
                     <h5 className="text-xs font-semibold text-white">Interactive Knowledge Graph Ready</h5>
-                    <p className="text-[11px] text-slate-300">
+                    <p className="text-xs text-slate-300">
                       Explore {indexResult.graph_nodes_count} nodes & {indexResult.graph_edges_count} call edges in the 60fps canvas visualizer.
                     </p>
                   </div>
@@ -288,8 +288,8 @@ export default function SourcegraphIndexDrawer({
               )}
 
               {/* Live Retrieval Test Bar */}
-              <div className="p-4 rounded-xl bg-[#090b10] border border-[#1a2233] flex flex-col gap-3">
-                <span className="text-[10.5px] font-mono text-slate-400 uppercase font-semibold">
+              <div className="p-4 rounded-xl bg-surface border border-line flex flex-col gap-3">
+                <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
                   ⚡ Test Immediate RAG Retrieval Against Indexed Codebase
                 </span>
                 <form onSubmit={handleRunTestQuery} className="flex items-center gap-2">
@@ -298,12 +298,12 @@ export default function SourcegraphIndexDrawer({
                     placeholder="e.g. 'how does agent_chat handle citations?' or 'find refund endpoint'"
                     value={testQueryText}
                     onChange={(e) => setTestQueryText(e.target.value)}
-                    className="flex-1 h-8 bg-[#121622] border border-[#252f44] rounded-lg px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
+                    className="flex-1 h-8 bg-raised border border-line-strong rounded-lg px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
                   />
                   <button
                     type="submit"
                     disabled={searching || !testQueryText.trim()}
-                    className="h-8 px-4 rounded-lg bg-[#1e273a] hover:bg-[#28354f] border border-[#2e3c58] text-cyan-300 font-mono text-xs transition-all cursor-pointer disabled:opacity-50"
+                    className="h-8 px-4 rounded-lg bg-selected hover:bg-[#28354f] border border-[#2e3c58] text-cyan-300 font-mono text-xs transition-all cursor-pointer disabled:opacity-50"
                   >
                     {searching ? 'Testing...' : 'Test Search'}
                   </button>
@@ -316,14 +316,14 @@ export default function SourcegraphIndexDrawer({
                       <span className="text-slate-500 font-mono text-xs">No matching symbols found.</span>
                     ) : (
                       testResults.map((r, i) => (
-                        <div key={i} className="p-2.5 rounded-lg bg-[#111624] border border-[#1e273a] flex flex-col gap-1">
-                          <div className="flex items-center justify-between font-mono text-[10.5px]">
+                        <div key={i} className="p-2.5 rounded-lg bg-raised border border-line-strong flex flex-col gap-1">
+                          <div className="flex items-center justify-between font-mono text-xs">
                             <span className="text-cyan-400 font-semibold truncate max-w-[280px]">
                               {r.symbol_name || r.endpoint || r.source}
                             </span>
                             <span className="text-emerald-400">{r.score}</span>
                           </div>
-                          <pre className="text-[10px] text-slate-300 font-mono bg-[#07090e] p-2 rounded max-h-16 overflow-hidden text-ellipsis whitespace-pre-wrap">
+                          <pre className="text-xs text-slate-300 font-mono bg-canvas p-2 rounded max-h-16 overflow-hidden text-ellipsis whitespace-pre-wrap">
                             {r.text}
                           </pre>
                         </div>
@@ -338,10 +338,10 @@ export default function SourcegraphIndexDrawer({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-[#192132] flex items-center justify-end gap-2 bg-[#090b10]">
+        <div className="p-4 border-t border-line flex items-center justify-end gap-2 bg-surface">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-[#141926] hover:bg-[#1e2538] border border-[#222b3e] text-slate-300 text-xs font-mono transition-all cursor-pointer"
+            className="px-4 py-1.5 rounded-lg bg-overlay hover:bg-selected border border-line-strong text-slate-300 text-xs font-mono transition-all cursor-pointer"
           >
             Close
           </button>

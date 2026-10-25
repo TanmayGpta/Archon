@@ -28,24 +28,24 @@ export function EvaluationDashboard() {
   ];
 
   return (
-    <div className="min-h-full bg-[#07080b] text-[#cbd5e1] font-sans antialiased pb-16">
+    <div className="min-h-full bg-canvas text-fg-soft font-sans antialiased pb-16">
       {/* Top Banner with Navigation & Controls */}
-      <div className="border-b border-[#161a24] bg-[#090c12]/95 backdrop-blur-md sticky top-[56px] z-40">
+      <div className="border-b border-line-subtle bg-surface/95 backdrop-blur-md sticky top-[56px] z-40">
         <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#3b82f6]/15 border border-[#3b82f6]/30 flex items-center justify-center text-[#60a5fa] font-bold text-sm">
+            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg font-bold text-sm">
               📊
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-[#f1f5f9] font-mono tracking-tight">
+                <span className="text-sm font-bold text-fg-strong font-mono tracking-tight">
                   Evaluation &amp; Benchmark Dashboard
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 font-semibold">
+                <span className="text-xs font-mono px-2 py-0.2 rounded-full bg-success/15 text-success border border-success/30 font-semibold">
                   OFFLINE SNAPSHOT
                 </span>
               </div>
-              <p className="text-[11px] font-mono text-[#64748b]">
+              <p className="text-xs font-mono text-fg-subtle">
                 Benchmarking 3 Open-Weights LLMs Across 26 Enterprise API Queries
               </p>
             </div>
@@ -54,7 +54,7 @@ export function EvaluationDashboard() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsJsonModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-[#141a26] hover:bg-[#1e2638] text-[#93c5fd] hover:text-white border border-[#222c40] text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+              className="px-3.5 py-1.5 rounded-xl bg-overlay hover:bg-selected text-[#93c5fd] hover:text-white border border-line-strong text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
               title="Inspect complete evaluation_report.json data"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,14 +79,14 @@ export function EvaluationDashboard() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                     isActive
-                      ? 'bg-[#1e2738] text-[#60a5fa] border border-[#3b82f6]/40 font-bold shadow-md'
-                      : 'bg-[#0e121a] text-[#8b949e] hover:text-[#cbd5e1] hover:bg-[#141924] border border-[#161c28]'
+                      ? 'bg-selected text-accent-fg border border-accent/40 font-bold shadow-md'
+                      : 'bg-raised text-fg-muted hover:text-fg-soft hover:bg-overlay border border-line'
                   }`}
                 >
                   <span className="text-sm">{tab.icon}</span>
                   <div className="text-left">
                     <div className="leading-tight">{tab.label}</div>
-                    <div className={`text-[9.5px] font-normal leading-tight ${isActive ? 'text-[#93c5fd]' : 'text-[#505a6e]'}`}>
+                    <div className={`text-xs font-normal leading-tight ${isActive ? 'text-[#93c5fd]' : 'text-fg-subtle'}`}>
                       {tab.sub}
                     </div>
                   </div>

@@ -73,7 +73,7 @@ function VSCodeAgentIDE(props: IdeProps) {
 
   return (
     <IdeContext.Provider value={ide}>
-    <div className="flex flex-col h-full w-full bg-[#08090a] text-[#c9d1d9] overflow-hidden border-0">
+    <div className="flex flex-col h-full w-full bg-canvas text-fg-soft overflow-hidden border-0">
       
       {/* Main Workspace Row */}
       <div className="flex flex-1 overflow-hidden">
@@ -83,9 +83,9 @@ function VSCodeAgentIDE(props: IdeProps) {
       </div>
 
       {/* ── 5. Status Bar (Bottom, 24px) ──────────────────────────── */}
-      <div className="h-[24px] bg-[#060708] border-t border-[#161922] px-3 flex justify-between items-center text-[11px] font-mono text-[#64748b] flex-shrink-0 select-none">
+      <div className="h-[24px] bg-canvas border-t border-line-subtle px-3 flex justify-between items-center text-xs font-mono text-fg-subtle flex-shrink-0 select-none">
         <div className="flex items-center gap-4">
-          <span className="text-[#60a5fa] flex items-center gap-1 font-medium">
+          <span className="text-accent-fg flex items-center gap-1 font-medium">
             ⎇ {gitBranch} ({currentProjectName})
           </span>
           {activeTab && (
@@ -100,12 +100,12 @@ function VSCodeAgentIDE(props: IdeProps) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowBottomPanel(!showBottomPanel)}
-            className="hover:text-[#cbd5e1] cursor-pointer flex items-center gap-1"
+            className="hover:text-fg-soft cursor-pointer flex items-center gap-1"
           >
             <Icons.Terminal />
             <span>{showBottomPanel ? '▾ Panel' : '▸ Panel'}</span>
           </button>
-          <span className="text-[#10b981] flex items-center gap-1">
+          <span className="text-success flex items-center gap-1">
             ● Archon: {selectedModel} (GPU)
           </span>
         </div>

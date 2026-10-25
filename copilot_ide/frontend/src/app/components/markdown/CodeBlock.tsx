@@ -83,22 +83,22 @@ export function CodeBlock({
   };
 
   return (
-    <div className="my-3 bg-[#0a0c10] border border-[#1a1e26] rounded-lg overflow-hidden group shadow-md flex flex-col">
+    <div className="my-3 bg-surface border border-line rounded-lg overflow-hidden group shadow-md flex flex-col">
       {/* Top Header */}
-      <div className="flex justify-between items-center px-3 py-1.5 bg-[#0e1015] border-b border-[#1a1e26] text-[11px] font-mono text-[#4a5060] select-none">
+      <div className="flex justify-between items-center px-3 py-1.5 bg-surface border-b border-line text-xs font-mono text-fg-subtle select-none">
         <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
           {isDiffBlock ? (
-            <span className="text-[10px] bg-[#3b82f6]/20 text-[#60a5fa] px-2 py-0.5 rounded border border-[#3b82f6]/40 font-bold flex items-center gap-1.5">
+            <span className="text-xs bg-accent/20 text-accent-fg px-2 py-0.5 rounded border border-accent/40 font-bold flex items-center gap-1.5">
               <Icons.Bolt />
               <span>Surgical Diff Edit • {diffBlocks.length} {diffBlocks.length === 1 ? 'block' : 'blocks'}</span>
             </span>
           ) : (
-            <span className="uppercase tracking-wider text-[#94a3b8] font-bold text-[10px] bg-[#161922] px-1.5 py-0.5 rounded border border-[#222734] flex-shrink-0">
+            <span className="uppercase tracking-wider text-fg-muted font-bold text-xs bg-overlay px-1.5 py-0.5 rounded border border-line-strong flex-shrink-0">
               {lang}
             </span>
           )}
           {detectedFile && (
-            <span className="text-[10px] text-[#60a5fa] bg-[#12151c] px-2 py-0.5 rounded border border-[#1e232e] truncate font-medium flex items-center gap-1.5" title={detectedFile}>
+            <span className="text-xs text-accent-fg bg-raised px-2 py-0.5 rounded border border-line truncate font-medium flex items-center gap-1.5" title={detectedFile}>
               <Icons.FileCode />
               <span className="truncate">{detectedFile}</span>
             </span>
@@ -107,35 +107,35 @@ export function CodeBlock({
 
         <button
           onClick={handleCopy}
-          className="text-[#8b949e] hover:text-[#e2e5ea] bg-[#161922] hover:bg-[#222734] px-2 py-0.5 rounded transition-colors text-[10.5px] font-mono flex items-center gap-1 cursor-pointer border border-[#222734] flex-shrink-0"
+          className="text-fg-muted hover:text-fg bg-overlay hover:bg-selected px-2 py-0.5 rounded transition-colors text-xs font-mono flex items-center gap-1 cursor-pointer border border-line-strong flex-shrink-0"
         >
-          {copied ? <span className="text-[#10b981] flex items-center gap-1"><Icons.Check /> Copied</span> : <span className="flex items-center gap-1"><Icons.Copy /> Copy</span>}
+          {copied ? <span className="text-success flex items-center gap-1"><Icons.Check /> Copied</span> : <span className="flex items-center gap-1"><Icons.Copy /> Copy</span>}
         </button>
       </div>
 
       {/* Code / Diff Window */}
-      <div className="p-3.5 overflow-x-auto custom-scrollbar bg-[#08090a]">
+      <div className="p-3.5 overflow-x-auto custom-scrollbar bg-canvas">
         {isDiffBlock ? (
-          <div className="space-y-3 font-mono text-[12px] leading-[1.65]">
+          <div className="space-y-3 font-mono text-sm leading-[1.65]">
             {diffBlocks.map((blk, idx) => (
-              <div key={idx} className="border border-[#1e232e] rounded-md overflow-hidden">
-                <div className="bg-[#ef4444]/10 border-b border-[#ef4444]/20 px-2.5 py-1 text-[10.5px] text-[#ef4444] font-semibold flex items-center gap-1">
+              <div key={idx} className="border border-line rounded-md overflow-hidden">
+                <div className="bg-danger/10 border-b border-danger/20 px-2.5 py-1 text-xs text-danger font-semibold flex items-center gap-1">
                   <span>- ORIGINAL (SEARCH)</span>
                 </div>
-                <pre className="p-2.5 bg-[#140a0c] text-[#fca5a5] overflow-x-auto custom-scrollbar whitespace-pre">
+                <pre className="p-2.5 bg-surface text-[#fca5a5] overflow-x-auto custom-scrollbar whitespace-pre">
                   <code>{blk.search}</code>
                 </pre>
-                <div className="bg-[#10b981]/10 border-y border-[#10b981]/20 px-2.5 py-1 text-[10.5px] text-[#10b981] font-semibold flex items-center gap-1">
+                <div className="bg-success/10 border-y border-success/20 px-2.5 py-1 text-xs text-success font-semibold flex items-center gap-1">
                   <span>+ REPLACEMENT (REPLACE)</span>
                 </div>
-                <pre className="p-2.5 bg-[#081510] text-[#86efac] overflow-x-auto custom-scrollbar whitespace-pre">
+                <pre className="p-2.5 bg-surface text-[#86efac] overflow-x-auto custom-scrollbar whitespace-pre">
                   <code>{blk.replace}</code>
                 </pre>
               </div>
             ))}
           </div>
         ) : (
-          <pre className="text-[12px] font-mono leading-[1.65] text-[#93c5fd] selection:bg-[#3b82f6]/30">
+          <pre className="text-sm font-mono leading-[1.65] text-[#93c5fd] selection:bg-accent/30">
             <code>{text}</code>
           </pre>
         )}
@@ -143,12 +143,12 @@ export function CodeBlock({
 
       {/* Action Toolbar */}
       {(onApplyDiff || onApplyCode || (isDifferentFromActive && onCreateNewFile && detectedFile)) && (
-        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-[#0c0e12] border-t border-[#161922] select-none">
+        <div className="flex flex-wrap items-center gap-1.5 p-2 bg-surface border-t border-line-subtle select-none">
           {/* Create & Open new file button */}
           {!isDiffBlock && isDifferentFromActive && onCreateNewFile && detectedFile && (
             <button
               onClick={handleCreateFile}
-              className="flex-1 min-w-[130px] text-[#10b981] hover:text-white bg-[#10b981]/15 hover:bg-[#10b981] px-2.5 py-1 rounded text-[11px] font-mono flex items-center justify-center gap-1.5 cursor-pointer border border-[#10b981]/30 transition-all font-semibold shadow-sm"
+              className="flex-1 min-w-[130px] text-success hover:text-white bg-success/15 hover:bg-success px-2.5 py-1 rounded text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer border border-success/30 transition-all font-semibold shadow-sm"
               title={`Create new file ${detectedFile} in workspace without overwriting ${activeFileName}`}
             >
               <span>{created ? <Icons.Check /> : <Icons.Sparkles />}</span>
@@ -160,10 +160,10 @@ export function CodeBlock({
           {(isDiffBlock ? onApplyDiff : onApplyCode) && (
             <button
               onClick={handleApply}
-              className={`flex-1 min-w-[110px] text-white px-2.5 py-1.5 rounded text-[11px] font-mono flex items-center justify-center gap-1.5 cursor-pointer transition-all font-semibold shadow-sm ${
+              className={`flex-1 min-w-[110px] text-white px-2.5 py-1.5 rounded text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer transition-all font-semibold shadow-sm ${
                 isDiffBlock
-                  ? 'bg-[#2563eb] hover:bg-[#1d4ed8] border border-[#3b82f6]/50 shadow-[#3b82f6]/20'
-                  : 'bg-[#1e293b]/80 hover:bg-[#2563eb] border border-[#3b82f6]/30 text-[#60a5fa] hover:text-white'
+                  ? 'bg-accent-strong hover:bg-accent-hover border border-accent/50 shadow-[#3b82f6]/20'
+                  : 'bg-selected/80 hover:bg-accent-strong border border-accent/30 text-accent-fg hover:text-white'
               }`}
               title={isDiffBlock ? `Surgically apply ${diffBlocks.length} edits into ${activeFileName || 'active editor'}` : `Apply code into ${activeFileName || 'active editor'}`}
             >
