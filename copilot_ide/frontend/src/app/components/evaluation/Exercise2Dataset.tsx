@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo } from 'react';
+import { Dialog } from '../Dialog';
 import { EVALUATION_DATA, QuestionEntry } from './evaluationData';
 
 interface Exercise2DatasetProps {
@@ -332,10 +333,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
 
       {/* Question Inspector Detail Drawer / Modal */}
       {selectedQuestion && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedQuestion(null)}
-        >
+        <Dialog onClose={() => setSelectedQuestion(null)} label="Question details" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div
             className="bg-surface border border-line-strong rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-fade-in"
             onClick={e => e.stopPropagation()}
@@ -419,7 +417,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
               </div>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

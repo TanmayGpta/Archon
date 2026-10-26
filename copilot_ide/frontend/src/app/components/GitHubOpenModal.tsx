@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Dialog } from './Dialog';
 
 export interface GitHubRepoInfo {
   owner: string;
@@ -99,7 +100,7 @@ export default function GitHubOpenModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+    <Dialog onClose={onClose} label="Open a GitHub repository" className="flex items-center justify-center p-4 select-none" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm" closeOnBackdrop={false}>
       <div className="w-full max-w-lg bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col text-fg animate-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -211,6 +212,6 @@ export default function GitHubOpenModal({
           </div>
         </form>
       </div>
-    </div>
+    </Dialog>
   );
 }

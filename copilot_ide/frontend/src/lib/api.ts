@@ -29,3 +29,15 @@ export const API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_API_URL, 8000
 
 /** Evaluation service (benchmarks and SCIP ablation runs). */
 export const EVALUATION_API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_EVALUATION_API_URL, 8003);
+
+/** The readable part of an error response body: FastAPI's {"detail": "..."} or the raw text. */
+export function errorDetail(body: string): string {
+  try {
+    const detail = JSON.parse(body)?.detail;
+    if (typeof detail === 'string' && detail) return /[.!?]$/.test(detail) ? detail : `${detail}.`;
+  } catch {
+    // not JSON
+  }
+  const text = body.trim().slice(0, 200);
+  return text || 'The server returned an error.';
+}

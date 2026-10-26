@@ -44,6 +44,9 @@ export function useIdeStore() {
   const [filterQuery, setFilterQuery] = useState('');
   const [inlineCreateState, setInlineCreateState] = useState<{ parentPath: string; isDir: boolean } | null>(null);
   const [inlineCreateName, setInlineCreateName] = useState('');
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   
   // Quick Open (Ctrl+P) State
   const [showQuickOpen, setShowQuickOpen] = useState(false);
@@ -176,6 +179,12 @@ export function useIdeStore() {
     setInlineCreateState,
     inlineCreateName,
     setInlineCreateName,
+    renameTarget,
+    setRenameTarget,
+    renameValue,
+    setRenameValue,
+    workspaceError,
+    setWorkspaceError,
     showQuickOpen,
     setShowQuickOpen,
     quickOpenQuery,

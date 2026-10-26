@@ -1,6 +1,8 @@
 "use client";
 import { useEffect } from 'react';
 import { readLastProject, writeLastProject } from './lastProject';
+import { useFeedback } from '../../components/Feedback';
+import { errorDetail } from '@/lib/api';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { ApiKeysApi } from './useApiKeys';
@@ -8,6 +10,7 @@ import type { EditorApi } from './useEditorActions';
 
 /* -- Workspace: open project, recent list, file tree, create/rename/delete, quick-open file list - */
 export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & EditorApi) {
+  const { toast, confirmDialog } = useFeedback();
   const {
     activeTabPath,
     apiBase,
@@ -18,6 +21,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     inlineCreateState,
     isGitHubWorkspace,
     quickOpenInputRef,
+    renameTarget,
+    renameValue,
     setActiveTabPath,
     setAllFiles,
     setCurrentProjectName,
@@ -33,6 +38,9 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     setQuickOpenIndex,
     setQuickOpenQuery,
     setRecentProjects,
+    setRenameTarget,
+    setRenameValue,
+    setWorkspaceError,
     setShowOpenProjectModal,
     setTerminals,
     setWorkspaceTree,
@@ -41,6 +49,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
 
   // Open Any Custom Folder / Project (with create_if_missing)
   // quiet: used when reopening a remembered folder on load; a failure just forgets it
+  const serviceDown = `The orchestrator service (${apiBase}) isn't responding. Start it with: docker compose up -d orchestrator-service`;
+
   const handleOpenProject = async (targetPath: string, shouldCreate: boolean = false, { quiet = false } = {}) => {
     if (!targetPath.trim()) return;
     try {
@@ -88,12 +98,21 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
           } catch (err) {}
         }, 150);
       } else {
-        const err = await res.json();
+        const detail = errorDetail(await res.text());
         if (quiet) writeLastProject('');
-        else alert(`Could not open folder: ${err.detail || 'Directory not found'}`);
+        else toast({
+          tone: 'error',
+          title: `Couldn't open ${targetPath.trim()}`,
+          detail: `${detail} Check the path, or pick a recent project.`,
+        });
       }
-    } catch (e) {
-      if (!quiet) alert("Failed to connect to workspace service.");
+    } catch {
+      if (!quiet) toast({
+        tone: 'error',
+        title: `Couldn't open ${targetPath.trim()}`,
+        detail: serviceDown,
+        action: { label: 'Retry', run: () => handleOpenProject(targetPath, shouldCreate) },
+      });
     }
   };
 
@@ -103,6 +122,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     setLoadingTree(true);
     try {
       const projRes = await fetch(`${apiBase}/api/workspace/projects`);
+      setWorkspaceError(projRes.ok ? null : `The workspace service answered ${projRes.status}. ${errorDetail(await projRes.clone().text())}`);
       if (projRes.ok) {
         const projData = await projRes.json();
         setRecentProjects(projData.recent_projects || []);
@@ -128,7 +148,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         }
       }
     } catch (e) {
-      console.error("Failed to load workspace", e);
+      setWorkspaceError(serviceDown);
     }
     setLoadingTree(false);
   };
@@ -174,7 +194,18 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
 
   // Delete File or Directory
   const handleDeleteItem = async (targetPath: string, isDir: boolean) => {
-    const confirmed = window.confirm(`Are you sure you want to delete ${isDir ? 'folder' : 'file'} "${targetPath}"?`);
+    const name = targetPath.split('/').pop() || targetPath;
+    const confirmed = await confirmDialog({
+      title: `Delete ${name}?`,
+      body: (
+        <>
+          <span className="font-mono text-fg-soft break-all">{targetPath}</span>
+          {isDir ? ' and everything in it' : ''} will be removed from disk. This can&apos;t be undone.
+        </>
+      ),
+      confirmLabel: 'Delete',
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -191,18 +222,34 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         }
         fetchProjectsAndTree();
       } else {
-        const err = await res.json();
-        alert(`Failed to delete: ${err.detail || 'Error'}`);
+        toast({ tone: 'error', title: `Couldn't delete ${name}`, detail: errorDetail(await res.text()) });
       }
-    } catch (e) {
-      alert("Error connecting to workspace service.");
+    } catch {
+      toast({ tone: 'error', title: `Couldn't delete ${name}`, detail: serviceDown });
     }
   };
 
-  // Rename File or Directory
-  const handleRenameItem = async (oldPath: string, oldName: string) => {
-    const newName = window.prompt(`Rename "${oldName}" to:`, oldName);
-    if (!newName || !newName.trim() || newName.trim() === oldName) return;
+  // Rename File or Directory: show the inline name input on the row
+  const handleRenameItem = (oldPath: string, oldName: string) => {
+    setInlineCreateState(null);
+    setRenameTarget(oldPath);
+    setRenameValue(oldName);
+  };
+
+  const cancelRename = () => {
+    setRenameTarget(null);
+    setRenameValue('');
+  };
+
+  const handleConfirmRename = async () => {
+    const oldPath = renameTarget;
+    if (!oldPath) return;
+    const oldName = oldPath.split('/').pop() || oldPath;
+    const newName = renameValue;
+    if (!newName.trim() || newName.trim() === oldName) {
+      cancelRename();
+      return;
+    }
 
     const parts = oldPath.split('/');
     parts[parts.length - 1] = newName.trim();
@@ -228,13 +275,13 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         if (activeTabPath === oldPath) {
           setActiveTabPath(newPath);
         }
+        cancelRename();
         fetchProjectsAndTree();
       } else {
-        const err = await res.json();
-        alert(`Failed to rename: ${err.detail || 'Error'}`);
+        toast({ tone: 'error', title: `Couldn't rename ${oldName}`, detail: `${errorDetail(await res.text())} Pick another name or press Esc.` });
       }
-    } catch (e) {
-      alert("Error connecting to workspace service.");
+    } catch {
+      toast({ tone: 'error', title: `Couldn't rename ${oldName}`, detail: serviceDown });
     }
   };
 
@@ -263,11 +310,10 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
           handleOpenFile(fullPath);
         }
       } else {
-        const err = await res.json();
-        alert(`Failed to create: ${err.detail || 'Error'}`);
+        toast({ tone: 'error', title: `Couldn't create ${cleanName}`, detail: `${errorDetail(await res.text())} Pick another name or press Esc.` });
       }
-    } catch (e) {
-      alert("Failed to connect to workspace service.");
+    } catch {
+      toast({ tone: 'error', title: `Couldn't create ${cleanName}`, detail: serviceDown });
     }
   };
 
@@ -277,6 +323,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     fetchAllFiles,
     handleDeleteItem,
     handleRenameItem,
+    handleConfirmRename,
+    cancelRename,
     handleConfirmInlineCreate,
   };
 }

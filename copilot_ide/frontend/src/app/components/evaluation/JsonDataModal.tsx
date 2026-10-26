@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo } from 'react';
+import { Dialog } from '../Dialog';
 import { EVALUATION_DATA } from './evaluationData';
 
 interface JsonDataModalProps {
@@ -51,10 +52,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 md:p-8 animate-fade-in"
-      onClick={onClose}
-    >
+    <Dialog onClose={onClose} label="Raw JSON data" className="flex items-center justify-center p-4 md:p-8 animate-fade-in" backdrop="backdrop:bg-black/85 backdrop:backdrop-blur-md">
       <div 
         className="bg-surface border border-line rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
@@ -202,6 +200,6 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
           <span>Archon Lab 4 Evaluation Inspector</span>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

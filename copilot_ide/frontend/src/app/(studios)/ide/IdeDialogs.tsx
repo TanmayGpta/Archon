@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { Dialog } from '../../components/Dialog';
 import { Icons } from '../../components/Icons';
 import { getFileIcon } from './FileTree';
 import { useIde } from './IdeContext';
@@ -38,7 +39,7 @@ export function IdeDialogs() {
     <>
       {/* ── Open / Create Project Workspace Modal ─────────────────── */}
       {showOpenProjectModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <Dialog onClose={() => setShowOpenProjectModal(false)} label="Open or create a project" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm" closeOnBackdrop={false}>
           <div className="bg-surface border border-line rounded-xl max-w-[550px] w-full p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-line pb-3">
               <div className="flex items-center gap-2.5">
@@ -115,15 +116,12 @@ export function IdeDialogs() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* ── Cloud LLM API Keys Settings Modal ──────────────────── */}
       {showApiKeysModal && (
-        <div 
-          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-          onClick={() => setShowApiKeysModal(false)}
-        >
+        <Dialog onClose={() => setShowApiKeysModal(false)} label="API keys" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/70 backdrop:backdrop-blur-xs">
           <div 
             className="bg-surface border border-line rounded-xl max-w-[520px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
             onClick={(e) => e.stopPropagation()}
@@ -278,15 +276,12 @@ export function IdeDialogs() {
               </div>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* ── Quick Open (Ctrl+P) Search Modal ────────────────────── */}
       {showQuickOpen && (
-        <div 
-          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-start justify-center pt-24 p-4"
-          onClick={() => setShowQuickOpen(false)}
-        >
+        <Dialog onClose={() => setShowQuickOpen(false)} label="Quick open file" className="flex items-start justify-center pt-24 p-4" backdrop="backdrop:bg-black/70 backdrop:backdrop-blur-xs">
           <div 
             className="bg-surface border border-line rounded-xl max-w-[620px] w-full shadow-2xl overflow-hidden shadow-black/80 flex flex-col"
             onClick={(e) => e.stopPropagation()}
@@ -388,7 +383,7 @@ export function IdeDialogs() {
               })()}
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
     </>

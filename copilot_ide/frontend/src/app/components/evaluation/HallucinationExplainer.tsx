@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import { Dialog } from '../Dialog';
 
 interface HallucinationExplainerProps {
   children?: React.ReactNode;
@@ -79,10 +80,7 @@ export function HallucinationExplainer({
 
       {/* Full Modal Dialog */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsOpen(false)}
-        >
+        <Dialog onClose={() => setIsOpen(false)} label="How hallucination is measured" className="flex items-center justify-center p-4 animate-fade-in" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div 
             className="bg-surface border border-line-strong rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar p-6 md:p-8 space-y-6 shadow-2xl text-left"
             onClick={e => e.stopPropagation()}
@@ -195,7 +193,7 @@ export function HallucinationExplainer({
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </>
   );

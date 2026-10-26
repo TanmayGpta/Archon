@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useModels } from '../ModelsContext';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, errorDetail } from '@/lib/api';
+import { useFeedback } from '../../components/Feedback';
 import { PIPELINE_STAGES } from './RagPipeline';
 
 /* -- Ask studio state and actions: retrieval, streaming generation, uploads - */
 export function useAskState() {
+  const { toast } = useFeedback();
   // Model selection is shared with the IDE (see ModelsContext)
   const { models, selectedModel, setSelectedModel, comparisonModel, setComparisonModel } = useModels();
   const [compareMode, setCompareMode] = useState<boolean>(false);
@@ -231,12 +233,19 @@ export function useAskState() {
         method: 'POST',
         body: formData
       });
-      const data = await res.json();
-      setUploadChunks(data.chunks || []);
-      setShowModal(true);
-    } catch (error) {
-      console.error("Upload failed", error);
-      alert("Document upload failed.");
+      if (!res.ok) {
+        toast({ tone: 'error', title: `Couldn't index ${file.name}`, detail: errorDetail(await res.text()) });
+      } else {
+        const data = await res.json();
+        setUploadChunks(data.chunks || []);
+        setShowModal(true);
+      }
+    } catch {
+      toast({
+        tone: 'error',
+        title: `Couldn't upload ${file.name}`,
+        detail: `The orchestrator service (${API_BASE}) isn't responding, so the ingestion service can't be reached. Start the stack with docker compose up -d, then upload again.`,
+      });
     }
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { Dialog } from './Dialog';
 
 export interface GraphNode {
   id: string;
@@ -772,7 +773,7 @@ export default function CodeKnowledgeGraph({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-canvas/95 backdrop-blur-md flex flex-col select-none text-fg">
+    <Dialog onClose={onClose} label="Code knowledge graph" className="flex flex-col select-none text-fg" backdrop="backdrop:bg-canvas/95 backdrop:backdrop-blur-md" closeOnBackdrop={false}>
       {/* ── Top Header Toolbar ────────────────────────────────────────── */}
       <div className="h-[54px] border-b border-line px-5 flex items-center justify-between bg-surface">
         <div className="flex items-center gap-3">
@@ -1131,6 +1132,6 @@ export default function CodeKnowledgeGraph({
           </div>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }

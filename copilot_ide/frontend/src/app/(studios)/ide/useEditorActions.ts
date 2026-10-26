@@ -2,12 +2,15 @@
 import React, { useEffect } from 'react';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import { parseDiffBlocks, applyDiffBlocks } from '@/lib/diff';
+import { errorDetail } from '@/lib/api';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { PendingEdit } from './types';
+import { useFeedback } from '../../components/Feedback';
 
 /* -- Tabs and editor buffer: open, close, edit, save, apply agent edits, shortcuts - */
 export function useEditorActions(ide: IdeProps & IdeStore) {
+  const { toast } = useFeedback();
   const {
     activeTabPath,
     agentEdits,
@@ -120,8 +123,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
         setActiveTabPath(filename);
         setEditorContent(content);
         setIsDirty(false);
-        setLastAppliedNotice(`Created & opened ${filename} in workspace`);
-        setTimeout(() => setLastAppliedNotice(null), 5000);
+        toast({ tone: 'success', title: `Created ${filename}` });
 
         // Refresh File Tree
         const treeRes = await fetch(`${apiBase}/api/workspace/tree`);
@@ -201,19 +203,31 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
           }
           setOpenTabs(prev => prev.map(t => t.path === activeTabPath ? { ...t, original: editorContent } : t));
           setIsDirty(false);
-          setSaveStatus('✓ Committed to GitHub');
+          setSaveStatus('');
           setLastAppliedNotice(null);
-          setTimeout(() => setSaveStatus(''), 2500);
+          toast({
+            tone: 'success',
+            title: `Committed ${activeTabPath}`,
+            detail: `${githubRepoInfo.full_name} on ${currentGitHubBranch}`,
+          });
           return;
         } else {
           const errData = await res.text();
-          setSaveStatus('❌ Commit Failed');
-          alert(`GitHub Commit Failed: ${errData}`);
+          setSaveStatus('');
+          toast({
+            tone: 'error',
+            title: `Couldn't commit ${activeTabPath} to GitHub`,
+            detail: `${errorDetail(errData)} Your changes are still in the editor. Check the token can write to the repo, then press Ctrl+S again.`,
+          });
           return;
         }
       } catch (e: any) {
-        setSaveStatus('❌ Commit Failed');
-        alert(`GitHub Commit Error: ${e?.message || e}`);
+        setSaveStatus('');
+        toast({
+          tone: 'error',
+          title: `Couldn't reach the server to commit ${activeTabPath}`,
+          detail: `${e?.message || e}. Your changes are still in the editor; press Ctrl+S to retry.`,
+        });
         return;
       }
     }
@@ -229,14 +243,23 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
       if (res.ok) {
         setOpenTabs(prev => prev.map(t => t.path === activeTabPath ? { ...t, original: editorContent } : t));
         setIsDirty(false);
-        setSaveStatus('✓ Saved');
+        setSaveStatus('');
         setLastAppliedNotice(null);
-        setTimeout(() => setSaveStatus(''), 2000);
       } else {
-        setSaveStatus('❌ Error');
+        setSaveStatus('');
+        toast({
+          tone: 'error',
+          title: `Couldn't save ${activeTabPath}`,
+          detail: `${errorDetail(await res.text())} Your changes are still in the editor; press Ctrl+S to try again.`,
+        });
       }
     } catch (e) {
-      setSaveStatus('❌ Failed');
+      setSaveStatus('');
+      toast({
+        tone: 'error',
+        title: `Couldn't save ${activeTabPath}`,
+        detail: `The orchestrator service (${apiBase}) isn't responding. Your changes are still in the editor; press Ctrl+S to try again.`,
+      });
     }
   };
 
@@ -279,7 +302,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   };
 
   // Review the edit as a diff, or (auto-apply) apply it straight away
-  const deliverAgentEdit = (edit: Omit<PendingEdit, 'id'>, notice: string, noticeMs: number, review: boolean) => {
+  const deliverAgentEdit = (edit: Omit<PendingEdit, 'id'>, notice: string, review: boolean) => {
     if (edit.after === edit.before) return;
     const withId = { ...edit, id: `edit-${Date.now()}` };
     if (review) {
@@ -288,7 +311,6 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     }
     commitAgentEdit(withId);
     setLastAppliedNotice(notice);
-    setTimeout(() => setLastAppliedNotice(null), noticeMs);
   };
 
   // Close the diff review with the text the user kept
@@ -299,7 +321,6 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     if (keptText === edit.before) return;
     commitAgentEdit({ ...edit, after: keptText });
     setLastAppliedNotice(`✓ Applied reviewed edit to ${edit.name} • (Ctrl+S to save)`);
-    setTimeout(() => setLastAppliedNotice(null), 5000);
   };
 
   // Restore a file to how it was before an agent edit (only while the edit is still the latest text)
@@ -314,7 +335,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   const handleApplyDiff = (diffSnippet: string, { review = true } = {}) => {
     const active = openTabs.find(t => t.path === activeTabPath);
     if (!active) {
-      alert("Please open a file in the editor to apply this surgical diff.");
+      toast({ tone: 'warning', title: 'Open the file first', detail: 'Open the file this diff is for in the editor, then press Apply again.' });
       return;
     }
 
@@ -327,7 +348,11 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
       /\/\/\s*\.\.\./,
     ];
     if (lazyPatterns.some(p => p.test(diffSnippet))) {
-      alert('Blocked: The AI model generated incomplete placeholder code (e.g. "// ... rest of code unchanged"). Refusing to overwrite your file to prevent data loss. Please re-prompt the agent with more specific instructions.');
+      toast({
+        tone: 'warning',
+        title: 'Edit not applied: the reply has placeholder code',
+        detail: 'It contains lines like "// ... rest of code unchanged", which would delete code. Ask the agent for the complete change.',
+      });
       return;
     }
 
@@ -341,7 +366,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
         if (codeToUse.trim().length > 0) {
           deliverAgentEdit(
             { path: active.path, name: active.name, before: editorContent, after: codeToUse, summary: 'filled an empty file' },
-            `✓ Populated ${active.name} with code • (Ctrl+S to save)`, 5000, review,
+            `✓ Populated ${active.name} with code • (Ctrl+S to save)`, review,
           );
           return;
         }
@@ -353,11 +378,15 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
       const edits = `${result.appliedCount} diff ${result.appliedCount === 1 ? 'edit' : 'edits'}`;
       deliverAgentEdit(
         { path: active.path, name: active.name, before: editorContent, after: result.newContent, summary: edits },
-        `✓ Surgically applied ${edits} to ${active.name} • (Ctrl+S to save)`, 6000, review,
+        `✓ Surgically applied ${edits} to ${active.name} • (Ctrl+S to save)`, review,
       );
     } else {
       const errDetail = result.errors.join(' ');
-      alert(`Could not apply diff surgically: ${errDetail}\n\nFalling back to manual inspection.`);
+      toast({
+        tone: 'error',
+        title: `Couldn't apply the diff to ${active.name}`,
+        detail: `${errDetail} The file is unchanged; copy the code from the reply or ask the agent to retry.`,
+      });
     }
   };
 
@@ -367,7 +396,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     if (active) {
       deliverAgentEdit(
         { path: active.path, name: active.name, before: editorContent, after: snippet, summary: 'replaced the file' },
-        `Archon Agent applied edits to ${active.name} • (Ctrl+S to save)`, 5000, review,
+        `Archon Agent applied edits to ${active.name} • (Ctrl+S to save)`, review,
       );
     } else {
       const tempPath = detectTargetFilename(snippet) || 'solution.py';

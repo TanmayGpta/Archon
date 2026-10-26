@@ -6,6 +6,8 @@ import remarkGfm from 'remark-gfm';
 import { ArchitectureDiagramViewer } from './ArchitectureDiagramViewer';
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
+import { ErrorState, Skeleton } from './StateViews';
+import { errorDetail } from '@/lib/api';
 
 interface ArcGenStudioProps {
   apiBase: string;
@@ -137,6 +139,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
   // Notification / Copy state
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Presets load from the orchestrator; null = still loading
+  const [presetsState, setPresetsState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const srsFileRef = React.useRef<HTMLInputElement>(null);
 
   // apiBase arrives already resolved for the page's host (see lib/api.ts)
   const effectiveApiBase = apiBase;
@@ -182,8 +187,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
   }, [currentQuestion?.suggested_options]);
 
   const loadData = React.useCallback(async () => {
+    let reached = false;
     try {
       const pRes = await fetch(`${effectiveApiBase}/api/arcgen/patterns`);
+      reached = true;
       if (pRes.ok) {
         const pData = await pRes.json();
         if (pData.patterns && pData.patterns.length > 0) {
@@ -196,6 +203,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
 
     try {
       const eRes = await fetch(`${effectiveApiBase}/api/arcgen/examples`);
+      reached = true;
       if (eRes.ok) {
         const eData = await eRes.json();
         if (eData.prompt_templates && eData.prompt_templates.length > 0) {
@@ -210,7 +218,26 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
     } catch (err) {
       console.warn("Failed to fetch examples:", err);
     }
+    setPresetsState(prev => (reached ? 'ready' : prev === 'ready' ? prev : 'error'));
   }, [effectiveApiBase]);
+
+  const retryLoad = () => {
+    setPresetsState('loading');
+    loadData();
+  };
+
+  // Read a local .txt / .md SRS into the editor (nothing is uploaded until Generate)
+  const handleSrsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setSrsText(await file.text());
+      setStatusMsg(`Loaded ${file.name}. Review it, then generate.`);
+    } catch {
+      setStatusMsg(`Couldn't read ${file.name}. Use a plain-text (.txt or .md) file.`);
+    }
+  };
 
   // Load Patterns and Examples on mount with automatic retry
   useEffect(() => {
@@ -232,7 +259,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(errorDetail(await res.text()));
       const data = await res.json();
       setSessionId(data.session_id);
       setAsrSummary(data.summary);
@@ -243,7 +270,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
       setStatusMsg(data.should_stop ? "Sufficient requirements detected! Ready to generate." : "Phase A interview active.");
     } catch (err: any) {
       console.error(err);
-      setStatusMsg(`Error: ${err.message}`);
+      setStatusMsg(err instanceof TypeError ? `Error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Error: ${err.message}`);
     } finally {
       setIsEliciting(false);
     }
@@ -275,7 +302,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
           skip,
         }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(errorDetail(await res.text()));
       const data = await res.json();
       setAsrSummary(data.summary);
       setCurrentQuestion(data.next_question);
@@ -285,7 +312,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
       setStatusMsg(data.should_stop ? `Stopping criterion reached: ${data.stop_reason}` : "Next question formulated.");
     } catch (err: any) {
       console.error(err);
-      setStatusMsg(`Error: ${err.message}`);
+      setStatusMsg(err instanceof TypeError ? `Error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Error: ${err.message}`);
     } finally {
       setIsEliciting(false);
       setSelectedOption(null);
@@ -312,14 +339,14 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(errorDetail(await res.text()));
       const data = await res.json();
       setGeneratedArch(data);
       setActiveOutputTab('diagram');
       setStatusMsg("Architecture graph generated & validated with zero orphans!");
     } catch (err: any) {
       console.error(err);
-      setStatusMsg(`Generation error: ${err.message}`);
+      setStatusMsg(err instanceof TypeError ? `Generation error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Generation error: ${err.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -543,6 +570,17 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                 </label>
                 <span className="text-xs text-fg-subtle">Presets:</span>
               </div>
+              {presetsState === 'error' && (
+                <ErrorState
+                  compact
+                  title="Couldn't load presets and patterns"
+                  detail={`The orchestrator service (${effectiveApiBase}) isn't responding. You can still type requirements below.`}
+                  onRetry={retryLoad}
+                />
+              )}
+              {presetsState === 'loading' && exampleTemplates.length === 0 && (
+                <Skeleton rows={2} widths={[60, 45]} label="Loading presets" padded={false} className="mb-2.5" />
+              )}
               <div className="flex flex-wrap gap-1.5 mb-2.5">
                 {exampleTemplates.map(t => (
                   <button
@@ -581,6 +619,26 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
                 </div>
               ) : (
                 <div>
+                  <input ref={srsFileRef} type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" className="hidden" onChange={handleSrsFile} />
+                  {!srsText.trim() && (
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                      <span>No SRS yet.</span>
+                      <button
+                        onClick={() => srsFileRef.current?.click()}
+                        className="px-2.5 py-1 rounded-md border border-line-strong text-fg-soft hover:border-info/50 hover:text-info cursor-pointer"
+                      >
+                        Upload SRS
+                      </button>
+                      {exampleTemplates.length > 0 && (
+                        <button
+                          onClick={() => setSrsText(exampleTemplates[0].prompt)}
+                          className="px-2.5 py-1 rounded-md border border-line-strong text-fg-soft hover:border-info/50 hover:text-info cursor-pointer"
+                        >
+                          Use example
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <textarea
                     value={srsText}
                     onChange={e => setSrsText(e.target.value)}

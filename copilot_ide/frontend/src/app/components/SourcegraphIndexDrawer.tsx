@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Dialog } from './Dialog';
 import { KnowledgeGraphData } from './CodeKnowledgeGraph';
 
 interface IndexResult {
@@ -134,7 +135,7 @@ export default function SourcegraphIndexDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+    <Dialog onClose={onClose} label="Index codebase" className="flex items-center justify-center p-4 select-none" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm" closeOnBackdrop={false}>
       <div className="w-full max-w-2xl bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-fg">
         
         {/* Modal Header */}
@@ -348,6 +349,6 @@ export default function SourcegraphIndexDrawer({
         </div>
 
       </div>
-    </div>
+    </Dialog>
   );
 }

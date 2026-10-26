@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ConformanceCanvas } from './ConformanceCanvas';
 import { ResizeHandle, usePanelSize } from '../ResizeHandle';
+import { errorDetail } from '@/lib/api';
 import archonAuditSnapshot from './archonAuditSnapshot.json';
 import {
   ConformanceAuditResult,
@@ -108,7 +109,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [auditData, setAuditData] = useState<ConformanceAuditResult | null>(
     fromSnapshot ? (archonAuditSnapshot as unknown as ConformanceAuditResult) : null
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ title: string; detail: string } | null>(null);
+  const lastAuditRef = useRef<{ blueprintId?: string; path: string }>({ path: '' });
   const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
 
   // Target Codebase Path State
@@ -143,6 +145,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
     setError(null);
     const bp = blueprintId || selectedBlueprintId;
     const pathToScan = customPath !== undefined ? customPath : targetPath;
+    const where = pathToScan.trim() || 'the workspace root';
+    lastAuditRef.current = { blueprintId, path: pathToScan };
 
     try {
       const res = await fetch(`${apiBase}/api/conformance/audit`, {
@@ -155,28 +159,41 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         })
       });
 
+      setIsBackendOffline(false);
       if (!res.ok) {
-        throw new Error(`Audit failed with status ${res.status}`);
+        // The service answered: keep the current graph and say what went wrong
+        setError({ title: `Couldn't scan ${where}`, detail: errorDetail(await res.text()) });
+        return;
       }
 
-      const data: ConformanceAuditResult = await res.json();
+      const data = (await res.json()) as ConformanceAuditResult & { status?: string; error?: string };
+      if (data.status === 'error') {
+        setError({
+          title: `Couldn't scan ${where}`,
+          detail: `${data.error || 'The audit failed.'} Paths are read inside the orchestrator container, where the workspace is /workspace.`,
+        });
+        return;
+      }
       setAuditData(data);
-      setIsBackendOffline(false);
 
       const layersSet = new Set(data.layers.map(l => l.name));
       setFilterLayers(layersSet);
       setSelectedNode(null);
       setSelectedEdge(null);
     } catch (err: any) {
-      console.warn('Backend unavailable, activating interactive preview:', err);
+      // Orchestrator unreachable: keep any graph already on screen, else show the interactive preview
       setIsBackendOffline(true);
-      const mock = getMockAuditData(bp);
-      setAuditData(mock);
-      setFilterLayers(new Set(mock.layers.map(l => l.name)));
+      if (!auditData) {
+        const mock = getMockAuditData(bp);
+        setAuditData(mock);
+        setFilterLayers(new Set(mock.layers.map(l => l.name)));
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const retryAudit = () => runAudit(lastAuditRef.current.blueprintId, lastAuditRef.current.path);
 
   useEffect(() => {
     if (auditedExternalRef.current === includeExternal) return;
@@ -187,7 +204,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   // Keyboard shortcut '/' to search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement !== searchInputRef.current) {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      if (e.key === '/' && !typing) {
         e.preventDefault();
         searchInputRef.current?.focus();
       } else if (e.key === 'Escape') {
@@ -410,7 +429,35 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse" />
             <span>PREVIEW MODE: Orchestrator service offline on port 8000. Exploring interactive architectural demo. Start backend to scan live local files.</span>
           </div>
-          <span className="text-xs text-[#8b8b86]">Run: cd copilot_ide && docker compose up orchestrator-service</span>
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-[#8b8b86]">Run: cd copilot_ide && docker compose up orchestrator-service</span>
+            <button
+              onClick={retryAudit}
+              disabled={loading}
+              className="px-2 py-0.5 rounded border border-[#e8ff00]/40 hover:bg-[#e8ff00]/10 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Retrying…' : 'Retry'}
+            </button>
+          </span>
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="bg-[#1f0b0a] border-b border-[#ff3b30]/40 px-4 py-1.5 flex items-center justify-between gap-4 text-xs font-mono text-[#ff8a80] z-20 flex-shrink-0">
+          <span className="min-w-0">
+            <b className="text-[#ff3b30]">{error.title}.</b> {error.detail}
+          </span>
+          <span className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={retryAudit}
+              disabled={loading}
+              className="px-2 py-0.5 rounded border border-[#ff3b30]/40 hover:bg-[#ff3b30]/10 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'Retrying…' : 'Retry'}
+            </button>
+            <button onClick={() => setError(null)} aria-label="Dismiss error" className="px-1 text-[#8b8b86] hover:text-white cursor-pointer">
+              ✕
+            </button>
+          </span>
         </div>
       )}
 
@@ -540,6 +587,24 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             onIntroChange={setIntroActive}
             introBounds={introScope === 'studio' ? 'container' : 'viewport'}
           />
+
+          {auditData && auditData.nodes.length === 0 && !loading && !introActive && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center p-6 pointer-events-none">
+              <div className="pointer-events-auto max-w-md text-center font-mono text-xs text-[#8b8b86] space-y-3 bg-[#0e0e0d]/95 border border-[#2b2b2a] rounded-lg p-6">
+                <p className="text-sm text-white">No Python modules found{targetPath.trim() ? ` in ${targetPath.trim()}` : ''}</p>
+                <p>Type a folder that contains .py files into PATH above and press Enter, or go back to Archon&apos;s own codebase.</p>
+                <button
+                  onClick={() => {
+                    setTargetPath('');
+                    runAudit(undefined, '');
+                  }}
+                  className="px-3 py-1.5 rounded border border-[#e8ff00]/50 text-[#e8ff00] hover:bg-[#e8ff00]/10 cursor-pointer"
+                >
+                  Scan Archon itself
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── FLOATING EDGE INSPECTOR MODAL (#insp) ────────────────── */}
           {selectedEdge && (

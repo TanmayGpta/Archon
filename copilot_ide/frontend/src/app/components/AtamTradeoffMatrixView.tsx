@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { Dialog } from './Dialog';
 
 export interface AtamTradeoffMatrixViewProps {
   tradeoffTableMarkdown?: string;
@@ -830,7 +831,7 @@ export function AtamTradeoffMatrixView({
 
       {/* ── MODAL DRAWER: SCORE RATIONALE INSPECTOR ────────────────── */}
       {selectedCell && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <Dialog onClose={() => setSelectedCell(null)} label="Score rationale" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/70 backdrop:backdrop-blur-sm">
           <div className="bg-raised border border-info/40 rounded-2xl max-w-lg w-full p-5 shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-line-strong">
               <div className="flex items-center gap-2">
@@ -898,7 +899,7 @@ export function AtamTradeoffMatrixView({
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
     </div>

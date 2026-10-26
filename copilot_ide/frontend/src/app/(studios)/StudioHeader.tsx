@@ -3,6 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icons } from '../components/Icons';
+import { ServiceStatus } from './ServiceStatus';
 
 const APP_VERSION = 'v1.0';
 
@@ -51,14 +52,7 @@ export function StudioHeader() {
           })}
         </nav>
 
-        {/* Hardcoded until real service health lands (UI_IMPROVEMENTS 3.5); the version moves into that popover. */}
-        <div
-          title={`Archon Copilot ${APP_VERSION}`}
-          className="flex items-center gap-1.5 px-2.5 py-1 bg-success/10 border border-success/25 rounded-lg text-xs font-mono text-success"
-        >
-          <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-          <span>online</span>
-        </div>
+        <ServiceStatus appVersion={APP_VERSION} />
       </div>
     </header>
   );

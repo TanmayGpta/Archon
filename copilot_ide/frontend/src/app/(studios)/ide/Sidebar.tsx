@@ -1,9 +1,10 @@
 "use client";
 import React from 'react';
 import { Icons } from '../../components/Icons';
-import { FileTree } from './FileTree';
+import { FileTree, InlineNameInput, type InlineNameEdit } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
+import { ErrorState, Skeleton } from '../../components/StateViews';
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -18,6 +19,13 @@ export function Sidebar() {
     handleDeleteItem,
     handleOpenFile,
     handleRenameItem,
+    isGitHubWorkspace,
+    handleConfirmRename,
+    cancelRename,
+    renameTarget,
+    renameValue,
+    setRenameValue,
+    workspaceError,
     inlineCreateName,
     inlineCreateState,
     loadingTree,
@@ -33,6 +41,32 @@ export function Sidebar() {
     setShowQuickOpen,
     workspaceTree,
   } = useIde();
+  const inlineEdit: InlineNameEdit | null = renameTarget
+    ? {
+        mode: 'rename',
+        path: renameTarget,
+        isDir: false,
+        value: renameValue,
+        onChange: setRenameValue,
+        onConfirm: handleConfirmRename,
+        onCancel: cancelRename,
+      }
+    : inlineCreateState
+      ? {
+          mode: 'create',
+          path: inlineCreateState.parentPath,
+          isDir: inlineCreateState.isDir,
+          value: inlineCreateName,
+          onChange: setInlineCreateName,
+          onConfirm: handleConfirmInlineCreate,
+          onCancel: () => setInlineCreateState(null),
+        }
+      : null;
+  const startCreate = (parentPath: string, isDir: boolean) => {
+    cancelRename();
+    setInlineCreateState({ parentPath, isDir });
+    setInlineCreateName('');
+  };
   const panel = usePanelSize('ide.sidebar', { initial: 260, min: 180, max: 560 });
 
   return (
@@ -89,9 +123,6 @@ export function Sidebar() {
           </button>
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-success animate-pulse" title="online" />
-        </div>
       </div>
 
 
@@ -109,20 +140,14 @@ export function Sidebar() {
           {/* VS Code Style Action Icons */}
           <div className="flex items-center gap-0.5">
             <button
-              onClick={() => {
-                setInlineCreateState({ parentPath: '', isDir: false });
-                setInlineCreateName('');
-              }}
+              onClick={() => startCreate('', false)}
               title="New File..." aria-label="New File..."
               className="text-fg-subtle hover:text-accent-fg p-1 rounded hover:bg-overlay cursor-pointer"
             >
               <Icons.FilePlus />
             </button>
             <button
-              onClick={() => {
-                setInlineCreateState({ parentPath: '', isDir: true });
-                setInlineCreateName('');
-              }}
+              onClick={() => startCreate('', true)}
               title="New Folder..." aria-label="New Folder..."
               className="text-fg-subtle hover:text-accent-fg p-1 rounded hover:bg-overlay cursor-pointer"
             >
@@ -190,63 +215,47 @@ export function Sidebar() {
         </div>
 
         {/* Inline Creation Prompt at Root */}
-        {inlineCreateState && inlineCreateState.parentPath === '' && (
+        {inlineEdit?.mode === 'create' && inlineEdit.path === '' && (
           <div className="p-2 bg-raised border-b border-accent/30 flex items-center gap-1.5">
             <span className="text-accent-fg">
-              {inlineCreateState.isDir ? <Icons.FolderPlus /> : <Icons.FilePlus />}
+              {inlineEdit.isDir ? <Icons.FolderPlus /> : <Icons.FilePlus />}
             </span>
-            <input
-              type="text"
-              autoFocus
-              value={inlineCreateName}
-              onChange={(e) => setInlineCreateName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleConfirmInlineCreate();
-                if (e.key === 'Escape') setInlineCreateState(null);
-              }}
-              placeholder={inlineCreateState.isDir ? "Folder name..." : "File name..."}
-              className="flex-1 bg-canvas border border-accent/60 rounded px-2 py-0.5 text-xs font-mono text-white focus:outline-none"
-            />
-            <button aria-label="Create"
-              onClick={handleConfirmInlineCreate}
-              className="text-xs bg-accent text-white px-2 py-0.5 rounded font-mono cursor-pointer"
-            >
-              ✓
-            </button>
-            <button aria-label="Cancel"
-              onClick={() => setInlineCreateState(null)}
-              className="text-xs text-fg-subtle hover:text-white px-1 font-mono cursor-pointer"
-            >
-              ✕
-            </button>
+            <InlineNameInput edit={inlineEdit} />
           </div>
         )}
 
         {/* File Tree List */}
         <div className="flex-1 overflow-y-auto p-1.5 custom-scrollbar">
-          {loadingTree ? (
-            <div className="p-4 text-xs font-mono text-fg-subtle flex items-center gap-2">
-              <span className="animate-spin">⟳</span> Loading workspace...
-            </div>
+          {workspaceError && !loadingTree ? (
+            <ErrorState compact title="Couldn't load the workspace" detail={workspaceError} onRetry={fetchProjectsAndTree} />
+          ) : loadingTree && workspaceTree.length === 0 ? (
+            <Skeleton rows={9} indent label="Loading files" />
           ) : workspaceTree.length > 0 ? (
             <FileTree
                 nodes={workspaceTree}
                 activePath={activeTabPath}
+                inlineEdit={inlineEdit}
                 onSelectFile={handleOpenFile}
                 onDelete={handleDeleteItem}
                 onRename={handleRenameItem}
-                onNewFileInDir={(p) => {
-                  setInlineCreateState({ parentPath: p, isDir: false });
-                  setInlineCreateName('');
-                }}
-                onNewFolderInDir={(p) => {
-                  setInlineCreateState({ parentPath: p, isDir: true });
-                  setInlineCreateName('');
-                }}
+                onNewFileInDir={p => startCreate(p, false)}
+                onNewFolderInDir={p => startCreate(p, true)}
               />
           ) : (
-            <div className="p-4 text-xs font-mono text-fg-subtle">
-              No files found in workspace.
+            <div className="p-3 flex flex-col gap-2 text-xs text-fg-muted">
+              {currentProjectPath || isGitHubWorkspace ? (
+                <span>This folder is empty. Use the New File button above to add one.</span>
+              ) : (
+                <>
+                  <span>No folder open.</span>
+                  <button
+                    onClick={() => setShowOpenProjectModal(true)}
+                    className="self-start px-2.5 py-1 rounded-md border border-line text-fg-soft hover:bg-raised cursor-pointer"
+                  >
+                    Open folder
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

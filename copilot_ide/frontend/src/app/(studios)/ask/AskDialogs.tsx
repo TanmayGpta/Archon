@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { Dialog } from '../../components/Dialog';
 import { Icons } from '../../components/Icons';
 import { useAsk } from './AskContext';
 
@@ -23,10 +24,7 @@ export function AskDialogs() {
     <>
       {/* Upload Spec Modal */}
       {showModal && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-          onClick={() => setShowModal(false)}
-        >
+        <Dialog onClose={() => setShowModal(false)} label="Document ingested" className="flex items-center justify-center p-6" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div 
             className="bg-surface border border-line rounded-xl max-w-3xl w-full max-h-[75vh] flex flex-col shadow-2xl"
             onClick={e => e.stopPropagation()}
@@ -60,15 +58,12 @@ export function AskDialogs() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* ── Configure Strategy & Hyperparameters Modal ─────────── */}
       {showConfigModal && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-          onClick={() => setShowConfigModal(false)}
-        >
+        <Dialog onClose={() => setShowConfigModal(false)} label="Retrieval settings" className="flex items-center justify-center p-6" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div 
             className="bg-surface border border-line rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl"
             onClick={e => e.stopPropagation()}
@@ -173,7 +168,7 @@ export function AskDialogs() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </>
   );
