@@ -78,13 +78,13 @@ export function EditReview({ edit, onFinish }: { edit: PendingEdit; onFinish: (t
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={rejectAll}
-            className="px-2.5 py-1 rounded-md text-xs border border-danger/40 text-danger-fg hover:bg-danger/15 cursor-pointer"
+            className="px-2.5 py-1 rounded-control text-xs border border-danger/40 text-danger-fg hover:bg-danger/15 cursor-pointer"
           >
             Reject all
           </button>
           <button
             onClick={acceptAll}
-            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-success text-canvas hover:bg-success-fg cursor-pointer"
+            className="px-2.5 py-1 rounded-control text-xs font-semibold bg-success text-canvas hover:bg-success-fg cursor-pointer"
           >
             Accept all
           </button>

@@ -74,7 +74,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
       <ToastStack toasts={toasts} onDismiss={dismiss} />
       {pending && (
         <Dialog onClose={() => answer(false)} labelledBy="confirm-title">
-          <div className="w-full max-w-md bg-surface border border-line-strong rounded-xl shadow-2xl p-5">
+          <div className="w-full max-w-md bg-surface border border-line-strong rounded-dialog shadow-raised p-5">
             <h2 id="confirm-title" className="text-lg font-semibold text-fg-strong">
               {pending.title}
             </h2>
@@ -83,13 +83,13 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
               <button
                 autoFocus
                 onClick={() => answer(false)}
-                className="px-3 py-1.5 rounded-md text-sm border border-line text-fg-soft hover:bg-raised cursor-pointer"
+                className="px-3 py-1.5 rounded-control text-sm border border-line text-fg-soft hover:bg-raised cursor-pointer"
               >
                 {pending.cancelLabel ?? 'Cancel'}
               </button>
               <button
                 onClick={() => answer(true)}
-                className={`px-3 py-1.5 rounded-md text-sm font-semibold cursor-pointer ${
+                className={`px-3 py-1.5 rounded-control text-sm font-semibold cursor-pointer ${
                   pending.danger
                     ? 'bg-danger text-white hover:bg-danger/80'
                     : 'bg-accent-strong text-white hover:bg-accent-hover'
@@ -163,7 +163,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      className={`flex items-start gap-2.5 rounded-lg border border-line-strong border-l-4 ${TONE_STYLE[tone].bar} bg-overlay px-3 py-2.5 shadow-2xl animate-fade-in`}
+      className={`flex items-start gap-2.5 rounded-panel border border-line-strong border-l-4 ${TONE_STYLE[tone].bar} bg-overlay px-3 py-2.5 shadow-raised animate-fade-in`}
     >
       <span className={`mt-0.5 flex-shrink-0 ${TONE_STYLE[tone].icon}`}>
         {tone === 'success' ? <Icons.Check /> : tone === 'error' ? <Icons.Close /> : <Icons.Diagnostics />}
@@ -186,7 +186,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
       <button
         onClick={onDismiss}
         aria-label="Dismiss notification"
-        className="flex-shrink-0 rounded p-0.5 text-fg-subtle hover:text-fg-soft cursor-pointer"
+        className="flex-shrink-0 rounded-control p-0.5 text-fg-subtle hover:text-fg-soft cursor-pointer"
       >
         <Icons.Close />
       </button>

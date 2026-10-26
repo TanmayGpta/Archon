@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { Glyph, isGlyphName } from './Icons';
 import { Dialog } from './Dialog';
+import { prefersReducedMotion } from '@/lib/motion';
 
 export interface GraphNode {
   id: string;
@@ -65,12 +67,15 @@ interface Props {
   activeFlowSteps?: FlowStep[] | null;
 }
 
+// icon: a Glyph name, or a short text symbol
+const KindIcon = ({ icon }: { icon: string }) => (isGlyphName(icon) ? <Glyph name={icon} /> : <>{icon}</>);
+
 const KIND_COLORS: Record<string, { fill: string; glow: string; label: string; icon: string }> = {
-  endpoint: { fill: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: 'API Endpoint', icon: '⚡' },
+  endpoint: { fill: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: 'API Endpoint', icon: 'zap' },
   function: { fill: '#38bdf8', glow: 'rgba(56, 189, 248, 0.4)', label: 'Function', icon: '𝑓' },
-  class: { fill: '#10b981', glow: 'rgba(16, 185, 129, 0.4)', label: 'Class / Model', icon: '🏛️' },
-  file: { fill: '#64748b', glow: 'rgba(100, 116, 139, 0.25)', label: 'Source File', icon: '📁' },
-  variable: { fill: '#a855f7', glow: 'rgba(168, 85, 247, 0.35)', label: 'Config / Var', icon: '📦' }
+  class: { fill: '#10b981', glow: 'rgba(16, 185, 129, 0.4)', label: 'Class / Model', icon: 'landmark' },
+  file: { fill: '#64748b', glow: 'rgba(100, 116, 139, 0.25)', label: 'Source File', icon: 'folder' },
+  variable: { fill: '#a855f7', glow: 'rgba(168, 85, 247, 0.35)', label: 'Config / Var', icon: 'box' }
 };
 
 export default function CodeKnowledgeGraph({
@@ -92,6 +97,7 @@ export default function CodeKnowledgeGraph({
     variable: true
   });
   const [isPhysicsActive, setIsPhysicsActive] = useState(true);
+  const settledFor = useRef<GraphNode[] | null>(null);
 
   // Neural Flow Cascade State
   const [flowSequence, setFlowSequence] = useState<string[]>(activeFlowSequence || []);
@@ -252,6 +258,7 @@ export default function CodeKnowledgeGraph({
     if (!ctx) return;
 
     let animId: number;
+    const reduceMotion = prefersReducedMotion();
 
     const handleResize = () => {
       if (canvas.parentElement) {
@@ -262,8 +269,15 @@ export default function CodeKnowledgeGraph({
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    // Reduced motion: settle the layout before the first frame instead of animating it
     const stepPhysics = () => {
       if (!isPhysicsActive || nodes.length === 0) return;
+      const settleNow = reduceMotion && settledFor.current !== nodes;
+      settledFor.current = nodes;
+      for (let k = settleNow ? 200 : 1; k > 0; k--) stepOnce();
+    };
+
+    const stepOnce = () => {
 
       const repulsion = 1800;
       const springLength = 150;
@@ -405,7 +419,7 @@ export default function CodeKnowledgeGraph({
             const isLinkActive = activeNode && (activeNode.id === l.sourceNode.id || activeNode.id === l.targetNode.id);
             if (activeNode && !isLinkActive) continue;
 
-            p.progress = (p.progress + p.speed) % 1.0;
+            if (!reduceMotion) p.progress = (p.progress + p.speed) % 1.0;
             const px = (l.sourceNode.x || 0) + ((l.targetNode.x || 0) - (l.sourceNode.x || 0)) * p.progress;
             const py = (l.sourceNode.y || 0) + ((l.targetNode.y || 0) - (l.sourceNode.y || 0)) * p.progress;
 
@@ -595,8 +609,8 @@ export default function CodeKnowledgeGraph({
           // Badge pill
           ctx.fillStyle = isFiringNode ? 'rgba(6, 182, 212, 0.95)' : 'rgba(15, 23, 42, 0.9)';
           ctx.beginPath();
-          if ((ctx as any).roundRect) {
-            (ctx as any).roundRect(bx - bMetrics.width / 2 - 4, by - 8, bMetrics.width + 8, 11, 2);
+          if (ctx.roundRect) {
+            ctx.roundRect(bx - bMetrics.width / 2 - 4, by - 8, bMetrics.width + 8, 11, 2);
           } else {
             ctx.rect(bx - bMetrics.width / 2 - 4, by - 8, bMetrics.width + 8, 11);
           }
@@ -622,9 +636,9 @@ export default function CodeKnowledgeGraph({
 
           // Draw pill background
           ctx.fillStyle = 'rgba(11, 14, 20, 0.88)';
-          if ((ctx as any).roundRect) {
+          if (ctx.roundRect) {
             ctx.beginPath();
-            (ctx as any).roundRect(textX - bgWidth / 2, textY - 11, bgWidth, bgHeight, 3);
+            ctx.roundRect(textX - bgWidth / 2, textY - 11, bgWidth, bgHeight, 3);
             ctx.fill();
             ctx.strokeStyle = isFiringNode ? '#38bdf8' : inFlow ? color : isActive ? color : 'rgba(255, 255, 255, 0.15)';
             ctx.lineWidth = 0.8;
@@ -777,15 +791,15 @@ export default function CodeKnowledgeGraph({
       {/* ── Top Header Toolbar ────────────────────────────────────────── */}
       <div className="h-[54px] border-b border-line px-5 flex items-center justify-between bg-surface">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-raised border border-line-strong flex items-center justify-center text-cyan-400 font-mono text-sm shadow-sm">
-            🌐
+          <div className="w-8 h-8 rounded-panel bg-raised border border-line-strong flex items-center justify-center text-cyan-400 font-mono text-sm">
+            <Glyph name="globe" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold tracking-tight text-fg-strong">
                 Codebase Knowledge Graph
               </h2>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
+              <span className="text-xs font-mono px-2 py-0.5 rounded-control bg-cyan-950/60 border border-cyan-800/40 text-cyan-300">
                 Sourcegraph SCIP Engine
               </span>
             </div>
@@ -803,13 +817,13 @@ export default function CodeKnowledgeGraph({
               placeholder="Search symbol, function, API..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-56 h-8 bg-raised border border-line-strong rounded-lg px-3 pl-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all font-mono"
+              className="w-56 h-8 bg-raised border border-line-strong rounded-control px-3 pl-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all font-mono"
             />
-            <span className="absolute left-2.5 top-2 text-xs text-slate-500">🔍</span>
+            <span className="absolute left-2.5 top-2 text-xs text-slate-500"><Glyph name="search" /></span>
           </form>
 
           {/* Kind Filters */}
-          <div className="flex items-center gap-1 bg-raised p-1 rounded-lg border border-line-strong">
+          <div className="flex items-center gap-1 bg-raised p-1 rounded-panel border border-line-strong">
             {(['endpoint', 'function', 'class', 'file'] as const).map((kind) => {
               const info = KIND_COLORS[kind];
               const active = filterKinds[kind];
@@ -817,11 +831,11 @@ export default function CodeKnowledgeGraph({
                 <button
                   key={kind}
                   onClick={() => setFilterKinds(prev => ({ ...prev, [kind]: !prev[kind] }))}
-                  className={`px-2.5 py-1 rounded text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
-                    active ? 'bg-selected text-white shadow-sm' : 'text-slate-500 opacity-50 hover:opacity-80'
+                  className={`px-2.5 py-1 rounded-control text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
+                    active ? 'bg-selected text-white ' : 'text-slate-500 opacity-50 hover:opacity-80'
                   }`}
                 >
-                  <span style={{ color: info.fill }}>{info.icon}</span>
+                  <span style={{ color: info.fill }}><KindIcon icon={info.icon} /></span>
                   <span>{info.label}</span>
                 </button>
               );
@@ -832,23 +846,23 @@ export default function CodeKnowledgeGraph({
           <button
             onClick={() => setIsPhysicsActive(prev => !prev)}
             title={isPhysicsActive ? 'Freeze physics' : 'Unfreeze physics'}
-            className="h-8 px-3 rounded-lg bg-raised border border-line-strong text-xs font-mono text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+            className="h-8 px-3 rounded-control bg-raised border border-line-strong text-xs font-mono text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
           >
-            <span>{isPhysicsActive ? '⏸️ Freeze' : '▶️ Resume'}</span>
+            <span>{isPhysicsActive ? <><Glyph name="pause" /> Freeze</> : <><Glyph name="play" /> Resume</>}</span>
           </button>
 
           <button
             onClick={() => { cameraRef.current = { x: 0, y: 0, scale: 0.85 }; }}
             title="Reset View"
-            className="h-8 px-2.5 rounded-lg bg-raised border border-line-strong text-xs text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="h-8 px-2.5 rounded-control bg-raised border border-line-strong text-xs text-slate-300 hover:text-white transition-all cursor-pointer"
           >
-            🎯 Reset
+            <Glyph name="target" /> Reset
           </button>
 
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="h-8 px-3 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300 hover:bg-rose-900/60 text-xs font-mono transition-all cursor-pointer"
+            className="h-8 px-3 rounded-control bg-rose-950/40 border border-rose-800/40 text-rose-300 hover:bg-rose-900/60 text-xs font-mono transition-all cursor-pointer"
           >
             ✕ Close
           </button>
@@ -859,10 +873,10 @@ export default function CodeKnowledgeGraph({
       <div className="flex-1 relative overflow-hidden bg-canvas">
         {/* Sleek Minimalist Flow Stepper Bar (Linear / Vercel style) */}
         {flowSequence.length > 0 && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-xl bg-surface/95 border border-line-strong shadow-2xl backdrop-blur-xl flex items-center gap-2.5 text-xs font-mono select-none animate-in fade-in-50 slide-in-from-top-2 duration-200">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-panel bg-surface/95 border border-line-strong shadow-raised backdrop-blur-xl flex items-center gap-2.5 text-xs font-mono select-none animate-in fade-in-50 slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
-                <span>⚡ Flow:</span>
+                <span><Glyph name="zap" /> Flow:</span>
               </span>
               <div className="flex items-center gap-1.5">
                 {flowSequence.map((id, idx) => {
@@ -873,7 +887,7 @@ export default function CodeKnowledgeGraph({
                       key={id}
                       type="button"
                       onClick={() => { setActiveStepIdx(idx); setIsFlowPlaying(false); }}
-                      className={`px-2 py-0.5 rounded text-xs transition-all cursor-pointer flex items-center gap-1 border ${
+                      className={`px-2 py-0.5 rounded-control text-xs transition-all cursor-pointer flex items-center gap-1 border ${
                         isCurrent
                           ? 'bg-cyan-950/80 border-cyan-500/80 text-cyan-200 font-bold shadow-[0_0_10px_rgba(6,182,212,0.3)]'
                           : 'bg-overlay border-slate-700/50 text-slate-400 hover:text-slate-200'
@@ -930,7 +944,7 @@ export default function CodeKnowledgeGraph({
         {/* Floating Glassmorphic Hover Inspector Card */}
         {hoveredNode && hoverPos && !selectedNode && (
           <div
-            className="fixed z-50 pointer-events-none rounded-xl bg-surface/95 border border-line-strong shadow-2xl backdrop-blur-xl p-3 text-xs font-mono max-w-sm transition-opacity duration-150 animate-in fade-in-50"
+            className="fixed z-50 pointer-events-none rounded-panel bg-surface/95 border border-line-strong shadow-raised backdrop-blur-xl p-3 text-xs font-mono max-w-sm transition-opacity duration-150 animate-in fade-in-50"
             style={{
               left: `${Math.min(hoverPos.x + 16, typeof window !== 'undefined' ? window.innerWidth - 320 : hoverPos.x + 16)}px`,
               top: `${Math.min(hoverPos.y + 16, typeof window !== 'undefined' ? window.innerHeight - 220 : hoverPos.y + 16)}px`
@@ -938,14 +952,14 @@ export default function CodeKnowledgeGraph({
           >
             <div className="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-line">
               <span
-                className="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider flex items-center gap-1"
+                className="px-2 py-0.5 rounded-control text-xs font-bold uppercase tracking-wider flex items-center gap-1"
                 style={{
                   backgroundColor: `${KIND_COLORS[hoveredNode.kind]?.fill}20`,
                   color: KIND_COLORS[hoveredNode.kind]?.fill,
                   border: `1px solid ${KIND_COLORS[hoveredNode.kind]?.fill}40`
                 }}
               >
-                <span>{KIND_COLORS[hoveredNode.kind]?.icon}</span>
+                <span>{KIND_COLORS[hoveredNode.kind] && <KindIcon icon={KIND_COLORS[hoveredNode.kind].icon} />}</span>
                 <span>{KIND_COLORS[hoveredNode.kind]?.label}</span>
               </span>
               {hoveredNode.language && (
@@ -960,7 +974,7 @@ export default function CodeKnowledgeGraph({
             </div>
 
             <div className="text-xs text-cyan-400 truncate mb-1.5 flex items-center gap-1">
-              <span>📄</span>
+              <span><Glyph name="file" /></span>
               <span className="truncate">{hoveredNode.file_path}</span>
               {hoveredNode.line_start && (
                 <span className="text-slate-400 flex-shrink-0">:{hoveredNode.line_start}-{hoveredNode.line_end || '?'}</span>
@@ -968,34 +982,34 @@ export default function CodeKnowledgeGraph({
             </div>
 
             {hoveredNode.signature && (
-              <div className="text-xs text-emerald-300 bg-canvas p-1.5 rounded border border-line truncate mb-1.5 font-mono">
+              <div className="text-xs text-emerald-300 bg-canvas p-1.5 rounded-control border border-line truncate mb-1.5 font-mono">
                 {hoveredNode.signature}
               </div>
             )}
 
             {hoveredNode.docstring && (
-              <div className="text-xs text-slate-300 font-sans line-clamp-2 mb-1.5 bg-raised/60 p-1.5 rounded">
+              <div className="text-xs text-slate-300 font-sans line-clamp-2 mb-1.5 bg-raised/60 p-1.5 rounded-control">
                 {hoveredNode.docstring}
               </div>
             )}
 
             <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-line">
-              <span>🔗 {neighborMap.get(hoveredNode.id)?.size || 0} connections</span>
+              <span><Glyph name="link" /> {neighborMap.get(hoveredNode.id)?.size || 0} connections</span>
               <span className="text-cyan-400 font-sans font-medium">Click to inspect code →</span>
             </div>
           </div>
         )}
 
         {/* Floating Legend */}
-        <div className="absolute bottom-4 left-4 p-3 rounded-xl bg-surface/90 border border-line-strong backdrop-blur-md shadow-2xl flex flex-col gap-1.5 pointer-events-none">
+        <div className="absolute bottom-4 left-4 p-3 rounded-panel bg-surface/90 border border-line-strong backdrop-blur-md flex flex-col gap-1.5 pointer-events-none">
           <span className="text-xs font-mono text-slate-400 font-semibold tracking-wider uppercase">
             Graph Topology
           </span>
           <div className="flex items-center gap-3 text-xs font-mono">
-            <span className="flex items-center gap-1 text-amber-400">⚡ API Route</span>
+            <span className="flex items-center gap-1 text-amber-400"><Glyph name="zap" /> API Route</span>
             <span className="flex items-center gap-1 text-cyan-400">𝑓 Function</span>
-            <span className="flex items-center gap-1 text-emerald-400">🏛️ Class</span>
-            <span className="flex items-center gap-1 text-slate-400">📁 File</span>
+            <span className="flex items-center gap-1 text-emerald-400"><Glyph name="landmark" /> Class</span>
+            <span className="flex items-center gap-1 text-slate-400"><Glyph name="folder" /> File</span>
           </div>
           <span className="text-xs text-slate-500 font-sans">
             Scroll to zoom • Drag canvas to pan • Click node to inspect code
@@ -1004,15 +1018,15 @@ export default function CodeKnowledgeGraph({
 
         {/* ── Node Detail Slide-Over Inspector ────────────────────────── */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 w-96 max-h-[calc(100%-32px)] overflow-y-auto bg-raised/95 border border-line-strong rounded-2xl p-5 shadow-2xl backdrop-blur-lg flex flex-col gap-4 text-xs font-sans animate-in slide-in-from-right-4 duration-200">
+          <div className="absolute top-4 right-4 w-96 max-h-[calc(100%-32px)] overflow-y-auto bg-raised/95 border border-line-strong rounded-panel p-5 backdrop-blur-lg flex flex-col gap-4 text-xs font-sans animate-in slide-in-from-right-4 duration-200">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
                 <span
-                  className="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-sm"
+                  className="w-7 h-7 rounded-panel flex items-center justify-center font-mono text-sm"
                   style={{ backgroundColor: `${KIND_COLORS[selectedNode.kind]?.fill}20`, color: KIND_COLORS[selectedNode.kind]?.fill }}
                 >
-                  {KIND_COLORS[selectedNode.kind]?.icon}
+                  {KIND_COLORS[selectedNode.kind] && <KindIcon icon={KIND_COLORS[selectedNode.kind].icon} />}
                 </span>
                 <div>
                   <span className="text-xs font-mono uppercase tracking-wider text-slate-400">
@@ -1032,7 +1046,7 @@ export default function CodeKnowledgeGraph({
             </div>
 
             {/* File & Line Info */}
-            <div className="flex flex-col gap-1 font-mono text-xs bg-raised p-2.5 rounded-lg border border-line">
+            <div className="flex flex-col gap-1 font-mono text-xs bg-raised p-2.5 rounded-panel border border-line">
               <div className="flex items-center justify-between text-slate-400">
                 <span>File:</span>
                 <span className="text-cyan-300 truncate max-w-[180px]">{selectedNode.file_path}</span>
@@ -1049,7 +1063,7 @@ export default function CodeKnowledgeGraph({
             {selectedNode.signature && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Signature</span>
-                <pre className="p-2.5 rounded-lg bg-canvas border border-line text-emerald-300 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                <pre className="p-2.5 rounded-panel bg-canvas border border-line text-emerald-300 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                   {selectedNode.signature}
                 </pre>
               </div>
@@ -1059,7 +1073,7 @@ export default function CodeKnowledgeGraph({
             {selectedNode.docstring && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Documentation</span>
-                <p className="text-slate-300 text-sm leading-relaxed bg-raised p-2.5 rounded-lg border border-line">
+                <p className="text-slate-300 text-sm leading-relaxed bg-raised p-2.5 rounded-panel border border-line">
                   {selectedNode.docstring}
                 </p>
               </div>
@@ -1076,15 +1090,15 @@ export default function CodeKnowledgeGraph({
                     <button
                       key={idx}
                       onClick={() => setSelectedNode(c.node)}
-                      className="flex items-center justify-between p-2 rounded-lg bg-raised hover:bg-overlay border border-line-strong text-xs font-mono transition-all text-left cursor-pointer"
+                      className="flex items-center justify-between p-2 rounded-control bg-raised hover:bg-overlay border border-line-strong text-xs font-mono transition-all text-left cursor-pointer"
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         <span style={{ color: KIND_COLORS[c.node.kind]?.fill }}>
-                          {KIND_COLORS[c.node.kind]?.icon}
+                          {KIND_COLORS[c.node.kind] && <KindIcon icon={KIND_COLORS[c.node.kind].icon} />}
                         </span>
                         <span className="text-slate-200 truncate max-w-[150px]">{c.node.label}</span>
                       </div>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-selected text-cyan-400 font-semibold">
+                      <span className="text-xs px-1.5 py-0.5 rounded-control bg-selected text-cyan-400 font-semibold">
                         {c.rel}
                       </span>
                     </button>
@@ -1097,7 +1111,7 @@ export default function CodeKnowledgeGraph({
             {selectedNode.code_snippet && (
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">Source Snippet</span>
-                <pre className="p-3 rounded-lg bg-canvas border border-line text-slate-300 font-mono text-xs max-h-40 overflow-auto whitespace-pre leading-snug">
+                <pre className="p-3 rounded-panel bg-canvas border border-line text-slate-300 font-mono text-xs max-h-40 overflow-auto whitespace-pre leading-snug">
                   {selectedNode.code_snippet}
                 </pre>
               </div>
@@ -1111,9 +1125,9 @@ export default function CodeKnowledgeGraph({
                     onOpenFile(selectedNode.file_path, selectedNode.line_start);
                     onClose();
                   }}
-                  className="flex-1 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-semibold shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 rounded-control bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>📝 Open in Editor</span>
+                  <span><Glyph name="pencil" /> Open in Editor</span>
                 </button>
               )}
               {onTestQuery && (
@@ -1122,10 +1136,10 @@ export default function CodeKnowledgeGraph({
                     onTestQuery(selectedNode.label);
                     onClose();
                   }}
-                  className="py-2 px-3 rounded-lg bg-overlay hover:bg-selected border border-[#2b374e] text-slate-200 font-mono text-xs transition-all cursor-pointer flex items-center gap-1"
+                  className="py-2 px-3 rounded-control bg-overlay hover:bg-selected border border-[#2b374e] text-slate-200 font-mono text-xs transition-all cursor-pointer flex items-center gap-1"
                   title="Test hybrid search in RAG"
                 >
-                  <span>⚡ Query RAG</span>
+                  <span><Glyph name="zap" /> Query RAG</span>
                 </button>
               )}
             </div>

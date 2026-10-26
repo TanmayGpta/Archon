@@ -30,10 +30,10 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       {/* Exercise Briefing Header */}
-      <div className="p-6 rounded-2xl bg-raised border border-line-strong space-y-3 shadow-lg">
+      <div className="p-6 rounded-panel bg-raised border border-line-strong space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
+            <span className="px-2.5 py-1 rounded-panel bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
               EXERCISE 1
             </span>
             <h2 className="text-lg font-bold text-fg-strong font-mono">
@@ -59,11 +59,11 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Gemma 3 4B Profile */}
-          <div className="rounded-2xl bg-surface border border-line-strong p-5 space-y-4 hover:border-accent/60 transition-all flex flex-col justify-between">
+          <div className="rounded-panel bg-surface border border-line-strong p-5 space-y-4 hover:border-accent/60 transition-all flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-fg font-mono font-bold text-xs">
+                  <div className="w-8 h-8 rounded-panel bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-fg font-mono font-bold text-xs">
                     G3
                   </div>
                   <div>
@@ -71,7 +71,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
                     <span className="text-xs text-fg-subtle font-mono">Google DeepMind</span>
                   </div>
                 </div>
-                <span className="text-xs font-mono bg-accent/15 text-accent-fg px-2 py-0.5 rounded border border-accent/30">
+                <span className="text-xs font-mono bg-accent/15 text-accent-fg px-2 py-0.5 rounded-control border border-accent/30">
                   Instruction Tuned
                 </span>
               </div>
@@ -114,11 +114,11 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
           </div>
 
           {/* CodeLlama 7B Profile */}
-          <div className="rounded-2xl bg-surface border border-line-strong p-5 space-y-4 hover:border-info-strong/60 transition-all flex flex-col justify-between">
+          <div className="rounded-panel bg-surface border border-line-strong p-5 space-y-4 hover:border-info-strong/60 transition-all flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-info-strong/20 border border-info-strong/40 flex items-center justify-center text-info font-mono font-bold text-xs">
+                  <div className="w-8 h-8 rounded-panel bg-info-strong/20 border border-info-strong/40 flex items-center justify-center text-info font-mono font-bold text-xs">
                     CL
                   </div>
                   <div>
@@ -126,7 +126,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
                     <span className="text-xs text-fg-subtle font-mono">Meta AI</span>
                   </div>
                 </div>
-                <span className="text-xs font-mono bg-info-strong/15 text-info px-2 py-0.5 rounded border border-info-strong/30">
+                <span className="text-xs font-mono bg-info-strong/15 text-info px-2 py-0.5 rounded-control border border-info-strong/30">
                   Code + Instruct
                 </span>
               </div>
@@ -169,11 +169,11 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
           </div>
 
           {/* StarCoder2 3B Profile */}
-          <div className="rounded-2xl bg-surface border border-line-strong p-5 space-y-4 hover:border-[#d97706]/60 transition-all flex flex-col justify-between">
+          <div className="rounded-panel bg-surface border border-line-strong p-5 space-y-4 hover:border-[#d97706]/60 transition-all flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-line">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#d97706]/20 border border-[#d97706]/40 flex items-center justify-center text-warning-fg font-mono font-bold text-xs">
+                  <div className="w-8 h-8 rounded-panel bg-[#d97706]/20 border border-[#d97706]/40 flex items-center justify-center text-warning-fg font-mono font-bold text-xs">
                     SC
                   </div>
                   <div>
@@ -181,7 +181,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
                     <span className="text-xs text-fg-subtle font-mono">BigCode / ServiceNow</span>
                   </div>
                 </div>
-                <span className="text-xs font-mono bg-[#d97706]/15 text-warning-fg px-2 py-0.5 rounded border border-[#d97706]/30">
+                <span className="text-xs font-mono bg-[#d97706]/15 text-warning-fg px-2 py-0.5 rounded-control border border-[#d97706]/30">
                   Base Completion
                 </span>
               </div>
@@ -233,7 +233,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Prompt Template Invariant */}
-          <div className="p-5 rounded-2xl bg-surface border border-line space-y-3 flex flex-col justify-between">
+          <div className="p-5 rounded-panel bg-surface border border-line space-y-3 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-mono font-bold text-fg flex items-center gap-2">
@@ -245,7 +245,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
                 </span>
                 <button
                   onClick={handleCopyPrompt}
-                  className="text-xs font-mono text-accent-fg hover:text-[#93c5fd] bg-raised px-2 py-0.5 rounded border border-line-strong cursor-pointer"
+                  className="text-xs font-mono text-accent-fg hover:text-[#93c5fd] bg-raised px-2 py-0.5 rounded-control border border-line-strong cursor-pointer"
                 >
                   {copiedPrompt ? '✓ Copied' : 'Copy Template'}
                 </button>
@@ -253,7 +253,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
               <p className="text-xs text-fg-subtle leading-relaxed mb-3">
                 Applied uniformly to all 78 evaluation runs across all 3 models without model-specific prompt engineering.
               </p>
-              <pre className="p-3 bg-canvas border border-line-subtle rounded-xl text-xs font-mono text-[#93c5fd] leading-relaxed overflow-x-auto custom-scrollbar">
+              <pre className="p-3 bg-canvas border border-line-subtle rounded-panel text-xs font-mono text-[#93c5fd] leading-relaxed overflow-x-auto custom-scrollbar">
                 <code>{standardizedPrompt}</code>
               </pre>
             </div>
@@ -266,7 +266,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
 
           {/* RAG & Hardware Invariants */}
           <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+            <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
               <div className="text-xs font-mono font-bold text-fg flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent" />
                 <span>Knowledge Base Invariant (Corpus)</span>
@@ -275,22 +275,22 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
                 21 total enterprise API documentation files indexed in ChromaDB:
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs font-mono text-fg-soft mt-2">
-                <div className="p-2 bg-surface rounded-lg border border-line">
+                <div className="p-2 bg-surface rounded-panel border border-line">
                   • 10 OpenAPI 3.0 Specs
                 </div>
-                <div className="p-2 bg-surface rounded-lg border border-line">
+                <div className="p-2 bg-surface rounded-panel border border-line">
                   • 9 Architecture Guides
                 </div>
-                <div className="p-2 bg-surface rounded-lg border border-line">
+                <div className="p-2 bg-surface rounded-panel border border-line">
                   • 2 Postman Collections
                 </div>
-                <div className="p-2 bg-surface rounded-lg border border-line">
+                <div className="p-2 bg-surface rounded-panel border border-line">
                   • 103 BGE-Small Chunks
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+            <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
               <div className="text-xs font-mono font-bold text-fg flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-success" />
                 <span>Retrieval Pipeline &amp; Hyperparameter Invariants</span>

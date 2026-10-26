@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { Glyph } from '../Icons';
 import { EVALUATION_DATA } from './evaluationData';
 import { HallucinationExplainer } from './HallucinationExplainer';
 
@@ -20,7 +21,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-raised via-surface to-canvas border border-line-strong p-6 md:p-8 shadow-2xl">
+      <div className="relative overflow-hidden rounded-panel bg-gradient-to-br from-raised via-surface to-canvas border border-line-strong p-6 md:p-8">
         <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-80 h-80 bg-success/5 rounded-full blur-3xl pointer-events-none" />
         
@@ -47,7 +48,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           <div className="flex flex-row lg:flex-col gap-3 flex-shrink-0">
             <button
               onClick={onOpenJson}
-              className="px-4 py-2.5 rounded-xl bg-overlay hover:bg-selected text-accent-fg border border-[#2b3956] text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-blue-900/20"
+              className="px-4 py-2.5 rounded-control bg-overlay hover:bg-selected text-accent-fg border border-[#2b3956] text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer hover:shadow-blue-900/20"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -59,7 +60,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
             </button>
             <button
               onClick={() => onNavigateTab(3)}
-              className="px-4 py-2.5 rounded-xl bg-accent-strong hover:bg-accent-hover text-white text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-600/20"
+              className="px-4 py-2.5 rounded-control bg-accent-strong hover:bg-accent-hover text-white text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-blue-600/20"
             >
               <span>View All Benchmarks</span>
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -71,32 +72,32 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
 
         {/* Global Key Figures Ribbon */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-8 pt-6 border-t border-line-strong/80 text-center">
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Total Evaluated Runs</div>
             <div className="text-xl font-bold font-mono text-accent-fg mt-1">78</div>
             <div className="text-xs text-fg-subtle mt-0.5">3 models × 26 tasks</div>
           </div>
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Models Compared</div>
             <div className="text-xl font-bold font-mono text-info mt-1">3</div>
             <div className="text-xs text-fg-subtle mt-0.5">Gemma, CodeLlama, StarCoder</div>
           </div>
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Question Dataset</div>
             <div className="text-xl font-bold font-mono text-ai mt-1">26</div>
             <div className="text-xs text-fg-subtle mt-0.5">5 functional categories</div>
           </div>
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Corpus Chunks</div>
             <div className="text-xl font-bold font-mono text-success-fg mt-1">103</div>
             <div className="text-xs text-fg-subtle mt-0.5">Across 21 spec files</div>
           </div>
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Ground Truth Endpoints</div>
             <div className="text-xl font-bold font-mono text-warning-fg mt-1">74</div>
             <div className="text-xs text-fg-subtle mt-0.5">OpenAPI 3.0 Specs</div>
           </div>
-          <div className="p-3 rounded-xl bg-surface border border-line">
+          <div className="p-3 rounded-panel bg-surface border border-line">
             <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">Code Pass Peak</div>
             <div className="text-xl font-bold font-mono text-success mt-1">100.0%</div>
             <div className="text-xs text-fg-subtle mt-0.5">CodeLlama 7B (Q24-Q26)</div>
@@ -109,27 +110,27 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-fg tracking-tight font-mono flex items-center gap-2">
-              <span>🏆 Model Benchmark Scorecards</span>
+              <span><Glyph name="trophy" /> Model Benchmark Scorecards</span>
             </h2>
             <p className="text-xs text-fg-subtle font-mono mt-0.5">
               Head-to-head performance metrics across the 26 standardized evaluation queries
             </p>
           </div>
-          <span className="text-xs font-mono text-accent-fg bg-accent/10 px-2.5 py-1 rounded-lg border border-accent/25">
+          <span className="text-xs font-mono text-accent-fg bg-accent/10 px-2.5 py-1 rounded-panel border border-accent/25">
             Identical Temperature (0.2) &amp; Hybrid Top-5
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Gemma 3 4B Card */}
-          <div className="rounded-2xl bg-surface border-2 border-accent/40 p-5 relative overflow-hidden shadow-xl hover:border-accent transition-all flex flex-col justify-between">
-            <div className="absolute top-0 right-0 bg-accent-strong text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider shadow">
-              🏆 Best Overall &amp; Fastest
+          <div className="rounded-panel bg-surface border-2 border-accent/40 p-5 relative overflow-hidden hover:border-accent transition-all flex flex-col justify-between">
+            <div className="absolute top-0 right-0 bg-accent-strong text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
+              <Glyph name="trophy" /> Best Overall &amp; Fastest
             </div>
 
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-fg font-mono font-bold text-sm">
+                <div className="w-10 h-10 rounded-panel bg-accent/20 border border-accent/40 flex items-center justify-center text-accent-fg font-mono font-bold text-sm">
                   G3
                 </div>
                 <div>
@@ -142,7 +143,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
                 Instruction-tuned multimodal architecture exhibiting highest factual precision, concise synthesis, and minimal latency overhead.
               </p>
 
-              <div className="space-y-2.5 bg-canvas p-3.5 rounded-xl border border-line-subtle font-mono text-xs mb-4">
+              <div className="space-y-2.5 bg-canvas p-3.5 rounded-panel border border-line-subtle font-mono text-xs mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-fg-subtle">Accuracy / Correctness:</span>
                   <span className="text-success-fg font-bold text-sm">
@@ -185,14 +186,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* CodeLlama 7B Card */}
-          <div className="rounded-2xl bg-surface border border-[#2b354c] p-5 relative overflow-hidden shadow-xl hover:border-accent-fg/60 transition-all flex flex-col justify-between">
-            <div className="absolute top-0 right-0 bg-info-strong text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider shadow">
-              ⚡ Multi-Hop &amp; Syntax Pro
+          <div className="rounded-panel bg-surface border border-[#2b354c] p-5 relative overflow-hidden hover:border-accent-fg/60 transition-all flex flex-col justify-between">
+            <div className="absolute top-0 right-0 bg-info-strong text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
+              <Glyph name="zap" /> Multi-Hop &amp; Syntax Pro
             </div>
 
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-info-strong/20 border border-info-strong/40 flex items-center justify-center text-info font-mono font-bold text-sm">
+                <div className="w-10 h-10 rounded-panel bg-info-strong/20 border border-info-strong/40 flex items-center justify-center text-info font-mono font-bold text-sm">
                   CL
                 </div>
                 <div>
@@ -205,7 +206,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
                 Code-specialized instruction model with large 16k context window; dominates multi-hop sequential reasoning and structured payloads.
               </p>
 
-              <div className="space-y-2.5 bg-canvas p-3.5 rounded-xl border border-line-subtle font-mono text-xs mb-4">
+              <div className="space-y-2.5 bg-canvas p-3.5 rounded-panel border border-line-subtle font-mono text-xs mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-fg-subtle">Accuracy / Correctness:</span>
                   <span className="text-info font-bold text-sm">
@@ -248,14 +249,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* StarCoder2 3B Card */}
-          <div className="rounded-2xl bg-surface border border-[#2b354c] p-5 relative overflow-hidden shadow-xl hover:border-warning/50 transition-all flex flex-col justify-between">
-            <div className="absolute top-0 right-0 bg-[#d97706] text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider shadow">
-              ⚠️ Base Completion
+          <div className="rounded-panel bg-surface border border-[#2b354c] p-5 relative overflow-hidden hover:border-warning/50 transition-all flex flex-col justify-between">
+            <div className="absolute top-0 right-0 bg-[#d97706] text-white text-xs font-mono font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
+              <Glyph name="alert" /> Base Completion
             </div>
 
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-[#d97706]/20 border border-[#d97706]/40 flex items-center justify-center text-warning-fg font-mono font-bold text-sm">
+                <div className="w-10 h-10 rounded-panel bg-[#d97706]/20 border border-[#d97706]/40 flex items-center justify-center text-warning-fg font-mono font-bold text-sm">
                   SC
                 </div>
                 <div>
@@ -268,7 +269,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
                 Raw code-completion model without instruction tuning; loops repeatedly, regurgitates prompt boilerplate, and hit 8 timeouts.
               </p>
 
-              <div className="space-y-2.5 bg-canvas p-3.5 rounded-xl border border-line-subtle font-mono text-xs mb-4">
+              <div className="space-y-2.5 bg-canvas p-3.5 rounded-panel border border-line-subtle font-mono text-xs mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-fg-subtle">Accuracy / Correctness:</span>
                   <span className="text-danger-fg font-bold text-sm">
@@ -313,31 +314,31 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
       </div>
 
       {/* ── Category-by-Category Model Performance Matrix ── */}
-      <div className="p-6 rounded-2xl bg-surface border border-line-strong space-y-5 shadow-xl">
+      <div className="p-6 rounded-panel bg-surface border border-line-strong space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-strong pb-4">
           <div>
             <h3 className="text-base font-bold text-fg-strong font-mono flex items-center gap-2">
-              <span>📊 Category-by-Category Performance &amp; Winning Model</span>
+              <span><Glyph name="chart" /> Category-by-Category Performance &amp; Winning Model</span>
             </h3>
             <p className="text-xs text-fg-subtle font-mono mt-0.5">
               Empirical breakdown showing which model won each functional question group and why
             </p>
           </div>
-          <span className="text-xs font-mono text-success bg-success/15 px-2.5 py-1 rounded border border-success/30">
+          <span className="text-xs font-mono text-success bg-success/15 px-2.5 py-1 rounded-control border border-success/30">
             Judged by Qwen 2.5 7B CoT
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5 font-mono">
           {/* Group 1 */}
-          <div className="p-4 rounded-xl bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
             <div>
               <div className="text-xs text-info font-bold uppercase tracking-wider">Group 1: Single-File</div>
               <div className="text-xs text-fg-muted font-sans mt-1">Direct endpoint &amp; parameter lookups</div>
               <div className="mt-3 space-y-1 text-xs">
                 <div className="flex justify-between text-success font-bold">
                   <span>gemma3:4b</span>
-                  <span>80.0% 🏆</span>
+                  <span>80.0% <Glyph name="trophy" /></span>
                 </div>
                 <div className="flex justify-between text-fg-subtle">
                   <span>codellama:7b</span>
@@ -355,14 +356,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* Group 2 */}
-          <div className="p-4 rounded-xl bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
             <div>
               <div className="text-xs text-ai font-bold uppercase tracking-wider">Group 2: Two-File Cross</div>
               <div className="text-xs text-fg-muted font-sans mt-1">Cross-referencing disjoint specifications</div>
               <div className="mt-3 space-y-1 text-xs">
                 <div className="flex justify-between text-success font-bold">
                   <span>codellama:7b</span>
-                  <span>66.7% 🏆</span>
+                  <span>66.7% <Glyph name="trophy" /></span>
                 </div>
                 <div className="flex justify-between text-info font-semibold">
                   <span>gemma3:4b</span>
@@ -380,14 +381,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* Group 3 */}
-          <div className="p-4 rounded-xl bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
             <div>
               <div className="text-xs text-[#fb7185] font-bold uppercase tracking-wider">Group 3: Multi-Hop</div>
               <div className="text-xs text-fg-muted font-sans mt-1">3+ file sequential dependency traces</div>
               <div className="mt-3 space-y-1 text-xs">
                 <div className="flex justify-between text-success font-bold">
                   <span>gemma3:4b</span>
-                  <span>70.0% 🏆</span>
+                  <span>70.0% <Glyph name="trophy" /></span>
                 </div>
                 <div className="flex justify-between text-fg-subtle">
                   <span>codellama:7b</span>
@@ -405,14 +406,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* Group 4 */}
-          <div className="p-4 rounded-xl bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
             <div>
               <div className="text-xs text-warning-fg font-bold uppercase tracking-wider">Group 4: Decoy &amp; Failure</div>
               <div className="text-xs text-fg-muted font-sans mt-1">Hard negatives &amp; conflicting params</div>
               <div className="mt-3 space-y-1 text-xs">
                 <div className="flex justify-between text-success font-bold">
                   <span>gemma3:4b</span>
-                  <span>77.5% 🏆</span>
+                  <span>77.5% <Glyph name="trophy" /></span>
                 </div>
                 <div className="flex justify-between text-fg-subtle">
                   <span>codellama:7b</span>
@@ -430,14 +431,14 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           {/* Group 5 */}
-          <div className="p-4 rounded-xl bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-canvas border border-line-strong space-y-2 flex flex-col justify-between">
             <div>
               <div className="text-xs text-success-fg font-bold uppercase tracking-wider">Group 5: Code Gen</div>
               <div className="text-xs text-fg-muted font-sans mt-1">Executable Python &amp; unit assertions</div>
               <div className="mt-3 space-y-1 text-xs">
                 <div className="flex justify-between text-success font-bold">
                   <span>gemma3:4b</span>
-                  <span>83.3% 🏆</span>
+                  <span>83.3% <Glyph name="trophy" /></span>
                 </div>
                 <div className="flex justify-between text-fg-subtle">
                   <span>codellama:7b</span>
@@ -457,32 +458,32 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
       </div>
 
       {/* ── StarCoder2 3B Failure Mode Deep-Dive ── */}
-      <div className="p-6 rounded-2xl bg-surface border border-[#3b191e] space-y-4 shadow-xl">
+      <div className="p-6 rounded-panel bg-surface border border-[#3b191e] space-y-4">
         <div className="flex items-center gap-2.5 text-sm font-bold font-mono text-danger-fg">
-          <span className="text-lg">⚠️</span>
+          <span className="text-lg"><Glyph name="alert" /></span>
           <span>Architectural Failure Analysis: Why StarCoder2 3B Failed Open API Queries</span>
         </div>
 
         <p className="text-xs text-[#fca5a5] leading-relaxed font-sans">
-          In our standardized benchmark, <code className="text-warning-fg bg-raised px-1.5 py-0.5 rounded font-mono">starcoder2:3b</code> scored only <strong>9.62% correctness</strong> with 21 zero-scores and 8 hard timeouts. Our telemetry and output audit revealed 3 fundamental architectural root causes:
+          In our standardized benchmark, <code className="text-warning-fg bg-raised px-1.5 py-0.5 rounded-control font-mono">starcoder2:3b</code> scored only <strong>9.62% correctness</strong> with 21 zero-scores and 8 hard timeouts. Our telemetry and output audit revealed 3 fundamental architectural root causes:
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans">
-          <div className="p-4 rounded-xl bg-canvas border border-[#2b1216] space-y-1.5">
+          <div className="p-4 rounded-panel bg-canvas border border-[#2b1216] space-y-1.5">
             <span className="font-bold text-warning-fg font-mono block">1. Base Model vs. Instruction Tuned</span>
             <p className="text-fg-muted leading-relaxed">
               StarCoder2 is a pure <em>Fill-In-the-Middle (FIM)</em> code completion model, not instruction fine-tuned. When given developer questions, it treated the prompt as code comments and hallucinated multiple-choice quizzes (e.g. <code className="text-xs font-mono text-danger-fg">- [ ] email - [x] name</code>) instead of answering.
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-canvas border border-[#2b1216] space-y-1.5">
+          <div className="p-4 rounded-panel bg-canvas border border-[#2b1216] space-y-1.5">
             <span className="font-bold text-danger-fg font-mono block">2. Infinite Loops &amp; 60s Timeouts</span>
             <p className="text-fg-muted leading-relaxed">
               Without conversational stop token discipline (<code className="text-xs font-mono text-danger-fg">&lt;|endoftext|&gt;</code>), StarCoder repeatedly looped prompt text until hitting our 60.0s safety cutoff on 8 questions (Q4, Q5, Q7, Q8, Q9, Q14, Q15, Q26) with zero usable tokens.
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-canvas border border-[#2b1216] space-y-1.5">
+          <div className="p-4 rounded-panel bg-canvas border border-[#2b1216] space-y-1.5">
             <span className="font-bold text-ai font-mono block">3. Ungrounded Imports Regurgitation</span>
             <p className="text-fg-muted leading-relaxed">
               On Q18 and Q21, rather than synthesizing grounded cURL or requests calls, it regurgitated generic JavaScript boilerplate (<code className="text-xs font-mono text-ai">import &#123; get &#125; from 'lodash'</code>) completely disconnected from the retrieved OpenAPI YAML specs.
@@ -493,7 +494,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
 
       {/* Core Architectural Insights & Pareto Findings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="p-6 rounded-2xl bg-surface border border-line space-y-4">
+        <div className="p-6 rounded-panel bg-surface border border-line space-y-4">
           <div className="flex items-center gap-2 text-sm font-bold font-mono text-accent-fg">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -502,7 +503,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           <div className="space-y-3 text-xs text-fg-muted leading-relaxed">
-            <div className="p-3 bg-canvas rounded-xl border border-line-subtle">
+            <div className="p-3 bg-canvas rounded-panel border border-line-subtle">
               <span className="text-fg-strong font-semibold block mb-1">
                 1. Instruction-Tuning &amp; Grounding Elevates Factual Correctness
               </span>
@@ -511,7 +512,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
               </p>
             </div>
 
-            <div className="p-3 bg-canvas rounded-xl border border-line-subtle">
+            <div className="p-3 bg-canvas rounded-panel border border-line-subtle">
               <span className="text-fg-strong font-semibold block mb-1">
                 2. Base Code-Completion Models Struggle with Open Q&amp;A
               </span>
@@ -522,7 +523,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
         </div>
 
-        <div className="p-6 rounded-2xl bg-surface border border-line space-y-4">
+        <div className="p-6 rounded-panel bg-surface border border-line space-y-4">
           <div className="flex items-center gap-2 text-sm font-bold font-mono text-success">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
@@ -531,7 +532,7 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
           </div>
 
           <div className="space-y-3 text-xs text-fg-muted leading-relaxed">
-            <div className="p-3 bg-canvas rounded-xl border border-line-subtle">
+            <div className="p-3 bg-canvas rounded-panel border border-line-subtle">
               <span className="text-fg-strong font-semibold block mb-1">
                 3. Enterprise Query Classification Router
               </span>
@@ -601,11 +602,11 @@ export function ExecutiveOverview({ onNavigateTab, onOpenJson }: ExecutiveOvervi
             <button
               key={ex.id}
               onClick={() => onNavigateTab(ex.id)}
-              className={`p-4 rounded-xl bg-surface border ${ex.color} text-left transition-all hover:bg-raised cursor-pointer flex flex-col justify-between group shadow-sm`}
+              className={`p-4 rounded-control bg-surface border ${ex.color} text-left transition-all hover:bg-raised cursor-pointer flex flex-col justify-between group`}
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-overlay text-fg-muted border border-line-strong">
+                  <span className="text-xs font-mono px-2 py-0.5 rounded-control bg-overlay text-fg-muted border border-line-strong">
                     {ex.tag}
                   </span>
                   <span className="text-xs text-fg-subtle group-hover:text-accent-fg transition-colors">

@@ -18,6 +18,8 @@ export function CodeEditor({
   onChange,
   onCursor,
   onSave,
+  revealLine,
+  onRevealed,
 }: {
   path: string;
   value: string;
@@ -25,15 +27,18 @@ export function CodeEditor({
   onChange: (value: string) => void;
   onCursor: (line: number, col: number) => void;
   onSave: () => void;
+  /** Move the cursor to this line (1-based) and scroll it into view, then call onRevealed */
+  revealLine?: number;
+  onRevealed?: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const pathRef = useRef(path);
 
   // The editor outlives renders; it always calls the latest handlers through this ref
-  const handlers = useRef({ onChange, onCursor, onSave });
+  const handlers = useRef({ onChange, onCursor, onSave, onRevealed });
   useEffect(() => {
-    handlers.current = { onChange, onCursor, onSave };
+    handlers.current = { onChange, onCursor, onSave, onRevealed };
   });
 
   const createState = (statePath: string, doc: string) =>
@@ -83,6 +88,15 @@ export function CodeEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, value]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !revealLine) return;
+    const line = view.state.doc.line(Math.min(revealLine, view.state.doc.lines));
+    view.dispatch({ selection: { anchor: line.from }, effects: EditorView.scrollIntoView(line.from, { y: 'center' }) });
+    view.focus();
+    handlers.current.onRevealed?.();
+  }, [path, revealLine]);
 
   return <div ref={hostRef} className="absolute inset-0" />;
 }

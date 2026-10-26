@@ -51,7 +51,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
   // quiet: used when reopening a remembered folder on load; a failure just forgets it
   const serviceDown = `The orchestrator service (${apiBase}) isn't responding. Start it with: docker compose up -d orchestrator-service`;
 
-  const handleOpenProject = async (targetPath: string, shouldCreate: boolean = false, { quiet = false } = {}) => {
+  const handleOpenProject = async (targetPath: string, shouldCreate: boolean = false, { quiet = false, openReadme = true } = {}) => {
     if (!targetPath.trim()) return;
     try {
       const res = await fetch(`${apiBase}/api/workspace/open-project`, {
@@ -80,7 +80,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         }
 
         // Open README.md if present
-        setTimeout(async () => {
+        if (openReadme) setTimeout(async () => {
           try {
             const readmeRes = await fetch(`${apiBase}/api/workspace/file?path=README.md`);
             if (readmeRes.ok) {
@@ -118,7 +118,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
 
   // Load the recent list, plus the open project's branch and tree. With no project open, only the recent list loads.
   const fetchProjectsAndTree = async () => {
-    const projectPath = isGitHubWorkspace ? '' : (currentProjectPath || readLastProject());
+    const linked = ide.deepLink?.project;
+    const projectPath = isGitHubWorkspace ? '' : (currentProjectPath || linked || readLastProject());
     setLoadingTree(true);
     try {
       const projRes = await fetch(`${apiBase}/api/workspace/projects`);
@@ -130,7 +131,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         if (projectPath && projData.project_path !== projectPath) {
           // The service restarted or switched folders since this project was opened: reopen it.
           setLoadingTree(false);
-          await handleOpenProject(projectPath, false, { quiet: true });
+          // A link the user followed should say if its folder can't be opened
+          await handleOpenProject(projectPath, false, { quiet: projectPath !== linked, openReadme: !ide.deepLink?.file });
           return;
         }
 

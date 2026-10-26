@@ -59,6 +59,14 @@
   --text-lg--line-height: 22px;
   --text-xl: 20px;
   --text-xl--line-height: 28px;
+
+  /* Corners: controls (buttons, inputs, chips), panels (cards), dialogs */
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-dialog: 14px;
+
+  /* Elevation: panels sit flat; only floating things (dialogs, popovers, toasts) are raised */
+  --shadow-raised: 0 16px 40px -12px rgb(0 0 0 / 0.7), 0 2px 8px -2px rgb(0 0 0 / 0.5);
 }
 
 @theme inline {
@@ -165,4 +173,19 @@ body::before {
 ::selection {
   background: rgba(59, 130, 246, 0.25);
   color: #e2e8f0;
+}
+
+/* Reduced motion: stop decorative animation (pulses, fades, slides) and transitions.
+   Spinners keep turning, slowly, so loading is still visible. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin {
+    animation-duration: 2.5s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

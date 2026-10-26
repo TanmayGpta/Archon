@@ -9,29 +9,29 @@ export function getFileIcon(filename: string, isDirectory: boolean = false, isOp
   }
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   if (filename === 'Dockerfile' || filename.startsWith('docker-compose')) {
-    return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-info-strong/15 rounded border border-info-strong/30">DOCKER</span>;
+    return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-info-strong/15 rounded-control border border-info-strong/30">DOCKER</span>;
   }
   switch (ext) {
     case 'ts':
     case 'tsx':
-      return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-info-strong/15 rounded border border-info-strong/30">TS</span>;
+      return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-info-strong/15 rounded-control border border-info-strong/30">TS</span>;
     case 'js':
     case 'jsx':
     case 'mjs':
-      return <span className="text-[#facc15] text-xs font-bold font-mono px-1 py-0.2 bg-[#eab308]/15 rounded border border-[#eab308]/30">JS</span>;
+      return <span className="text-[#facc15] text-xs font-bold font-mono px-1 py-0.2 bg-[#eab308]/15 rounded-control border border-[#eab308]/30">JS</span>;
     case 'py':
-      return <span className="text-accent-fg text-xs font-bold font-mono px-1 py-0.2 bg-accent-strong/15 rounded border border-accent-strong/30">PY</span>;
+      return <span className="text-accent-fg text-xs font-bold font-mono px-1 py-0.2 bg-accent-strong/15 rounded-control border border-accent-strong/30">PY</span>;
     case 'json':
-      return <span className="text-warning-fg text-xs font-bold font-mono px-1 py-0.2 bg-warning/15 rounded border border-warning/30">JSON</span>;
+      return <span className="text-warning-fg text-xs font-bold font-mono px-1 py-0.2 bg-warning/15 rounded-control border border-warning/30">JSON</span>;
     case 'yaml':
     case 'yml':
-      return <span className="text-danger-fg text-xs font-bold font-mono px-1 py-0.2 bg-[#dc2626]/15 rounded border border-[#dc2626]/30">YML</span>;
+      return <span className="text-danger-fg text-xs font-bold font-mono px-1 py-0.2 bg-[#dc2626]/15 rounded-control border border-[#dc2626]/30">YML</span>;
     case 'md':
-      return <span className="text-[#c084fc] text-xs font-bold font-mono px-1 py-0.2 bg-[#9333ea]/15 rounded border border-[#9333ea]/30">MD</span>;
+      return <span className="text-[#c084fc] text-xs font-bold font-mono px-1 py-0.2 bg-[#9333ea]/15 rounded-control border border-[#9333ea]/30">MD</span>;
     case 'css':
-      return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-[#06b6d4]/15 rounded border border-[#06b6d4]/30">CSS</span>;
+      return <span className="text-info text-xs font-bold font-mono px-1 py-0.2 bg-[#06b6d4]/15 rounded-control border border-[#06b6d4]/30">CSS</span>;
     case 'sh':
-      return <span className="text-[#4ade80] text-xs font-bold font-mono px-1 py-0.2 bg-[#16a34a]/15 rounded border border-[#16a34a]/30">SH</span>;
+      return <span className="text-[#4ade80] text-xs font-bold font-mono px-1 py-0.2 bg-[#16a34a]/15 rounded-control border border-[#16a34a]/30">SH</span>;
     default:
       return <Icons.FileCode />;
   }
@@ -87,12 +87,12 @@ export function InlineNameInput({ edit, className = '' }: { edit: InlineNameEdit
           if (e.key === 'Enter') edit.onConfirm();
           if (e.key === 'Escape') edit.onCancel();
         }}
-        className="min-w-0 flex-1 bg-canvas border border-accent/60 rounded px-1.5 py-0.5 text-xs font-mono text-fg-strong focus:outline-none"
+        className="min-w-0 flex-1 bg-canvas border border-accent/60 rounded-control px-1.5 py-0.5 text-xs font-mono text-fg-strong focus:outline-none"
       />
       <button
         aria-label={edit.mode === 'rename' ? 'Rename' : `Create ${what}`}
         onClick={edit.onConfirm}
-        className="text-xs bg-accent text-white px-1.5 py-0.5 rounded cursor-pointer flex-shrink-0"
+        className="text-xs bg-accent text-white px-1.5 py-0.5 rounded-control cursor-pointer flex-shrink-0"
       >
         <Icons.Check />
       </button>
@@ -254,7 +254,7 @@ function FileTreeNode({
           }
         }}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
-        className={`flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer text-sm font-mono select-none transition-colors group relative ${
+        className={`flex items-center gap-1.5 py-1 px-1.5 rounded-control cursor-pointer text-sm font-mono select-none transition-colors group relative ${
           isActive
             ? 'bg-overlay text-accent-fg font-medium'
             : 'text-fg-muted hover:bg-raised hover:text-fg'
@@ -272,12 +272,12 @@ function FileTreeNode({
 
         {/* Hover Action Buttons */}
         {!renaming && (
-        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-0.5 bg-surface/90 rounded px-1 flex-shrink-0">
+        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-0.5 bg-surface/90 rounded-control px-1 flex-shrink-0">
           {isDir && onNewFileInDir && (
             <button
               onClick={(e) => { e.stopPropagation(); onNewFileInDir(node.path); }}
               title="New File inside folder" aria-label="New File inside folder"
-              className="text-fg-subtle hover:text-accent-fg p-0.5 rounded cursor-pointer"
+              className="text-fg-subtle hover:text-accent-fg p-0.5 rounded-control cursor-pointer"
             >
               <Icons.FilePlus />
             </button>
@@ -286,7 +286,7 @@ function FileTreeNode({
             <button
               onClick={(e) => { e.stopPropagation(); onNewFolderInDir(node.path); }}
               title="New Folder inside folder" aria-label="New Folder inside folder"
-              className="text-fg-subtle hover:text-accent-fg p-0.5 rounded cursor-pointer"
+              className="text-fg-subtle hover:text-accent-fg p-0.5 rounded-control cursor-pointer"
             >
               <Icons.FolderPlus />
             </button>
@@ -295,7 +295,7 @@ function FileTreeNode({
             <button
               onClick={(e) => { e.stopPropagation(); onRename(node.path, node.name); }}
               title="Rename" aria-label="Rename"
-              className="text-fg-subtle hover:text-fg-soft p-0.5 rounded cursor-pointer"
+              className="text-fg-subtle hover:text-fg-soft p-0.5 rounded-control cursor-pointer"
             >
               <Icons.Edit />
             </button>
@@ -304,7 +304,7 @@ function FileTreeNode({
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(node.path, isDir); }}
               title="Delete" aria-label="Delete"
-              className="text-fg-subtle hover:text-danger p-0.5 rounded cursor-pointer"
+              className="text-fg-subtle hover:text-danger p-0.5 rounded-control cursor-pointer"
             >
               <Icons.Trash />
             </button>

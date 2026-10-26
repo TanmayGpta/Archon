@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { COMMANDS, searchCommands, type CommandSpec } from '@/lib/commands';
+import { COMMANDS, formatKeys, matchesKeys, searchCommands, type CommandSpec } from '@/lib/commands';
 import { Dialog } from '../components/Dialog';
 import { useModels } from './ModelsContext';
 import { CommandsContext, type CommandHandler, type Registry } from '../components/commandsContext';
@@ -74,6 +74,23 @@ export function CommandsProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
+  // Command key bindings (lib/commands.ts). Bubble phase: a key the editor already
+  // handled (e.g. Ctrl+S inside CodeMirror) is left alone. Only commands the open
+  // studio has registered run; others keep the browser's default.
+  useEffect(() => {
+    const mac = isMacPlatform();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const spec = COMMANDS.find(c => c.keys && matchesKeys(e, c.keys, mac));
+      const handler = spec && handlers.current.get(spec.id)?.current;
+      if (!handler) return;
+      e.preventDefault();
+      handler.run({});
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <CommandsContext.Provider value={registry}>
       {children}
@@ -115,7 +132,7 @@ function Palette({
         query,
         step.choices.map(c => ({ key: c, title: c, group: step.spec.group, hint: c === current[step.spec.id] ? 'current' : undefined })),
       )
-    : searchCommands(query, COMMANDS.map(c => ({ key: c.id, title: c.title, group: c.group, keywords: c.keywords, hint: c.shortcut })));
+    : searchCommands(query, COMMANDS.map(c => ({ key: c.id, title: c.title, group: c.group, keywords: c.keywords, hint: c.keys && formatKeys(c.keys, isMacPlatform()) })));
   const active = Math.min(index, Math.max(items.length - 1, 0));
 
   useEffect(() => {
@@ -158,7 +175,7 @@ function Palette({
 
   return (
     <Dialog onClose={onClose} label="Command palette" className="flex items-start justify-center pt-24 p-4" backdrop="backdrop:bg-black/60 backdrop:backdrop-blur-xs">
-      <div className="w-full max-w-[620px] bg-surface border border-line-strong rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-[620px] bg-surface border border-line-strong rounded-dialog shadow-raised overflow-hidden flex flex-col">
         <div className="flex items-center gap-2 px-3 border-b border-line">
           {step && <span className="text-xs text-fg-muted whitespace-nowrap">{step.spec.title.replace('…', '')} ›</span>}
           <input
@@ -189,7 +206,7 @@ function Palette({
               aria-selected={i === active}
               onMouseMove={() => setIndex(i)}
               onClick={() => choose(item)}
-              className={`mx-1 px-3 py-2 rounded-md flex items-center justify-between gap-3 cursor-pointer text-sm ${
+              className={`mx-1 px-3 py-2 rounded-control flex items-center justify-between gap-3 cursor-pointer text-sm ${
                 i === active ? 'bg-selected text-fg-strong' : 'text-fg-soft'
               }`}
             >

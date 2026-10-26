@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { Glyph } from './Icons';
 import { Dialog } from './Dialog';
 
 export interface AtamTradeoffMatrixViewProps {
@@ -371,14 +372,14 @@ export function AtamTradeoffMatrixView({
   }, [parsedData.rows, priorityFilter]);
 
   return (
-    <div className="flex-1 flex flex-col bg-surface rounded-xl border border-line-strong overflow-hidden text-xs">
+    <div className="flex-1 flex flex-col bg-surface rounded-panel border border-line-strong overflow-hidden text-xs">
       
       {/* ── HEADER HERO: EXECUTIVE DECISION SUMMARY ────────────────── */}
       <div className="p-4 bg-gradient-to-r from-raised via-overlay to-raised border-b border-line-strong">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/40 uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/40 uppercase tracking-wider">
                 ATAM Analysis
               </span>
               <span className="text-xs text-fg-subtle font-mono">
@@ -400,15 +401,15 @@ export function AtamTradeoffMatrixView({
 
           {/* KPI Stat Cards */}
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <div className="bg-raised/80 px-3 py-2 rounded-lg border border-line-strong min-w-[100px]">
+            <div className="bg-raised/80 px-3 py-2 rounded-panel border border-line-strong min-w-[100px]">
               <span className="text-fg-subtle text-xs font-mono block">Occam Adjusted</span>
               <span className="text-base font-bold text-success-fg font-mono">{parsedData.winnerScore}</span>
             </div>
-            <div className="bg-raised/80 px-3 py-2 rounded-lg border border-line-strong min-w-[100px]">
+            <div className="bg-raised/80 px-3 py-2 rounded-panel border border-line-strong min-w-[100px]">
               <span className="text-fg-subtle text-xs font-mono block">Drivers Evaluated</span>
               <span className="text-base font-bold text-info font-mono">{parsedData.rows.length} ASRs</span>
             </div>
-            <div className="bg-raised/80 px-3 py-2 rounded-lg border border-line-strong min-w-[100px]">
+            <div className="bg-raised/80 px-3 py-2 rounded-panel border border-line-strong min-w-[100px]">
               <span className="text-fg-subtle text-xs font-mono block">Companions</span>
               <span className="text-base font-bold text-warning font-mono">{parsedData.companions.length} Patterns</span>
             </div>
@@ -419,43 +420,43 @@ export function AtamTradeoffMatrixView({
         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-line-strong/70 overflow-x-auto">
           <button
             onClick={() => setActiveSubTab('matrix')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-control text-xs font-medium transition-all ${
               activeSubTab === 'matrix'
-                ? 'bg-selected text-info border border-info/40 shadow-sm font-semibold'
+                ? 'bg-selected text-info border border-info/40 font-semibold'
                 : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
-            📊 Tradeoff Matrix & Grid
+            <Glyph name="chart" /> Tradeoff Matrix & Grid
           </button>
           <button
             onClick={() => setActiveSubTab('rationales')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-control text-xs font-medium transition-all ${
               activeSubTab === 'rationales'
-                ? 'bg-selected text-info border border-info/40 shadow-sm font-semibold'
+                ? 'bg-selected text-info border border-info/40 font-semibold'
                 : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
-            🧠 Architectural Score Rationales
+            <Glyph name="brain" /> Architectural Score Rationales
           </button>
           <button
             onClick={() => setActiveSubTab('companions')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-control text-xs font-medium transition-all ${
               activeSubTab === 'companions'
-                ? 'bg-selected text-info border border-info/40 shadow-sm font-semibold'
+                ? 'bg-selected text-info border border-info/40 font-semibold'
                 : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
-            🧩 Companion Building Blocks ({parsedData.companions.length})
+            <Glyph name="puzzle" /> Companion Building Blocks ({parsedData.companions.length})
           </button>
           <button
             onClick={() => setActiveSubTab('methodology')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-control text-xs font-medium transition-all ${
               activeSubTab === 'methodology'
-                ? 'bg-selected text-info border border-info/40 shadow-sm font-semibold'
+                ? 'bg-selected text-info border border-info/40 font-semibold'
                 : 'text-fg-muted hover:text-fg-strong'
             }`}
           >
-            📖 ATAM Scoring Methodology Guide
+            <Glyph name="book" /> ATAM Scoring Methodology Guide
           </button>
         </div>
       </div>
@@ -464,14 +465,14 @@ export function AtamTradeoffMatrixView({
       {activeSubTab === 'matrix' && (
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* Top Filter and Legend Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 bg-raised p-3 rounded-lg border border-line-strong">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 bg-raised p-3 rounded-panel border border-line-strong">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-fg-subtle font-mono uppercase tracking-wider">Priority Filter:</span>
               {['all', 'critical', 'high', 'medium'].map(p => (
                 <button
                   key={p}
                   onClick={() => setPriorityFilter(p)}
-                  className={`px-2 py-0.5 rounded text-xs font-mono capitalize transition-all ${
+                  className={`px-2 py-0.5 rounded-control text-xs font-mono capitalize transition-all ${
                     priorityFilter === p
                       ? 'bg-info/20 text-info border border-info/40 font-bold'
                       : 'bg-selected/60 text-fg-muted hover:text-fg-strong'
@@ -485,26 +486,26 @@ export function AtamTradeoffMatrixView({
             {/* Score Legend */}
             <div className="flex items-center gap-2 text-xs font-mono text-fg-soft flex-wrap">
               <span className="text-fg-subtle">Impact Legend:</span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/20 text-success-fg border border-success/30 font-bold">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-control bg-success/20 text-success-fg border border-success/30 font-bold">
                 +2 Strong Affinity
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-info-strong/20 text-info border border-info-strong/30 font-bold">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-control bg-info-strong/20 text-info border border-info-strong/30 font-bold">
                 +1 Positive
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#334155]/30 text-fg-muted border border-[#334155]/40 font-bold">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-control bg-[#334155]/30 text-fg-muted border border-[#334155]/40 font-bold">
                 0 Neutral
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warning/20 text-warning-fg border border-warning/40 font-bold">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-control bg-warning/20 text-warning-fg border border-warning/40 font-bold">
                 -1 Tradeoff Penalty
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#f43f5e]/20 text-[#fb7185] border border-[#f43f5e]/40 font-bold">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-control bg-[#f43f5e]/20 text-[#fb7185] border border-[#f43f5e]/40 font-bold">
                 -2 Conflict
               </span>
             </div>
           </div>
 
           {/* Interactive Data Table */}
-          <div className="flex-1 overflow-auto border border-line-strong rounded-lg">
+          <div className="flex-1 overflow-auto border border-line-strong rounded-panel">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-surface sticky top-0 z-10 text-fg-subtle font-mono uppercase text-xs border-b border-line-strong">
                 <tr>
@@ -518,11 +519,11 @@ export function AtamTradeoffMatrixView({
                       </div>
                       <div className="mt-0.5">
                         {cand.isDisqualified ? (
-                          <span className="px-1.5 py-0.2 rounded text-xs bg-[#f43f5e]/20 text-[#fb7185] border border-[#f43f5e]/40">
+                          <span className="px-1.5 py-0.2 rounded-control text-xs bg-[#f43f5e]/20 text-[#fb7185] border border-[#f43f5e]/40">
                             DISQUALIFIED
                           </span>
                         ) : (
-                          <span className={`px-1.5 py-0.2 rounded text-xs font-bold ${
+                          <span className={`px-1.5 py-0.2 rounded-control text-xs font-bold ${
                             cand.rank.includes('1')
                               ? 'bg-success/20 text-success-fg border border-success/40'
                               : 'bg-selected text-fg-muted'
@@ -540,7 +541,7 @@ export function AtamTradeoffMatrixView({
                   <tr key={`row-${row.reqId}-${rIdx}`} className="hover:bg-raised/40 transition-colors">
                     <td className="p-3 font-sans">
                       <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/30 shrink-0">
+                        <span className="px-1.5 py-0.5 rounded-control text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/30 shrink-0">
                           {row.reqId}
                         </span>
                         <span className="text-fg text-xs leading-snug line-clamp-2" title={row.description}>
@@ -549,7 +550,7 @@ export function AtamTradeoffMatrixView({
                       </div>
                     </td>
                     <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                      <span className={`px-2 py-0.5 rounded-control text-xs font-bold ${
                         row.priority === 'Critical'
                           ? 'bg-[#f43f5e]/20 text-[#fb7185] border border-[#f43f5e]/30'
                           : row.priority === 'High'
@@ -560,7 +561,7 @@ export function AtamTradeoffMatrixView({
                       </span>
                     </td>
                     <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-xs bg-selected text-fg-soft font-sans">
+                      <span className="px-2 py-0.5 rounded-control text-xs bg-selected text-fg-soft font-sans">
                         {row.isoSub}
                       </span>
                     </td>
@@ -582,19 +583,19 @@ export function AtamTradeoffMatrixView({
                         >
                           <div className="inline-flex items-center justify-center">
                             {score > 0 ? (
-                              <span className={`px-2.5 py-1 rounded text-xs font-bold ${
+                              <span className={`px-2.5 py-1 rounded-control text-xs font-bold ${
                                 score >= 2
-                                  ? 'bg-success/20 text-success-fg border border-success/40 shadow-sm'
+                                  ? 'bg-success/20 text-success-fg border border-success/40 '
                                   : 'bg-info-strong/20 text-info border border-info-strong/40'
                               }`}>
                                 +{score}
                               </span>
                             ) : score < 0 ? (
-                              <span className="px-2.5 py-1 rounded text-xs font-bold bg-warning/20 text-warning-fg border border-warning/40 shadow-sm">
+                              <span className="px-2.5 py-1 rounded-control text-xs font-bold bg-warning/20 text-warning-fg border border-warning/40">
                                 {score}
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded text-xs text-fg-subtle bg-selected/40">
+                              <span className="px-2 py-0.5 rounded-control text-xs text-fg-subtle bg-selected/40">
                                 0
                               </span>
                             )}
@@ -626,7 +627,7 @@ export function AtamTradeoffMatrixView({
                             className={`text-xs font-mono font-bold ${
                               isStatus
                                 ? cand.rank.includes('1')
-                                  ? 'text-success-fg bg-success/20 px-2 py-1 rounded border border-success/30'
+                                  ? 'text-success-fg bg-success/20 px-2 py-1 rounded-control border border-success/30'
                                   : 'text-fg-muted'
                                 : isAdjusted
                                 ? 'text-info text-sm'
@@ -645,7 +646,7 @@ export function AtamTradeoffMatrixView({
           </div>
 
           <div className="mt-2 text-xs text-fg-subtle font-mono flex items-center justify-between">
-            <span>💡 Tip: Click on any score cell to inspect the architectural force rationale and ISO/IEC 25010 justification.</span>
+            <span><Glyph name="lightbulb" /> Tip: Click on any score cell to inspect the architectural force rationale and ISO/IEC 25010 justification.</span>
             <span>Occam's Simplicity Penalty = 0.5 × Operational Complexity + 0.5 × Cost Factor</span>
           </div>
         </div>
@@ -654,9 +655,9 @@ export function AtamTradeoffMatrixView({
       {/* ── SUB-VIEW 2: ARCHITECTURAL RATIONALES & DECISION EXPLANATIONS ─ */}
       {activeSubTab === 'rationales' && (
         <div className="flex-1 p-5 overflow-y-auto space-y-4">
-          <div className="bg-raised p-4 rounded-xl border border-line-strong">
+          <div className="bg-raised p-4 rounded-panel border border-line-strong">
             <h4 className="text-xs font-bold text-info uppercase tracking-wider mb-2 flex items-center gap-2">
-              <span>🏆 Decision Rationale: Why {parsedData.winnerName} Won</span>
+              <span><Glyph name="trophy" /> Decision Rationale: Why {parsedData.winnerName} Won</span>
             </h4>
             <p className="text-xs text-fg-soft font-sans leading-relaxed mb-3">
               The deterministic ATAM matcher selected <strong className="text-info">{parsedData.winnerName}</strong> as the 
@@ -664,20 +665,20 @@ export function AtamTradeoffMatrixView({
               without paying the distributed coordination overhead of microservices.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div className="bg-raised p-3 rounded-lg border border-line-strong">
+              <div className="bg-raised p-3 rounded-panel border border-line-strong">
                 <span className="text-success font-bold block mb-1">✓ Primary Architectural Strength</span>
                 <span className="text-fg-muted text-xs leading-snug">
                   Strict dependency inversion insulates business rules and transaction invariants from infrastructure churn.
                 </span>
               </div>
-              <div className="bg-raised p-3 rounded-lg border border-line-strong">
-                <span className="text-warning font-bold block mb-1">⚠ Known Tradeoff Accepted</span>
+              <div className="bg-raised p-3 rounded-panel border border-line-strong">
+                <span className="text-warning font-bold block mb-1"><Glyph name="alert" /> Known Tradeoff Accepted</span>
                 <span className="text-fg-muted text-xs leading-snug">
                   Additional mapping layers between entities, use-cases, and external adapters introduce code boilerplate.
                 </span>
               </div>
-              <div className="bg-raised p-3 rounded-lg border border-line-strong">
-                <span className="text-info font-bold block mb-1">🛡 Occam's Razor Protection</span>
+              <div className="bg-raised p-3 rounded-panel border border-line-strong">
+                <span className="text-info font-bold block mb-1"><Glyph name="shield" /> Occam's Razor Protection</span>
                 <span className="text-fg-muted text-xs leading-snug">
                   Applied a simplicity penalty against distributed options, preventing premature microservice decomposition.
                 </span>
@@ -693,15 +694,15 @@ export function AtamTradeoffMatrixView({
             {parsedData.candidates.map((cand, idx) => (
               <div
                 key={`cand-card-${cand.name}-${idx}`}
-                className={`p-4 rounded-xl border transition-all ${
+                className={`p-4 rounded-panel border transition-all ${
                   cand.rank.includes('1')
-                    ? 'bg-overlay/90 border-info/50 shadow-md ring-1 ring-info/20'
+                    ? 'bg-overlay/90 border-info/50 ring-1 ring-info/20'
                     : 'bg-surface border-line-strong'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <h5 className="font-bold text-fg-strong text-sm">{cand.name}</h5>
-                  <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${
+                  <span className={`px-2 py-0.5 rounded-control text-xs font-mono font-bold ${
                     cand.rank.includes('1')
                       ? 'bg-success/20 text-success-fg border border-success/40'
                       : 'bg-selected text-fg-muted'
@@ -747,11 +748,11 @@ export function AtamTradeoffMatrixView({
             {parsedData.companions.map((comp, idx) => (
               <div
                 key={`comp-${comp.name}-${idx}`}
-                className="bg-raised border border-line-strong hover:border-info/40 p-4 rounded-xl flex flex-col justify-between transition-all"
+                className="bg-raised border border-line-strong hover:border-info/40 p-4 rounded-panel flex flex-col justify-between transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-warning/20 text-warning-fg border border-warning/30">
+                    <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-warning/20 text-warning-fg border border-warning/30">
                       Companion Block
                     </span>
                     <span className="text-xs font-mono font-bold text-success-fg">
@@ -778,7 +779,7 @@ export function AtamTradeoffMatrixView({
       {/* ── SUB-VIEW 4: ATAM METHODOLOGY GUIDE ──────────────────────── */}
       {activeSubTab === 'methodology' && (
         <div className="flex-1 p-5 overflow-y-auto space-y-5 text-xs text-fg-soft leading-relaxed font-sans">
-          <div className="bg-raised p-5 rounded-xl border border-line-strong">
+          <div className="bg-raised p-5 rounded-panel border border-line-strong">
             <h4 className="text-sm font-bold text-info mb-2 font-mono uppercase">
               1. What is the Architecture Tradeoff Analysis Method (ATAM)?
             </h4>
@@ -789,13 +790,13 @@ export function AtamTradeoffMatrixView({
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mt-3">
-              <div className="bg-raised p-3 rounded-lg border border-line-strong">
+              <div className="bg-raised p-3 rounded-panel border border-line-strong">
                 <strong className="text-fg-strong block mb-1">Sensitivity Points</strong>
                 <p className="text-fg-muted text-xs">
                   Parameters in the architecture where a small change creates a dramatic impact on a quality attribute (e.g., synchronous REST vs asynchronous message queues).
                 </p>
               </div>
-              <div className="bg-raised p-3 rounded-lg border border-line-strong">
+              <div className="bg-raised p-3 rounded-panel border border-line-strong">
                 <strong className="text-fg-strong block mb-1">Tradeoff Points</strong>
                 <p className="text-fg-muted text-xs">
                   Decisions that improve one quality attribute at the direct expense of another (e.g., Microservices improves Modifiability but degrades Latency and Transactional Integrity).
@@ -804,7 +805,7 @@ export function AtamTradeoffMatrixView({
             </div>
           </div>
 
-          <div className="bg-raised p-5 rounded-xl border border-line-strong">
+          <div className="bg-raised p-5 rounded-panel border border-line-strong">
             <h4 className="text-sm font-bold text-info mb-2 font-mono uppercase">
               2. Mathematical Scoring & Occam's Razor Adjustment
             </h4>
@@ -817,7 +818,7 @@ export function AtamTradeoffMatrixView({
               <li><strong className="text-accent-fg">Medium Priority:</strong> Weight = 1.0</li>
             </ul>
 
-            <div className="p-3 bg-surface rounded-lg border border-line-strong font-mono text-xs text-success-fg mb-3 space-y-1">
+            <div className="p-3 bg-surface rounded-panel border border-line-strong font-mono text-xs text-success-fg mb-3 space-y-1">
               <div>Composite Score = Σ (Priority Weight × ISO 25010 Impact)</div>
               <div>Occam Penalty = 0.5 × Operational Complexity + 0.5 × Cost Factor</div>
               <div>Final Adjusted Score = Composite Score - Occam Penalty</div>
@@ -832,10 +833,10 @@ export function AtamTradeoffMatrixView({
       {/* ── MODAL DRAWER: SCORE RATIONALE INSPECTOR ────────────────── */}
       {selectedCell && (
         <Dialog onClose={() => setSelectedCell(null)} label="Score rationale" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/70 backdrop:backdrop-blur-sm">
-          <div className="bg-raised border border-info/40 rounded-2xl max-w-lg w-full p-5 shadow-2xl animate-in fade-in zoom-in-95">
+          <div className="bg-raised border border-info/40 rounded-dialog max-w-lg w-full p-5 shadow-raised animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-line-strong">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/30">
+                <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-info-strong/20 text-info border border-info-strong/30">
                   {selectedCell.row.reqId}
                 </span>
                 <span className="text-xs font-bold text-fg-strong">
@@ -844,7 +845,7 @@ export function AtamTradeoffMatrixView({
               </div>
               <button aria-label="Close"
                 onClick={() => setSelectedCell(null)}
-                className="text-fg-subtle hover:text-fg-strong text-lg font-bold px-2 py-0.5 rounded"
+                className="text-fg-subtle hover:text-fg-strong text-lg font-bold px-2 py-0.5 rounded-control"
               >
                 ✕
               </button>
@@ -858,13 +859,13 @@ export function AtamTradeoffMatrixView({
 
               <div>
                 <span className="text-xs text-fg-subtle font-mono block">Requirement Specification:</span>
-                <p className="text-xs text-fg-soft font-sans mt-0.5 bg-raised p-2.5 rounded-lg border border-line-strong">
+                <p className="text-xs text-fg-soft font-sans mt-0.5 bg-raised p-2.5 rounded-panel border border-line-strong">
                   {selectedCell.row.description}
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="bg-raised px-3 py-2 rounded-lg border border-line-strong">
+                <div className="bg-raised px-3 py-2 rounded-panel border border-line-strong">
                   <span className="text-xs text-fg-subtle font-mono block">Evaluated Impact:</span>
                   <span className={`text-base font-bold font-mono ${
                     selectedCell.score > 0 ? 'text-success-fg' : selectedCell.score < 0 ? 'text-warning-fg' : 'text-fg-muted'
@@ -872,7 +873,7 @@ export function AtamTradeoffMatrixView({
                     {selectedCell.score > 0 ? `+${selectedCell.score}` : selectedCell.score}
                   </span>
                 </div>
-                <div className="bg-raised px-3 py-2 rounded-lg border border-line-strong">
+                <div className="bg-raised px-3 py-2 rounded-panel border border-line-strong">
                   <span className="text-xs text-fg-subtle font-mono block">Priority Weight:</span>
                   <span className="text-base font-bold text-info font-mono">
                     {selectedCell.row.priority === 'Critical' ? '3.0×' : selectedCell.row.priority === 'High' ? '2.0×' : '1.0×'}
@@ -884,7 +885,7 @@ export function AtamTradeoffMatrixView({
                 <span className="text-xs text-info font-mono font-bold block uppercase tracking-wider mb-1">
                   Architectural Mechanics & Rationale:
                 </span>
-                <p className="text-xs text-fg-soft bg-surface p-3 rounded-lg border border-line-strong leading-relaxed">
+                <p className="text-xs text-fg-soft bg-surface p-3 rounded-panel border border-line-strong leading-relaxed">
                   {selectedCell.rationale}
                 </p>
               </div>
@@ -893,7 +894,7 @@ export function AtamTradeoffMatrixView({
             <div className="pt-3 border-t border-line-strong flex justify-end">
               <button
                 onClick={() => setSelectedCell(null)}
-                className="px-4 py-1.5 rounded-lg bg-selected hover:bg-[#334155] text-xs font-medium text-fg-strong transition-colors"
+                className="px-4 py-1.5 rounded-control bg-selected hover:bg-[#334155] text-xs font-medium text-fg-strong transition-colors"
               >
                 Close Inspector
               </button>

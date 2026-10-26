@@ -1,8 +1,8 @@
 "use client";
-import React, { useEffect } from 'react';
+import React from 'react';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import { parseDiffBlocks, applyDiffBlocks } from '@/lib/diff';
-import { errorDetail } from '@/lib/api';
+import { errorDetail, errorMessage } from '@/lib/api';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { PendingEdit } from './types';
@@ -27,27 +27,25 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     setCursorPos,
     setAgentEdits,
     setEditorContent,
-    setInlineCreateState,
     setIsDirty,
     setLastAppliedNotice,
     setOpenTabs,
     setPendingEdit,
     setRemoteFileShas,
     setSaveStatus,
-    setShowOpenProjectModal,
-    setShowQuickOpen,
     setWorkspaceTree,
     pendingEdit,
   } = ide;
 
   // Open a file from explorer (Local or Remote GitHub)
-  const handleOpenFile = async (path: string) => {
+  // Resolves to the path that opened, or null if it couldn't be read
+  const handleOpenFile = async (path: string): Promise<string | null> => {
     const existing = openTabs.find(t => t.path === path);
     if (existing) {
       setActiveTabPath(path);
       setEditorContent(existing.content);
       setIsDirty(existing.content !== existing.original);
-      return;
+      return path;
     }
 
     // Remote GitHub Workspace file fetch
@@ -71,10 +69,13 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
           setActiveTabPath(data.path);
           setEditorContent(data.content);
           setIsDirty(false);
-          return;
+          return data.path;
         }
-      } catch (err) {
-        console.error("Could not read remote GitHub file", err);
+        toast({ tone: 'error', title: `Couldn't open ${path}`, detail: errorDetail(await res.text()) });
+        return null;
+      } catch {
+        toast({ tone: 'error', title: `Couldn't open ${path}`, detail: `The orchestrator service (${apiBase}) isn't responding.` });
+        return null;
       }
     }
 
@@ -94,10 +95,13 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
         setActiveTabPath(data.path);
         setEditorContent(data.content);
         setIsDirty(false);
+        return data.path as string;
       }
-    } catch (e) {
-      console.error("Could not read file", e);
+      toast({ tone: 'error', title: `Couldn't open ${path}`, detail: errorDetail(await res.text()) });
+    } catch {
+      toast({ tone: 'error', title: `Couldn't open ${path}`, detail: `The orchestrator service (${apiBase}) isn't responding.` });
     }
+    return null;
   };
 
   // Create and open a new file in workspace
@@ -221,12 +225,12 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
           });
           return;
         }
-      } catch (e: any) {
+      } catch (e) {
         setSaveStatus('');
         toast({
           tone: 'error',
           title: `Couldn't reach the server to commit ${activeTabPath}`,
-          detail: `${e?.message || e}. Your changes are still in the editor; press Ctrl+S to retry.`,
+          detail: `${errorMessage(e)}. Your changes are still in the editor; press Ctrl+S to retry.`,
         });
         return;
       }
@@ -262,27 +266,6 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
       });
     }
   };
-
-  // Global Shortcut Listener (Ctrl+P Quick Open, Ctrl+W Close Tab, Ctrl+S Save, Escape)
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-        e.preventDefault();
-        setShowQuickOpen(prev => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'w' || e.key === 'W')) {
-        e.preventDefault();
-        if (activeTabPath) {
-          handleCloseTab(activeTabPath);
-        }
-      } else if (e.key === 'Escape') {
-        setShowQuickOpen(false);
-        setInlineCreateState(null);
-        setShowOpenProjectModal(false);
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeTabPath, openTabs]);
 
   // Put new text into a tab's buffer; the editor takes it in as one undo step
   const setTabContent = (path: string, content: string) => {

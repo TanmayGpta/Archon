@@ -24,7 +24,7 @@ export function ErrorState({
       {onRetry && (
         <button
           onClick={onRetry}
-          className={`${compact ? 'self-start' : ''} px-2.5 py-1 rounded-md text-xs border border-line text-fg-soft hover:bg-raised hover:border-line-strong cursor-pointer`}
+          className={`${compact ? 'self-start' : ''} px-2.5 py-1 rounded-control text-xs border border-line text-fg-soft hover:bg-raised hover:border-line-strong cursor-pointer`}
         >
           Retry
         </button>
@@ -54,7 +54,7 @@ export function Skeleton({
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          className="h-3 rounded bg-raised animate-pulse"
+          className="h-3 rounded-control bg-raised animate-pulse"
           style={{ width: `${widths[i % widths.length]}%`, marginLeft: indent && i % 3 !== 0 ? 14 : 0 }}
         />
       ))}

@@ -72,7 +72,7 @@ export function FormattedMarkdown({
             }
             return (
               <code
-                className="bg-raised text-accent-fg border border-line px-1.5 py-0.5 rounded text-sm font-mono font-medium"
+                className="bg-raised text-accent-fg border border-line px-1.5 py-0.5 rounded-control text-sm font-mono font-medium"
                 {...props}
               >
                 {children}

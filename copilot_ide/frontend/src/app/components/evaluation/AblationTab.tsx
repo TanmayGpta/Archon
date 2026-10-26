@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { Glyph } from '../Icons';
 import { DEFAULT_ABLATION_DATA, AblationReport, QuestionComparisonItem } from './ablationReportData';
-import { EVALUATION_API_BASE } from '@/lib/api';
+import { EVALUATION_API_BASE, errorMessage } from '@/lib/api';
 
 export function AblationTab() {
   const [report, setReport] = useState<AblationReport>(DEFAULT_ABLATION_DATA);
@@ -73,9 +74,9 @@ export function AblationTab() {
         setIsRunningLive(false);
         setLiveStatus('Failed to start run. Is evaluation service running on port 8003?');
       }
-    } catch (e: any) {
+    } catch (e) {
       setIsRunningLive(false);
-      setLiveStatus(`Error: ${e?.message || e}`);
+      setLiveStatus(`Error: ${errorMessage(e)}`);
     }
   };
 
@@ -90,19 +91,19 @@ export function AblationTab() {
   const getQualityBadge = (quality: string) => {
     switch (quality) {
       case 'correct':
-        return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-success/15 text-success border border-success/30">CORRECT</span>;
+        return <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-success/15 text-success border border-success/30">CORRECT</span>;
       case 'partial':
-        return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-warning/15 text-warning border border-warning/30">PARTIAL</span>;
+        return <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-warning/15 text-warning border border-warning/30">PARTIAL</span>;
       case 'wrong':
       default:
-        return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-danger/15 text-danger border border-danger/30">WRONG</span>;
+        return <span className="px-2 py-0.5 rounded-control text-xs font-mono font-bold bg-danger/15 text-danger border border-danger/30">WRONG</span>;
     }
   };
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       {/* ── Hero Banner ─────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-raised via-surface to-canvas border border-line-strong p-6 md:p-8 shadow-2xl">
+      <div className="relative overflow-hidden rounded-panel bg-gradient-to-br from-raised via-surface to-canvas border border-line-strong p-6 md:p-8">
         <div className="absolute top-0 right-0 w-96 h-96 bg-info-strong/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-80 h-80 bg-success/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -122,7 +123,7 @@ export function AblationTab() {
             </h1>
 
             <p className="text-sm md:text-lg text-fg-muted leading-relaxed">
-              Controlled A/B benchmark evaluating the quantitative delta of indexing AST-extracted code symbols (<code className="text-info bg-raised px-1.5 py-0.5 rounded">classes</code>, <code className="text-info bg-raised px-1.5 py-0.5 rounded">functions</code>, <code className="text-info bg-raised px-1.5 py-0.5 rounded">routes</code>) across <span className="text-white font-semibold">10 TedxBMU codebase queries</span>. Proving that precise code chunks eliminate context bloat, reduce token consumption, and eradicate parametric hallucination.
+              Controlled A/B benchmark evaluating the quantitative delta of indexing AST-extracted code symbols (<code className="text-info bg-raised px-1.5 py-0.5 rounded-control">classes</code>, <code className="text-info bg-raised px-1.5 py-0.5 rounded-control">functions</code>, <code className="text-info bg-raised px-1.5 py-0.5 rounded-control">routes</code>) across <span className="text-white font-semibold">10 TedxBMU codebase queries</span>. Proving that precise code chunks eliminate context bloat, reduce token consumption, and eradicate parametric hallucination.
             </p>
           </div>
 
@@ -130,7 +131,7 @@ export function AblationTab() {
             <button
               onClick={handleRunLiveAblation}
               disabled={isRunningLive}
-              className="px-5 py-2.5 rounded-xl bg-info-strong hover:bg-[#0369a1] disabled:bg-selected text-white disabled:text-fg-subtle text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-cyan-900/30"
+              className="px-5 py-2.5 rounded-control bg-info-strong hover:bg-[#0369a1] disabled:bg-selected text-white disabled:text-fg-subtle text-xs font-mono font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer hover:shadow-cyan-900/30"
             >
               {isRunningLive ? (
                 <>
@@ -139,7 +140,7 @@ export function AblationTab() {
                 </>
               ) : (
                 <>
-                  <span>⚡ Run Live Ablation (gemma3:4b)</span>
+                  <span><Glyph name="zap" /> Run Live Ablation (gemma3:4b)</span>
                 </>
               )}
             </button>
@@ -155,7 +156,7 @@ export function AblationTab() {
       {/* ── Top 4 KPI Delta Cards ───────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Correctness */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-5 shadow-xl flex flex-col justify-between">
+        <div className="rounded-panel bg-surface border border-line-strong p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs font-mono text-fg-subtle">
             <span>FACTUAL CORRECTNESS</span>
             <span className="px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/30 font-bold text-xs">
@@ -176,7 +177,7 @@ export function AblationTab() {
         </div>
 
         {/* Card 2: Input Prompt Tokens */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-5 shadow-xl flex flex-col justify-between">
+        <div className="rounded-panel bg-surface border border-line-strong p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs font-mono text-fg-subtle">
             <span>INPUT PROMPT TOKENS</span>
             <span className="px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/30 font-bold text-xs">
@@ -197,7 +198,7 @@ export function AblationTab() {
         </div>
 
         {/* Card 3: Generation Latency */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-5 shadow-xl flex flex-col justify-between">
+        <div className="rounded-panel bg-surface border border-line-strong p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs font-mono text-fg-subtle">
             <span>WALL-CLOCK LATENCY</span>
             <span className="px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/30 font-bold text-xs">
@@ -218,7 +219,7 @@ export function AblationTab() {
         </div>
 
         {/* Card 4: Retrieval Precision */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-5 shadow-xl flex flex-col justify-between">
+        <div className="rounded-panel bg-surface border border-line-strong p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs font-mono text-fg-subtle">
             <span>RETRIEVAL ACCURACY</span>
             <span className="px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/30 font-bold text-xs">
@@ -242,7 +243,7 @@ export function AblationTab() {
       {/* ── Diagnostic Visualizations (Side-by-Side Charts) ─────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart A: Retrieval Quality Distribution */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-6 shadow-xl space-y-4">
+        <div className="rounded-panel bg-surface border border-line-strong p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold font-mono text-fg-strong uppercase tracking-wider">
               Retrieval Quality Distribution
@@ -257,7 +258,7 @@ export function AblationTab() {
                 <span className="text-fg-soft font-semibold">Baseline (No-SCIP)</span>
                 <span className="text-danger">70% Wrong Chunks</span>
               </div>
-              <div className="h-6 w-full rounded-lg bg-overlay flex overflow-hidden p-0.5 border border-line-strong">
+              <div className="h-6 w-full rounded-panel bg-overlay flex overflow-hidden p-0.5 border border-line-strong">
                 <div style={{ width: `${(rDist.baseline.correct / 10) * 100}%` }} className="bg-success h-full flex items-center justify-center text-xs font-mono font-bold text-white" title="Correct (10%)">
                   {rDist.baseline.correct > 0 ? `${rDist.baseline.correct}` : ''}
                 </div>
@@ -276,7 +277,7 @@ export function AblationTab() {
                 <span className="text-info font-semibold">With SCIP Code Intelligence</span>
                 <span className="text-success">80% Correct Chunks</span>
               </div>
-              <div className="h-6 w-full rounded-lg bg-overlay flex overflow-hidden p-0.5 border border-line-strong">
+              <div className="h-6 w-full rounded-panel bg-overlay flex overflow-hidden p-0.5 border border-line-strong">
                 <div style={{ width: `${(rDist.with_scip.correct / 10) * 100}%` }} className="bg-success h-full flex items-center justify-center text-xs font-mono font-bold text-white" title="Correct (80%)">
                   {rDist.with_scip.correct} (80%)
                 </div>
@@ -308,7 +309,7 @@ export function AblationTab() {
         </div>
 
         {/* Chart B: Token Consumption & Context Size */}
-        <div className="rounded-2xl bg-surface border border-line-strong p-6 shadow-xl space-y-4">
+        <div className="rounded-panel bg-surface border border-line-strong p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold font-mono text-fg-strong uppercase tracking-wider">
               Token Efficiency &amp; Context Size
@@ -317,7 +318,7 @@ export function AblationTab() {
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-1">
-            <div className="p-3.5 rounded-xl bg-raised border border-line-strong space-y-2">
+            <div className="p-3.5 rounded-panel bg-raised border border-line-strong space-y-2">
               <span className="text-xs font-mono text-fg-subtle uppercase">Avg Prompt Tokens</span>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold font-mono text-info">
@@ -332,7 +333,7 @@ export function AblationTab() {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-raised border border-line-strong space-y-2">
+            <div className="p-3.5 rounded-panel bg-raised border border-line-strong space-y-2">
               <span className="text-xs font-mono text-fg-subtle uppercase">Injected Context Chars</span>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold font-mono text-success">
@@ -355,11 +356,11 @@ export function AblationTab() {
       </div>
 
       {/* ── 10-Question Granular Comparison Table ───────────────────── */}
-      <div className="rounded-2xl bg-surface border border-line-strong shadow-xl overflow-hidden">
+      <div className="rounded-panel bg-surface border border-line-strong overflow-hidden">
         <div className="p-5 border-b border-line-strong flex flex-wrap items-center justify-between gap-4 bg-raised">
           <div>
             <h2 className="text-base font-bold font-mono text-white flex items-center gap-2">
-              <span>📋</span>
+              <span><Glyph name="clipboard" /></span>
               <span>10-Question Granular Benchmark Comparison</span>
             </h2>
             <p className="text-xs text-fg-muted font-mono mt-0.5">
@@ -373,7 +374,7 @@ export function AblationTab() {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-1 rounded-control text-xs font-mono transition-all cursor-pointer whitespace-nowrap ${
                   selectedCategory === cat
                     ? 'bg-info-strong/20 border border-info-strong/50 text-info font-bold'
                     : 'bg-overlay text-fg-muted hover:text-fg-soft border border-line'
@@ -434,7 +435,7 @@ export function AblationTab() {
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => setExpandedQuestionId(isExpanded ? null : q.question_id)}
-                          className="px-2.5 py-1 rounded bg-selected hover:bg-selected text-cyan-400 text-xs font-mono cursor-pointer transition-colors"
+                          className="px-2.5 py-1 rounded-control bg-selected hover:bg-selected text-cyan-400 text-xs font-mono cursor-pointer transition-colors"
                         >
                           {isExpanded ? 'Hide ▲' : 'Diff ▼'}
                         </button>
@@ -447,34 +448,34 @@ export function AblationTab() {
                         <td colSpan={9} className="bg-canvas p-5 border-y border-line-strong">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-mono">
                             {/* Baseline Column */}
-                            <div className="p-4 rounded-xl bg-raised border border-danger/30 space-y-3">
+                            <div className="p-4 rounded-panel bg-raised border border-danger/30 space-y-3">
                               <div className="flex items-center justify-between pb-2 border-b border-line">
                                 <span className="text-danger font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                  <span>❌</span>
+                                  <span><Glyph name="xCircle" /></span>
                                   <span>Baseline (No-SCIP)</span>
                                 </span>
                                 <span className="text-fg-subtle">{q.baseline.prompt_tokens} prompt tok • {q.baseline.latency_seconds.toFixed(2)}s</span>
                               </div>
                               <div className="space-y-1">
                                 <span className="text-xs text-fg-subtle uppercase">Retrieved Chunks &amp; Injected Context:</span>
-                                <div className="p-2.5 rounded bg-canvas border border-line text-fg-muted text-xs max-h-36 overflow-y-auto whitespace-pre-wrap font-sans">
+                                <div className="p-2.5 rounded-control bg-canvas border border-line text-fg-muted text-xs max-h-36 overflow-y-auto whitespace-pre-wrap font-sans">
                                   {q.baseline.response_snippet}
                                 </div>
                               </div>
                             </div>
 
                             {/* With-SCIP Column */}
-                            <div className="p-4 rounded-xl bg-raised border border-success/30 space-y-3">
+                            <div className="p-4 rounded-panel bg-raised border border-success/30 space-y-3">
                               <div className="flex items-center justify-between pb-2 border-b border-line">
                                 <span className="text-success font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                  <span>✅</span>
+                                  <span><Glyph name="checkCircle" /></span>
                                   <span>With SCIP Code Intelligence</span>
                                 </span>
                                 <span className="text-fg-subtle">{q.with_scip.prompt_tokens} prompt tok • {q.with_scip.latency_seconds.toFixed(2)}s</span>
                               </div>
                               <div className="space-y-1">
                                 <span className="text-xs text-fg-subtle uppercase">Retrieved Code Symbols &amp; Context:</span>
-                                <div className="p-2.5 rounded bg-canvas border border-line text-fg text-xs max-h-36 overflow-y-auto whitespace-pre-wrap font-sans">
+                                <div className="p-2.5 rounded-control bg-canvas border border-line text-fg text-xs max-h-36 overflow-y-auto whitespace-pre-wrap font-sans">
                                   {q.with_scip.response_snippet}
                                 </div>
                               </div>
@@ -493,9 +494,9 @@ export function AblationTab() {
 
       {/* ── Key Discoveries & Architectural Takeaways ───────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="p-5 rounded-2xl bg-surface border border-line-strong shadow-xl space-y-2.5">
-          <div className="w-8 h-8 rounded-lg bg-info/15 border border-info/30 flex items-center justify-center text-info font-bold text-sm">
-            💡
+        <div className="p-5 rounded-panel bg-surface border border-line-strong space-y-2.5">
+          <div className="w-8 h-8 rounded-panel bg-info/15 border border-info/30 flex items-center justify-center text-info font-bold text-sm">
+            <Glyph name="lightbulb" />
           </div>
           <h3 className="text-sm font-bold font-mono text-white">
             Context Bloat Elimination
@@ -505,9 +506,9 @@ export function AblationTab() {
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-surface border border-line-strong shadow-xl space-y-2.5">
-          <div className="w-8 h-8 rounded-lg bg-success/15 border border-success/30 flex items-center justify-center text-success font-bold text-sm">
-            🎯
+        <div className="p-5 rounded-panel bg-surface border border-line-strong space-y-2.5">
+          <div className="w-8 h-8 rounded-panel bg-success/15 border border-success/30 flex items-center justify-center text-success font-bold text-sm">
+            <Glyph name="target" />
           </div>
           <h3 className="text-sm font-bold font-mono text-white">
             +178.9% Factual Accuracy
@@ -517,9 +518,9 @@ export function AblationTab() {
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-surface border border-line-strong shadow-xl space-y-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#a855f7]/15 border border-[#a855f7]/30 flex items-center justify-center text-[#a855f7] font-bold text-sm">
-            ⚡
+        <div className="p-5 rounded-panel bg-surface border border-line-strong space-y-2.5">
+          <div className="w-8 h-8 rounded-panel bg-[#a855f7]/15 border border-[#a855f7]/30 flex items-center justify-center text-[#a855f7] font-bold text-sm">
+            <Glyph name="zap" />
           </div>
           <h3 className="text-sm font-bold font-mono text-white">
             11.6s Speedup per Query

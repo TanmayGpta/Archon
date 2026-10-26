@@ -54,13 +54,13 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
   return (
     <Dialog onClose={onClose} label="Raw JSON data" className="flex items-center justify-center p-4 md:p-8 animate-fade-in" backdrop="backdrop:bg-black/85 backdrop:backdrop-blur-md">
       <div 
-        className="bg-surface border border-line rounded-2xl max-w-5xl w-full h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-surface border border-line rounded-dialog max-w-5xl w-full h-[85vh] flex flex-col shadow-raised overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="px-6 py-4 bg-raised border-b border-line flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg">
+            <div className="w-8 h-8 rounded-panel bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
@@ -87,7 +87,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              className="px-3 py-1.5 rounded-lg text-xs font-mono bg-overlay hover:bg-selected text-fg-muted hover:text-fg border border-line-strong transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-control text-xs font-mono bg-overlay hover:bg-selected text-fg-muted hover:text-fg border border-line-strong transition-all flex items-center gap-1.5 cursor-pointer"
               title="Download Raw JSON File"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,7 +100,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
 
             <button
               onClick={handleCopy}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
+              className={`px-3 py-1.5 rounded-control text-xs font-mono font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
                 copied
                   ? 'bg-success/20 text-success border-success/40'
                   : 'bg-accent-strong hover:bg-accent-hover text-white border-accent/50'
@@ -126,7 +126,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
 
             <button aria-label="Close"
               onClick={onClose}
-              className="p-1.5 text-fg-subtle hover:text-fg rounded-lg hover:bg-overlay transition-colors cursor-pointer"
+              className="p-1.5 text-fg-subtle hover:text-fg rounded-control hover:bg-overlay transition-colors cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -144,7 +144,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
               <button
                 key={sec}
                 onClick={() => setSelectedSection(sec)}
-                className={`px-2.5 py-1 rounded-md text-xs transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-2.5 py-1 rounded-control text-xs transition-all cursor-pointer whitespace-nowrap ${
                   selectedSection === sec
                     ? 'bg-selected text-accent-fg border border-accent/40 font-semibold'
                     : 'bg-raised text-fg-muted hover:text-fg-soft border border-line'
@@ -161,7 +161,7 @@ export function JsonDataModal({ isOpen, onClose }: JsonDataModalProps) {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search JSON text..."
-              className="w-full bg-raised border border-line focus:border-accent/60 rounded-lg px-3 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none"
+              className="w-full bg-raised border border-line focus:border-accent/60 rounded-control px-3 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none"
             />
             {searchQuery && (
               <button aria-label="Close"

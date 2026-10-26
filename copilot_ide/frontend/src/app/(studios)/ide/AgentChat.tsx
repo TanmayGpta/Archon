@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { Icons } from '../../components/Icons';
+import { Icons, Glyph } from '../../components/Icons';
 import { FormattedMarkdown } from '../../components/markdown/FormattedMarkdown';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import ContextFileChips from '../../components/ContextFileChips';
@@ -79,14 +79,14 @@ export function AgentChat() {
         
         <div className="px-3 py-2 border-b border-line-subtle bg-canvas flex justify-between items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <div className="w-5 h-5 rounded bg-raised border border-line flex items-center justify-center p-0.5 shadow-sm flex-shrink-0">
+            <div className="w-5 h-5 rounded-control bg-raised border border-line flex items-center justify-center p-0.5 flex-shrink-0">
               <img src="/aionlabs.svg" alt="Archon" className="w-full h-full object-contain" />
             </div>
             <span className="text-sm font-mono font-bold text-fg tracking-tight whitespace-nowrap flex-shrink-0">
               Archon Agent
             </span>
             <span 
-              className="text-xs font-mono text-accent-fg px-1.5 py-0.2 bg-accent/10 rounded border border-accent/20 truncate max-w-[110px] inline-block"
+              className="text-xs font-mono text-accent-fg px-1.5 py-0.2 bg-accent/10 rounded-control border border-accent/20 truncate max-w-[110px] inline-block"
               title={selectedModel}
             >
               {selectedModel}
@@ -97,7 +97,7 @@ export function AgentChat() {
             <button
               onClick={() => setAutoApplyEdits(!autoApplyEdits)}
               title="Toggle automatic application of AI code edits directly to active file"
-              className={`px-2 py-0.5 rounded text-xs font-mono transition-all flex items-center gap-1 cursor-pointer border whitespace-nowrap ${
+              className={`px-2 py-0.5 rounded-control text-xs font-mono transition-all flex items-center gap-1 cursor-pointer border whitespace-nowrap ${
                 autoApplyEdits
                   ? 'bg-accent/20 text-accent-fg border-accent/40 font-bold'
                   : 'bg-raised text-fg-subtle border-line hover:text-fg-muted'
@@ -110,7 +110,7 @@ export function AgentChat() {
             <button
               onClick={handleNewChat}
               title="Clear Chat History" aria-label="Clear Chat History"
-              className="text-fg-subtle hover:text-fg-soft text-xs font-mono p-1 rounded hover:bg-overlay cursor-pointer flex-shrink-0"
+              className="text-fg-subtle hover:text-fg-soft text-xs font-mono p-1 rounded-control hover:bg-overlay cursor-pointer flex-shrink-0"
             >
               <Icons.Trash />
             </button>
@@ -145,7 +145,7 @@ export function AgentChat() {
                         onClick={() => revertAgentEdit(edit.id)}
                         disabled={!canRevert}
                         title={why}
-                        className="flex-shrink-0 px-2 py-0.5 rounded-md border border-line text-fg-soft hover:border-danger/50 hover:text-danger-fg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="flex-shrink-0 px-2 py-0.5 rounded-control border border-line text-fg-soft hover:border-danger/50 hover:text-danger-fg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Revert
                       </button>
@@ -163,7 +163,7 @@ export function AgentChat() {
               type="checkbox"
               checked={includeFileContext}
               onChange={(e) => setIncludeFileContext(e.target.checked)}
-              className="rounded border-line bg-raised text-accent focus:ring-0 cursor-pointer"
+              className="rounded-control border-line bg-raised text-accent focus:ring-0 cursor-pointer"
             />
             <span>Include active file in context</span>
           </label>
@@ -179,7 +179,7 @@ export function AgentChat() {
           {agentMessages.map((msg) => (
             <div
               key={msg.id}
-              className={`p-3 rounded-lg border text-sm font-mono leading-relaxed select-text transition-all ${
+              className={`p-3 rounded-panel border text-sm font-mono leading-relaxed select-text transition-all ${
                 msg.role === 'user'
                   ? 'bg-raised border-line-strong text-fg'
                   : 'bg-surface border-line-subtle text-fg-soft'
@@ -205,7 +205,7 @@ export function AgentChat() {
                       onClick={() => copyMessage(msg.id, msg.content)}
                       aria-label="Copy message"
                       title="Copy message"
-                      className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
+                      className="px-1.5 py-0.5 rounded-control text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
                     >
                       {copiedId === msg.id ? 'Copied' : <Icons.Copy />}
                     </button>
@@ -215,7 +215,7 @@ export function AgentChat() {
                       onClick={() => handleRetryAgentMessage(msg.id)}
                       aria-label="Retry reply"
                       title="Ask again"
-                      className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
+                      className="px-1.5 py-0.5 rounded-control text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
                     >
                       <Icons.Refresh />
                     </button>
@@ -240,7 +240,7 @@ export function AgentChat() {
                         }
                       }
                     }}
-                    className="text-accent-fg hover:text-[#93c5fd] bg-selected/70 hover:bg-selected px-2 py-0.5 rounded text-xs font-mono flex items-center gap-1 border border-accent/30 cursor-pointer"
+                    className="text-accent-fg hover:text-[#93c5fd] bg-selected/70 hover:bg-selected px-2 py-0.5 rounded-control text-xs font-mono flex items-center gap-1 border border-accent/30 cursor-pointer"
                   >
                     <Icons.Sparkles />
                     <span>Apply Code</span>
@@ -250,7 +250,7 @@ export function AgentChat() {
 
               {/* ── RAG Citations with Interactive Hover Tooltip ──── */}
               {msg.rag_sources && msg.rag_sources.length > 0 && (
-                <div className="mb-3 p-2 bg-canvas border border-line-subtle rounded-lg">
+                <div className="mb-3 p-2 bg-canvas border border-line-subtle rounded-panel">
                   <div className="flex items-center gap-1.5 mb-1 text-xs font-mono text-fg-subtle uppercase tracking-wider font-semibold select-none">
                     <Icons.Book />
                     <span>Retrieved Enterprise API Sources (Hybrid RAG):</span>
@@ -259,14 +259,14 @@ export function AgentChat() {
                   <div className="flex flex-wrap gap-1.5">
                     {msg.rag_sources.map((src, sIdx) => (
                       <div key={sIdx} className="relative group/src">
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-success/10 border border-success/30 text-success text-xs font-mono cursor-pointer hover:bg-success/20 transition-colors">
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-control bg-success/10 border border-success/30 text-success text-xs font-mono cursor-pointer hover:bg-success/20 transition-colors">
                           <Icons.FileCode />
                           <span>{src.file || src.title}</span>
-                          <span className="text-xs bg-success/25 px-1 py-0.2 rounded font-bold">{src.score}</span>
+                          <span className="text-xs bg-success/25 px-1 py-0.2 rounded-control font-bold">{src.score}</span>
                         </div>
 
                         {/* Hover Popover showing exact extracted chunk */}
-                        <div className="absolute left-0 bottom-full mb-1.5 hidden group-hover/src:block z-50 w-[320px] p-3 rounded-lg bg-surface border border-line-strong shadow-2xl text-xs font-mono text-fg-soft animate-fade-in pointer-events-auto">
+                        <div className="absolute left-0 bottom-full mb-1.5 hidden group-hover/src:block z-50 w-[320px] p-3 rounded-panel bg-surface border border-line-strong shadow-raised text-xs font-mono text-fg-soft animate-fade-in pointer-events-auto">
                           <div className="flex justify-between items-center pb-1.5 mb-1.5 border-b border-line-strong">
                             <span className="font-bold text-success truncate max-w-[200px]" title={src.title}>{src.title}</span>
                             <span className="text-xs text-accent-fg font-semibold">Match: {src.score}</span>
@@ -274,7 +274,7 @@ export function AgentChat() {
                           <div className="text-xs text-fg-subtle mb-1">
                             Source Spec: <span className="text-fg-soft">{src.file}</span>
                           </div>
-                          <div className="text-xs text-fg-muted leading-relaxed max-h-[160px] overflow-y-auto custom-scrollbar whitespace-pre-wrap bg-canvas p-2 rounded border border-line-subtle">
+                          <div className="text-xs text-fg-muted leading-relaxed max-h-[160px] overflow-y-auto custom-scrollbar whitespace-pre-wrap bg-canvas p-2 rounded-control border border-line-subtle">
                             {src.text}
                           </div>
                         </div>
@@ -286,7 +286,7 @@ export function AgentChat() {
 
               {/* ── Synaptic Architecture Flow Trace ──────────────── */}
               {msg.flowSequence && msg.flowSequence.length > 0 && (
-                <div className="mb-3 p-2.5 bg-canvas border border-warning/30 rounded-lg flex items-center justify-between gap-3 shadow-sm">
+                <div className="mb-3 p-2.5 bg-canvas border border-warning/30 rounded-panel flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="flex h-2 w-2 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
@@ -311,9 +311,9 @@ export function AgentChat() {
                       setActiveFlowSteps(msg.flowSteps || null);
                       setShowKnowledgeGraph(true);
                     }}
-                    className="px-2.5 py-1 rounded bg-warning/15 hover:bg-warning/25 border border-warning/35 hover:border-warning/60 text-warning-fg text-xs font-mono font-medium flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                    className="px-2.5 py-1 rounded-control bg-warning/15 hover:bg-warning/25 border border-warning/35 hover:border-warning/60 text-warning-fg text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <span>⚡ Trace Synaptic Path in Graph</span>
+                    <span><Glyph name="zap" /> Trace Synaptic Path in Graph</span>
                     <span>→</span>
                   </button>
                 </div>
@@ -323,7 +323,7 @@ export function AgentChat() {
                 <div className="mb-2 flex flex-wrap items-center gap-1 text-xs font-normal" aria-label="Files sent with this message">
                   <span className="text-fg-subtle">Sent with</span>
                   {msg.context.map(f => (
-                    <span key={f.path} title={f.path} className="px-1.5 py-0.5 rounded border border-accent/25 bg-accent/10 text-accent-fg">
+                    <span key={f.path} title={f.path} className="px-1.5 py-0.5 rounded-control border border-accent/25 bg-accent/10 text-accent-fg">
                       {f.name}
                     </span>
                   ))}
@@ -349,7 +349,7 @@ export function AgentChat() {
           ))}
 
           {agentLoading && (
-            <div className="p-3 bg-canvas border border-line-subtle rounded-lg text-sm font-mono text-accent-fg flex items-center gap-2 animate-pulse">
+            <div className="p-3 bg-canvas border border-line-subtle rounded-panel text-sm font-mono text-accent-fg flex items-center gap-2 animate-pulse">
               <Icons.Sparkles />
               <span>Archon Agent synthesizing solution...</span>
             </div>
@@ -360,21 +360,21 @@ export function AgentChat() {
           <div className="p-2 border-t border-line-subtle/60 bg-canvas flex items-center gap-1.5 overflow-x-auto custom-scrollbar select-none">
             <button
               onClick={() => handleSendAgentMessage(`Refactor ${activeTab.path} to improve code cleanliness, maintainability, and error handling. Output the updated code.`)}
-              className="whitespace-nowrap px-2 py-1 rounded text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
+              className="whitespace-nowrap px-2 py-1 rounded-control text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
             >
               <Icons.Bolt />
               <span>Refactor & Apply</span>
             </button>
             <button
               onClick={() => handleSendAgentMessage(`Review ${activeTab.path} for any bugs or edge cases, fix them, and provide the updated complete implementation.`)}
-              className="whitespace-nowrap px-2 py-1 rounded text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
+              className="whitespace-nowrap px-2 py-1 rounded-control text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
             >
               <Icons.Diagnostics />
               <span>Fix Bugs</span>
             </button>
             <button
               onClick={() => handleSendAgentMessage(`Explain what ${activeTab.path} does and summarize its key methods.`)}
-              className="whitespace-nowrap px-2 py-1 rounded text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
+              className="whitespace-nowrap px-2 py-1 rounded-control text-xs font-mono bg-raised hover:bg-overlay text-fg-muted hover:text-accent-fg border border-line transition-colors cursor-pointer flex items-center gap-1"
             >
               <Icons.Search />
               <span>Explain</span>
@@ -403,7 +403,7 @@ export function AgentChat() {
             } catch {}
           }}
         >
-          <div className="relative border border-line focus-within:border-accent/50 rounded-lg bg-canvas transition-all overflow-hidden">
+          <div className="relative border border-line focus-within:border-accent/50 rounded-panel bg-canvas transition-all overflow-hidden">
             <ContextFileChips
               contextFiles={contextFiles}
               onRemoveFile={handleRemoveContextFile}
@@ -433,7 +433,7 @@ export function AgentChat() {
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full bg-raised hover:bg-overlay text-fg-muted hover:text-fg-soft text-xs font-mono rounded px-2 py-1 border border-line focus:outline-none cursor-pointer truncate"
+                  className="w-full bg-raised hover:bg-overlay text-fg-muted hover:text-fg-soft text-xs font-mono rounded-control px-2 py-1 border border-line focus:outline-none cursor-pointer truncate"
                   title={selectedModel}
                 >
                   {models.map(m => (
@@ -443,7 +443,7 @@ export function AgentChat() {
                 <button
                   onClick={() => { setShowApiKeysModal(true); fetchApiKeyStatus(); }}
                   title="Configure Cloud LLM API Keys" aria-label="Configure Cloud LLM API Keys"
-                  className="flex-shrink-0 text-fg-subtle hover:text-accent-fg bg-raised hover:bg-selected p-1 rounded border border-line cursor-pointer transition-colors"
+                  className="flex-shrink-0 text-fg-subtle hover:text-accent-fg bg-raised hover:bg-selected p-1 rounded-control border border-line cursor-pointer transition-colors"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="3"/>
@@ -455,7 +455,7 @@ export function AgentChat() {
               {agentLoading ? (
               <button
                 onClick={handleStopAgent}
-                className="flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer bg-danger/15 text-danger-fg border border-danger/40 hover:bg-danger/25"
+                className="flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-control text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer bg-danger/15 text-danger-fg border border-danger/40 hover:bg-danger/25"
               >
                 <span className="w-2 h-2 bg-current rounded-[1px]" />
                 <span>Stop</span>
@@ -464,9 +464,9 @@ export function AgentChat() {
               <button
                 onClick={() => handleSendAgentMessage()}
                 disabled={!agentInput.trim() || agentLoading}
-                className={`flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-control text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   agentInput.trim() && !agentLoading
-                    ? 'bg-accent hover:bg-accent-strong text-white shadow-md shadow-[#3b82f6]/20'
+                    ? 'bg-accent hover:bg-accent-strong text-white '
                     : 'bg-selected text-fg-subtle cursor-not-allowed'
                 }`}
               >

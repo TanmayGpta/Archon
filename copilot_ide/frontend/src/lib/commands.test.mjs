@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COMMANDS, commandById, scoreCommand, searchCommands } from './commands.ts';
+import { COMMANDS, commandById, scoreCommand, searchCommands, matchesKeys, formatKeys } from './commands.ts';
 
 const titles = list => list.map(c => c.title);
 
@@ -39,4 +39,30 @@ test('letters in order match as a last resort', () => {
 test('regex characters in the query are safe', () => {
   assert.doesNotThrow(() => searchCommands('(', COMMANDS));
   assert.doesNotThrow(() => searchCommands('a+[', COMMANDS));
+});
+
+const ev = (key, mods = {}, code = '') => ({ key, code, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods });
+
+test('bindings match exactly, with Mod as Ctrl or Cmd', () => {
+  assert.ok(matchesKeys(ev('p', { ctrlKey: true }), 'Mod+P'));
+  assert.ok(!matchesKeys(ev('p', { ctrlKey: true, shiftKey: true }), 'Mod+P'), 'extra Shift');
+  assert.ok(!matchesKeys(ev('p'), 'Mod+P'), 'no modifier');
+  assert.ok(matchesKeys(ev('p', { metaKey: true }), 'Mod+P', true), 'Cmd on a Mac');
+  assert.ok(!matchesKeys(ev('p', { ctrlKey: true }), 'Mod+P', true), 'Ctrl is not Mod on a Mac');
+});
+
+test('Alt bindings match by key code when Alt changes the character', () => {
+  assert.ok(matchesKeys(ev('∑', { altKey: true }, 'KeyW'), 'Alt+W', true));
+  assert.ok(matchesKeys(ev('`', { ctrlKey: true }, 'Backquote'), 'Mod+`'));
+});
+
+test('bindings format per platform', () => {
+  assert.equal(formatKeys('Mod+P'), 'Ctrl+P');
+  assert.equal(formatKeys('Mod+P', true), '⌘P');
+  assert.equal(formatKeys('Alt+W', true), '⌥W');
+});
+
+test('every binding is unique', () => {
+  const keys = COMMANDS.filter(c => c.keys).map(c => c.keys);
+  assert.equal(new Set(keys).size, keys.length);
 });

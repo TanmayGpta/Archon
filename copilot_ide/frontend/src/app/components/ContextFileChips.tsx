@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Glyph } from './Icons';
 
 export interface ContextFileItem {
   path: string;
@@ -39,8 +40,8 @@ export default function ContextFileChips({
       
       {/* Drag & Drop Visual Indicator */}
       {isDraggingOver && (
-        <div className="p-3 border-2 border-dashed border-cyan-400 bg-cyan-950/40 rounded-xl flex items-center justify-center gap-2 text-cyan-300 font-semibold text-xs animate-pulse">
-          <span>📥</span>
+        <div className="p-3 border-2 border-dashed border-cyan-400 bg-cyan-950/40 rounded-panel flex items-center justify-center gap-2 text-cyan-300 font-semibold text-xs animate-pulse">
+          <span><Glyph name="inbox" /></span>
           <span>Drop file to pin as surgical context chip</span>
         </div>
       )}
@@ -49,15 +50,15 @@ export default function ContextFileChips({
       {contextFiles.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs uppercase font-bold text-slate-400 flex items-center gap-1">
-            <span>📎 Attached Context:</span>
+            <span><Glyph name="paperclip" /> Attached Context:</span>
           </span>
           {contextFiles.map((file) => (
             <div
               key={file.path}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-overlay border border-cyan-700/40 text-fg text-xs shadow-sm hover:border-cyan-500/60 transition-all group"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-panel bg-overlay border border-cyan-700/40 text-fg text-xs hover:border-cyan-500/60 transition-all group"
               title={`Attached: ${file.path} (Full file injected for surgical edits)`}
             >
-              <span className="text-cyan-400">📄</span>
+              <span className="text-cyan-400"><Glyph name="file" /></span>
               <span className="font-semibold text-white">{file.name}</span>
               <span className="text-xs text-slate-400 max-w-[120px] truncate">({file.path})</span>
               <button
@@ -77,7 +78,7 @@ export default function ContextFileChips({
       {suggestedFiles.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap pt-0.5">
           <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-            <span>💡 OmniKey 95/2 Suggestion:</span>
+            <span><Glyph name="lightbulb" /> OmniKey 95/2 Suggestion:</span>
           </span>
           {suggestedFiles.map((sug) => {
             const fileName = sug.path.split('/').pop() || sug.path;
@@ -86,16 +87,16 @@ export default function ContextFileChips({
                 type="button"
                 key={sug.path}
                 onClick={() => onAddSuggestedFile(sug)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/40 hover:bg-amber-900/60 border border-amber-700/50 text-amber-200 text-xs transition-all cursor-pointer shadow-sm group hover:scale-[1.02]"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-amber-950/40 hover:bg-amber-900/60 border border-amber-700/50 text-amber-200 text-xs transition-all cursor-pointer group hover:scale-[1.02]"
                 title={sug.reason || 'Click to add as context'}
               >
-                <span className="text-amber-400 font-bold">➕</span>
+                <span className="text-amber-400 font-bold"><Glyph name="plus" /></span>
                 <span className="font-semibold text-white">{fileName}</span>
                 <span className="text-xs text-amber-300/80 max-w-[200px] truncate">
                   ({sug.reason})
                 </span>
                 {sug.confidence && (
-                  <span className="text-xs px-1 py-0.2 rounded bg-amber-900/80 text-amber-200 font-mono">
+                  <span className="text-xs px-1 py-0.2 rounded-control bg-amber-900/80 text-amber-200 font-mono">
                     {Math.round(sug.confidence * 100)}%
                   </span>
                 )}

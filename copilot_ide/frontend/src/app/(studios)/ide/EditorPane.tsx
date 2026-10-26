@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Icons } from '../../components/Icons';
+import { Icons, Glyph } from '../../components/Icons';
 import { getFileIcon } from './FileTree';
 import { ARCHON_ASCII_ART } from './editorText';
 import { CodeEditor } from './CodeEditor';
@@ -31,6 +31,8 @@ export function EditorPane() {
     lastAppliedNotice,
     openTabs,
     pendingEdit,
+    pendingReveal,
+    setPendingReveal,
     recentProjects,
     saveStatus,
     setActiveTabPath,
@@ -73,7 +75,7 @@ export function EditorPane() {
                 {dirty && <span className="w-2 h-2 rounded-full bg-accent ml-1" title="Unsaved changes" />}
                 <button aria-label={`Close ${tab.name}`}
                   onClick={(e) => handleCloseTab(tab.path, e)}
-                  className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5 rounded transition-opacity ml-1"
+                  className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5 rounded-control transition-opacity ml-1"
                 >
                   <Icons.Close />
                 </button>
@@ -98,7 +100,7 @@ export function EditorPane() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSaveFile}
-                className="bg-success/20 hover:bg-success/35 text-success px-2 py-0.5 rounded border border-success/40 text-xs cursor-pointer font-semibold"
+                className="bg-success/20 hover:bg-success/35 text-success px-2 py-0.5 rounded-control border border-success/40 text-xs cursor-pointer font-semibold"
               >
                 Save (Ctrl+S)
               </button>
@@ -133,18 +135,18 @@ export function EditorPane() {
               <button
                 onClick={() => setShowIndexDrawer(true)}
                 title="Index Codebase with SCIP & Knowledge Graph"
-                className="bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 px-2.5 py-1 rounded text-xs font-mono transition-colors border border-cyan-800/40 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                className="bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 px-2.5 py-1 rounded-control text-xs font-mono transition-colors border border-cyan-800/40 cursor-pointer flex items-center gap-1.5"
               >
-                <span>⚡ Index Codebase</span>
+                <span><Glyph name="zap" /> Index Codebase</span>
               </button>
               <button
                 onClick={() => setShowKnowledgeGraph(true)}
                 title="Open Knowledge Graph Visualizer"
-                className="bg-raised hover:bg-overlay text-slate-300 px-2.5 py-1 rounded text-xs font-mono transition-colors border border-line-strong cursor-pointer flex items-center gap-1.5 shadow-sm"
+                className="bg-raised hover:bg-overlay text-slate-300 px-2.5 py-1 rounded-control text-xs font-mono transition-colors border border-line-strong cursor-pointer flex items-center gap-1.5"
               >
-                <span>🌐 Graph</span>
+                <span><Glyph name="globe" /> Graph</span>
                 {knowledgeGraphData?.nodes?.length ? (
-                  <span className="text-xs px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                  <span className="text-xs px-1.5 py-0.2 rounded-control bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
                     {knowledgeGraphData.nodes.length}
                   </span>
                 ) : null}
@@ -152,7 +154,7 @@ export function EditorPane() {
               <button
                 onClick={handleSaveFile}
                 title="Save (Ctrl+S)"
-                className="bg-selected hover:bg-[#334155] text-fg-soft px-2.5 py-1 rounded text-xs font-mono transition-colors border border-[#334155] cursor-pointer flex items-center gap-1.5"
+                className="bg-selected hover:bg-[#334155] text-fg-soft px-2.5 py-1 rounded-control text-xs font-mono transition-colors border border-[#334155] cursor-pointer flex items-center gap-1.5"
               >
                 <Icons.Save />
                 <span>Save</span>
@@ -174,6 +176,8 @@ export function EditorPane() {
                 onChange={handleEditorChange}
                 onCursor={handleCursorChange}
                 onSave={handleSaveFile}
+                revealLine={pendingReveal?.path === activeTab.path ? pendingReveal.line : undefined}
+                onRevealed={() => setPendingReveal(null)}
               />
             </div>
           )
@@ -189,14 +193,14 @@ export function EditorPane() {
                   setProjectPathInput('');
                   setShowOpenProjectModal(true);
                 }}
-                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
+                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-control text-sm transition-all cursor-pointer font-semibold flex items-center gap-2"
               >
                 <Icons.FolderClosed />
                 <span>Open folder</span>
               </button>
               <button
                 onClick={() => setShowGitHubModal(true)}
-                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-lg text-sm transition-all cursor-pointer flex items-center gap-2"
+                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-control text-sm transition-all cursor-pointer flex items-center gap-2"
               >
                 <Icons.GitHub />
                 <span>Open from GitHub</span>
@@ -211,7 +215,7 @@ export function EditorPane() {
                     <button
                       key={p}
                       onClick={() => handleOpenProject(p, false)}
-                      className="w-full text-left p-2 rounded bg-canvas hover:bg-raised border border-line hover:border-accent/40 text-sm font-mono text-fg-muted hover:text-accent-fg transition-colors flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left p-2 rounded-control bg-canvas hover:bg-raised border border-line hover:border-accent/40 text-sm font-mono text-fg-muted hover:text-accent-fg transition-colors flex items-center gap-2 cursor-pointer"
                     >
                       <Icons.FolderClosed />
                       <span className="truncate">{p}</span>
@@ -234,7 +238,7 @@ export function EditorPane() {
               <h3 className="text-lg font-mono font-bold text-fg">
                 {currentProjectName} Workspace
               </h3>
-              <span className="text-xs font-mono text-accent-fg px-1.5 py-0.2 bg-accent/10 rounded border border-accent/20">
+              <span className="text-xs font-mono text-accent-fg px-1.5 py-0.2 bg-accent/10 rounded-control border border-accent/20">
                 ⎇ {gitBranch}
               </span>
             </div>
@@ -246,14 +250,14 @@ export function EditorPane() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowOpenProjectModal(true)}
-                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-lg text-sm font-mono transition-all cursor-pointer font-semibold flex items-center gap-2 shadow-md"
+                className="bg-accent-strong hover:bg-accent-hover text-white px-4 py-2 rounded-control text-sm font-mono transition-all cursor-pointer font-semibold flex items-center gap-2"
               >
                 <Icons.FolderPlus />
                 <span>Open or Create Project...</span>
               </button>
               <button
                 onClick={() => handleOpenFile('README.md')}
-                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-lg text-sm font-mono transition-all cursor-pointer flex items-center gap-2"
+                className="bg-raised hover:bg-overlay text-fg-soft border border-line hover:border-accent/30 px-4 py-2 rounded-control text-sm font-mono transition-all cursor-pointer flex items-center gap-2"
               >
                 <Icons.FileCode />
                 <span>Open README.md</span>

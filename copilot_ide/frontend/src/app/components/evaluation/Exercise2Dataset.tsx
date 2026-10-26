@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo } from 'react';
+import { Glyph } from '../Icons';
 import { Dialog } from '../Dialog';
 import { EVALUATION_DATA, QuestionEntry } from './evaluationData';
 
@@ -77,10 +78,10 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       {/* Exercise Briefing Header */}
-      <div className="p-6 rounded-2xl bg-raised border border-line-strong space-y-3 shadow-lg">
+      <div className="p-6 rounded-panel bg-raised border border-line-strong space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
+            <span className="px-2.5 py-1 rounded-panel bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
               EXERCISE 2
             </span>
             <h2 className="text-lg font-bold text-fg-strong font-mono">
@@ -147,7 +148,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
             why: "Executable scripts passing unit assertions."
           }
         ].map((cat, i) => (
-          <div key={i} className={`p-3.5 rounded-xl bg-surface border ${cat.color} text-center space-y-2 flex flex-col justify-between`}>
+          <div key={i} className={`p-3.5 rounded-panel bg-surface border ${cat.color} text-center space-y-2 flex flex-col justify-between`}>
             <div>
               <div className="text-xs font-mono text-fg-subtle truncate">{cat.label}</div>
               <div className={`text-xl font-bold font-mono ${cat.color.split(' ')[0]} mt-0.5`}>{cat.count}</div>
@@ -155,7 +156,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
             </div>
             <div className="pt-2 border-t border-line text-left">
               <div className="text-xs font-mono font-bold text-success truncate">
-                🏆 Best: {cat.winner}
+                <Glyph name="trophy" /> Best: {cat.winner}
               </div>
               <div className="text-xs text-fg-muted font-sans line-clamp-2 mt-0.5">
                 {cat.why}
@@ -167,16 +168,16 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
 
       {/* Search & Filter Toolbar */}
       <div className="space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface p-3 rounded-2xl border border-line">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface p-3 rounded-panel border border-line">
           {/* Category Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 md:pb-0">
             {groups.map(grp => (
               <button
                 key={grp.id}
                 onClick={() => setSelectedGroup(grp.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-control text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   selectedGroup === grp.id
-                    ? 'bg-selected text-accent-fg border border-accent/40 font-semibold shadow-sm'
+                    ? 'bg-selected text-accent-fg border border-accent/40 font-semibold '
                     : 'bg-raised text-fg-muted hover:text-fg border border-line'
                 }`}
               >
@@ -195,7 +196,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search ID, text, keywords, specs..."
-              className="w-full bg-raised border border-line focus:border-accent/60 rounded-xl px-3.5 py-1.5 text-xs text-fg placeholder-fg-subtle focus:outline-none"
+              className="w-full bg-raised border border-line focus:border-accent/60 rounded-control px-3.5 py-1.5 text-xs text-fg placeholder-fg-subtle focus:outline-none"
             />
             {searchQuery && (
               <button aria-label="Close"
@@ -216,7 +217,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
       </div>
 
       {/* Questions Interactive Table */}
-      <div className="overflow-x-auto rounded-2xl border border-line bg-surface custom-scrollbar shadow-xl">
+      <div className="overflow-x-auto rounded-panel border border-line bg-surface custom-scrollbar">
         <table className="w-full text-left border-collapse text-xs font-mono">
           <thead>
             <tr className="bg-raised border-b border-line text-fg-subtle uppercase tracking-wider text-xs">
@@ -237,14 +238,14 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
               >
                 {/* ID */}
                 <td className="py-3 px-3 font-bold text-accent-fg">
-                  <span className="px-2 py-0.5 rounded bg-accent/10 border border-accent/20">
+                  <span className="px-2 py-0.5 rounded-control bg-accent/10 border border-accent/20">
                     {q.id}
                   </span>
                 </td>
 
                 {/* Tag */}
                 <td className="py-3 px-3">
-                  <span className={`text-xs px-2 py-0.5 rounded border ${
+                  <span className={`text-xs px-2 py-0.5 rounded-control border ${
                     q.tag.includes('FAILURE')
                       ? 'bg-danger/10 text-danger-fg border-danger/30'
                       : q.tag.includes('CROSS-3+')
@@ -262,23 +263,23 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                   <div className="font-medium">{q.question}</div>
                   <div className="flex items-center gap-2 mt-1">
                     {q.is_code_question && (
-                      <span className="text-xs font-mono px-1.5 py-0.2 rounded bg-success/15 text-success border border-success/30">
+                      <span className="text-xs font-mono px-1.5 py-0.2 rounded-control bg-success/15 text-success border border-success/30">
                         Code Gen (Q24-26)
                       </span>
                     )}
                     {q.exercise_5_candidate && (
-                      <span className="text-xs font-mono px-1.5 py-0.2 rounded bg-[#06b6d4]/15 text-[#22d3ee] border border-[#06b6d4]/30">
+                      <span className="text-xs font-mono px-1.5 py-0.2 rounded-control bg-[#06b6d4]/15 text-[#22d3ee] border border-[#06b6d4]/30">
                         Ex 5 Trace
                       </span>
                     )}
                     {q.exercise_6_multihop && (
-                      <span className="text-xs font-mono px-1.5 py-0.2 rounded bg-[#f43f5e]/15 text-[#fb7185] border border-[#f43f5e]/30">
+                      <span className="text-xs font-mono px-1.5 py-0.2 rounded-control bg-[#f43f5e]/15 text-[#fb7185] border border-[#f43f5e]/30">
                         Ex 6 Multi-Hop
                       </span>
                     )}
                     {GROUP_PERFORMANCE_INSIGHTS[q.group] && (
-                      <span className="text-xs font-mono px-1.5 py-0.2 rounded bg-success/10 text-success-fg border border-success/25">
-                        🏆 Best: {GROUP_PERFORMANCE_INSIGHTS[q.group].winner.split(' ')[0]}
+                      <span className="text-xs font-mono px-1.5 py-0.2 rounded-control bg-success/10 text-success-fg border border-success/25">
+                        <Glyph name="trophy" /> Best: {GROUP_PERFORMANCE_INSIGHTS[q.group].winner.split(' ')[0]}
                       </span>
                     )}
                   </div>
@@ -290,7 +291,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                     {q.expected_sources.map((src, i) => (
                       <span
                         key={i}
-                        className="text-xs font-mono px-1.5 py-0.5 rounded bg-overlay text-fg-muted border border-line truncate max-w-[190px]"
+                        className="text-xs font-mono px-1.5 py-0.5 rounded-control bg-overlay text-fg-muted border border-line truncate max-w-[190px]"
                         title={src}
                       >
                         {src}
@@ -305,7 +306,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                     {q.expected_keywords.map((kw, i) => (
                       <span
                         key={i}
-                        className="text-xs font-mono px-1.5 py-0.2 rounded bg-raised text-success-fg border border-success/25"
+                        className="text-xs font-mono px-1.5 py-0.2 rounded-control bg-raised text-success-fg border border-success/25"
                       >
                         {kw}
                       </span>
@@ -320,7 +321,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                       e.stopPropagation();
                       setSelectedQuestion(q);
                     }}
-                    className="text-xs font-mono text-accent-fg hover:text-[#93c5fd] bg-overlay hover:bg-selected px-2.5 py-1 rounded-lg border border-line-strong transition-all cursor-pointer"
+                    className="text-xs font-mono text-accent-fg hover:text-[#93c5fd] bg-overlay hover:bg-selected px-2.5 py-1 rounded-control border border-line-strong transition-all cursor-pointer"
                   >
                     Inspect
                   </button>
@@ -335,12 +336,12 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
       {selectedQuestion && (
         <Dialog onClose={() => setSelectedQuestion(null)} label="Question details" className="flex items-center justify-center p-4" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div
-            className="bg-surface border border-line-strong rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-fade-in"
+            className="bg-surface border border-line-strong rounded-dialog max-w-2xl w-full p-6 space-y-5 shadow-raised animate-fade-in"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent-fg font-mono font-bold text-xs">
+                <span className="px-2.5 py-1 rounded-panel bg-accent/20 border border-accent/40 text-accent-fg font-mono font-bold text-xs">
                   {selectedQuestion.id}
                 </span>
                 <h3 className="text-sm font-bold text-fg font-mono">
@@ -358,7 +359,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
             <div className="space-y-4 text-xs font-mono">
               <div className="space-y-1">
                 <span className="text-fg-subtle uppercase tracking-wider text-xs">Standardized Developer Query:</span>
-                <p className="text-sm font-sans font-medium text-fg-strong bg-canvas p-3 rounded-xl border border-line-subtle">
+                <p className="text-sm font-sans font-medium text-fg-strong bg-canvas p-3 rounded-panel border border-line-subtle">
                   {selectedQuestion.question}
                 </p>
               </div>
@@ -367,8 +368,8 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                 <span className="text-fg-subtle uppercase tracking-wider text-xs">Ground Truth Source Documents:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedQuestion.expected_sources.map((src, i) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg bg-overlay text-info border border-line-strong text-xs">
-                      📄 {src}
+                    <span key={i} className="px-2.5 py-1 rounded-panel bg-overlay text-info border border-line-strong text-xs">
+                      <Glyph name="file" /> {src}
                     </span>
                   ))}
                 </div>
@@ -378,7 +379,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                 <span className="text-fg-subtle uppercase tracking-wider text-xs">Ground Truth Keywords &amp; Signatures:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedQuestion.expected_keywords.map((kw, i) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg bg-raised text-success-fg border border-success/30 text-xs">
+                    <span key={i} className="px-2.5 py-1 rounded-panel bg-raised text-success-fg border border-success/30 text-xs">
                       ✓ {kw}
                     </span>
                   ))}
@@ -386,9 +387,9 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
               </div>
 
               {GROUP_PERFORMANCE_INSIGHTS[selectedQuestion.group] && (
-                <div className="p-3.5 rounded-xl bg-surface border border-success/30 space-y-1.5">
+                <div className="p-3.5 rounded-panel bg-surface border border-success/30 space-y-1.5">
                   <div className="text-xs font-bold font-mono text-success flex items-center gap-1.5">
-                    <span>🏆 Best Model for this Question Group:</span>
+                    <span><Glyph name="trophy" /> Best Model for this Question Group:</span>
                     <span className="text-white">{GROUP_PERFORMANCE_INSIGHTS[selectedQuestion.group].winner}</span>
                   </div>
                   <p className="text-sm text-fg-muted font-sans leading-relaxed">
@@ -409,7 +410,7 @@ export function Exercise2Dataset({ onSelectTraceQuestion, onNavigateTab }: Exerc
                       onSelectTraceQuestion(selectedQuestion.id);
                       onNavigateTab(5);
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-accent-strong hover:bg-accent-hover text-white text-xs font-mono font-semibold transition-all cursor-pointer"
+                    className="px-3 py-1.5 rounded-control bg-accent-strong hover:bg-accent-hover text-white text-xs font-mono font-semibold transition-all cursor-pointer"
                   >
                     View in Ex 5 Trace Inspector →
                   </button>

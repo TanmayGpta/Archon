@@ -84,7 +84,7 @@ export function TerminalPanel() {
                     <div
                       key={t.id}
                       onClick={() => setActiveTermId(t.id)}
-                      className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-pointer text-xs font-mono transition-colors ${
+                      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-control cursor-pointer text-xs font-mono transition-colors ${
                         activeTermId === t.id
                           ? 'bg-selected text-accent-fg border border-accent/30'
                           : 'text-fg-subtle hover:bg-raised hover:text-fg-soft'
@@ -104,7 +104,7 @@ export function TerminalPanel() {
                   <button
                     onClick={handleAddTerminal}
                     title="Add New Terminal"
-                    className="text-accent-fg hover:text-[#93c5fd] bg-raised hover:bg-selected px-1.5 py-0.5 rounded border border-line cursor-pointer flex items-center gap-1 text-xs"
+                    className="text-accent-fg hover:text-[#93c5fd] bg-raised hover:bg-selected px-1.5 py-0.5 rounded-control border border-line cursor-pointer flex items-center gap-1 text-xs"
                   >
                     <Icons.Plus />
                     <span>New</span>
@@ -112,7 +112,7 @@ export function TerminalPanel() {
                   <button
                     onClick={handleCopyTerminalBuffer}
                     title="Copy All Terminal Output"
-                    className="text-fg-muted hover:text-fg-soft bg-raised hover:bg-selected px-2 py-0.5 rounded border border-line cursor-pointer flex items-center gap-1 text-xs"
+                    className="text-fg-muted hover:text-fg-soft bg-raised hover:bg-selected px-2 py-0.5 rounded-control border border-line cursor-pointer flex items-center gap-1 text-xs"
                   >
                     <Icons.Copy />
                     <span>{terminalCopied ? 'Copied' : 'Copy'}</span>

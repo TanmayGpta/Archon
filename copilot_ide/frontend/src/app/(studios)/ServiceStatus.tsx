@@ -90,17 +90,17 @@ export function ServiceStatus({ appVersion }: { appVersion: string }) {
         ref={buttonRef}
         popoverTarget="service-status"
         aria-label={`Service status: ${label}`}
-        className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-xs font-mono cursor-pointer ${BADGE[level]}`}
+        className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-control text-xs font-mono cursor-pointer ${BADGE[level]}`}
       >
         <span className={`w-1.5 h-1.5 rounded-full ${DOT[level]} ${level === 'ok' ? 'animate-pulse' : ''}`} />
-        <span>{label}</span>
+        <span className="sr-only sm:not-sr-only">{label}</span>
       </button>
       <div
         ref={popoverRef}
         id="service-status"
         popover="auto"
         onToggle={onToggle}
-        className="fixed inset-auto m-0 w-[min(360px,calc(100vw-16px))] rounded-xl border border-line-strong bg-surface p-0 text-fg-soft shadow-2xl"
+        className="fixed inset-auto m-0 w-[min(360px,calc(100vw-16px))] rounded-panel border border-line-strong bg-surface p-0 text-fg-soft shadow-raised"
       >
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
           <span className="text-sm font-semibold text-fg-strong">Services</span>

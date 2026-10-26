@@ -1,4 +1,5 @@
 "use client";
+import type { IdeLink } from '@/lib/deepLinks';
 import { createContext, useContext } from 'react';
 import type { IdeStore } from './useIdeStore';
 import type { ApiKeysApi } from './useApiKeys';
@@ -13,6 +14,8 @@ export interface IdeProps {
   setModels?: (m: string[]) => void;
   selectedModel: string;
   setSelectedModel: (m: string) => void;
+  /** Opened from a deep link (/ide?project=&file=&line=) */
+  deepLink?: IdeLink;
 }
 
 /** Everything the IDE panels read: props, state and actions. */

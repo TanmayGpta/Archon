@@ -1,5 +1,7 @@
 "use client";
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { parseIdeLink, replaceQuery } from '@/lib/deepLinks';
 import { Icons } from '../../components/Icons';
 import CodeKnowledgeGraph from '../../components/CodeKnowledgeGraph';
 import SourcegraphIndexDrawer from '../../components/SourcegraphIndexDrawer';
@@ -72,12 +74,31 @@ function VSCodeAgentIDE(props: IdeProps) {
     showKnowledgeGraph,
   } = ide;
 
+  // Deep link: open the file (and line) once its project has loaded
+  const deepLinkDone = useRef(!props.deepLink?.file);
+  const { activeTabPath, loadingTree, setPendingReveal } = ide;
+  useEffect(() => {
+    const link = props.deepLink;
+    if (deepLinkDone.current || !link?.file || !currentProjectPath || loadingTree) return;
+    deepLinkDone.current = true;
+    handleOpenFile(link.file).then(opened => {
+      if (opened && link.line) setPendingReveal({ path: opened, line: link.line });
+    });
+  }, [currentProjectPath, loadingTree, props.deepLink, handleOpenFile, setPendingReveal]);
+
+  // Keep the URL pointing at what's open, so it can be copied or bookmarked
+  useEffect(() => {
+    if (!deepLinkDone.current || isGitHubWorkspace) return;
+    replaceQuery({ project: currentProjectPath || undefined, file: activeTabPath || undefined });
+  }, [currentProjectPath, activeTabPath, isGitHubWorkspace]);
+
   useCommand('workspace.openFolder', { run: () => ide.setShowOpenProjectModal(true) });
   useCommand('workspace.openGitHub', { run: () => setShowGitHubModal(true) });
   useCommand('workspace.quickOpen', { run: () => ide.setShowQuickOpen(true) });
   useCommand('workspace.index', { run: () => setShowIndexDrawer(true) });
   useCommand('workspace.graph', { run: () => setShowKnowledgeGraph(true) });
   useCommand('editor.save', { run: () => ide.handleSaveFile() });
+  useCommand('editor.closeTab', { run: () => activeTabPath && ide.handleCloseTab(activeTabPath) });
   useCommand('terminal.toggle', { run: () => setShowBottomPanel(!showBottomPanel) });
   useCommand('chat.new', { run: () => ide.handleNewChat() });
   useCommand('chat.focus', { run: () => ide.agentInputRef.current?.focus() });
@@ -259,9 +280,13 @@ function VSCodeAgentIDE(props: IdeProps) {
 /* -- IDE route: the agent IDE bound to the shared model selection - */
 export function IdeStudio() {
   const { models, setModels, selectedModel, setSelectedModel } = useModels();
+  const searchParams = useSearchParams();
+  // Read once: later URL updates come from the IDE itself
+  const [deepLink] = React.useState(() => parseIdeLink(searchParams));
   return (
     <VSCodeAgentIDE
       apiBase={API_BASE}
+      deepLink={deepLink}
       models={models}
       setModels={setModels}
       selectedModel={selectedModel}

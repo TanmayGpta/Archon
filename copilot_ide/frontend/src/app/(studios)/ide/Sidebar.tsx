@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Icons } from '../../components/Icons';
+import { Icons, Glyph } from '../../components/Icons';
 import { FileTree, InlineNameInput, type InlineNameEdit } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
@@ -74,13 +74,13 @@ export function Sidebar() {
       {/* ── 1. Activity Bar (Left, 46px) ────────────────────────── */}
       <div className="w-[46px] bg-canvas border-r border-line-subtle flex flex-col items-center py-2.5 justify-between z-10 flex-shrink-0 select-none">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-raised border border-line flex items-center justify-center p-1 shadow-sm" title="Archon Workspace">
+          <div className="w-8 h-8 rounded-panel bg-raised border border-line flex items-center justify-center p-1" title="Archon Workspace">
             <img src="/aionlabs.svg" alt="Archon" className="w-full h-full object-contain" />
           </div>
           <button
             onClick={() => setActiveActivity('explorer')}
             title="File Explorer (Ctrl+Shift+E)" aria-label="File Explorer (Ctrl+Shift+E)"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
               activeActivity === 'explorer'
                 ? 'bg-raised text-accent-fg border border-accent/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
@@ -91,7 +91,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveActivity('search')}
             title="Search Workspace (Ctrl+Shift+F)" aria-label="Search Workspace (Ctrl+Shift+F)"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
               activeActivity === 'search'
                 ? 'bg-raised text-accent-fg border border-accent/30'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
@@ -102,7 +102,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveActivity('copilot')}
             title="Archon Agent Chat" aria-label="Archon Agent Chat"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
               activeActivity === 'copilot'
                 ? 'bg-raised text-accent-fg border border-accent/30'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
@@ -113,7 +113,7 @@ export function Sidebar() {
           <button
             onClick={() => setActiveActivity('diagnostics')}
             title="Health & Diagnostics" aria-label="Health & Diagnostics"
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+            className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
               activeActivity === 'diagnostics'
                 ? 'bg-raised text-accent-fg border border-accent/30'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
@@ -142,21 +142,21 @@ export function Sidebar() {
             <button
               onClick={() => startCreate('', false)}
               title="New File..." aria-label="New File..."
-              className="text-fg-subtle hover:text-accent-fg p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-fg-subtle hover:text-accent-fg p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
               <Icons.FilePlus />
             </button>
             <button
               onClick={() => startCreate('', true)}
               title="New Folder..." aria-label="New Folder..."
-              className="text-fg-subtle hover:text-accent-fg p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-fg-subtle hover:text-accent-fg p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
               <Icons.FolderPlus />
             </button>
             <button
               onClick={() => fetchProjectsAndTree()}
               title="Refresh Explorer" aria-label="Refresh Explorer"
-              className="text-fg-subtle hover:text-fg-soft p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-fg-subtle hover:text-fg-soft p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
               <Icons.Refresh />
             </button>
@@ -166,14 +166,14 @@ export function Sidebar() {
                 setShowOpenProjectModal(true);
               }}
               title="Open Folder / Switch Workspace..." aria-label="Open Folder / Switch Workspace..."
-              className="text-fg-subtle hover:text-accent-fg p-1 rounded hover:bg-overlay cursor-pointer ml-0.5"
+              className="text-fg-subtle hover:text-accent-fg p-1 rounded-control hover:bg-overlay cursor-pointer ml-0.5"
             >
               <Icons.FolderClosed />
             </button>
             <button
               onClick={() => setShowGitHubModal(true)}
               title="Open Remote GitHub Repository (Clone-Free)" aria-label="Open Remote GitHub Repository (Clone-Free)"
-              className="text-fg-subtle hover:text-white p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-fg-subtle hover:text-white p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
@@ -182,16 +182,16 @@ export function Sidebar() {
             <button
               onClick={() => setShowIndexDrawer(true)}
               title="Index Codebase with SCIP & Knowledge Graph" aria-label="Index Codebase with SCIP & Knowledge Graph"
-              className="text-cyan-400 hover:text-cyan-300 p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-cyan-400 hover:text-cyan-300 p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
-              ⚡
+              <Glyph name="zap" />
             </button>
             <button
               onClick={() => setShowKnowledgeGraph(true)}
               title="View Codebase Knowledge Graph" aria-label="View Codebase Knowledge Graph"
-              className="text-slate-400 hover:text-cyan-400 p-1 rounded hover:bg-overlay cursor-pointer"
+              className="text-slate-400 hover:text-cyan-400 p-1 rounded-control hover:bg-overlay cursor-pointer"
             >
-              🌐
+              <Glyph name="globe" />
             </button>
           </div>
         </div>
@@ -203,12 +203,12 @@ export function Sidebar() {
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             placeholder="Filter files..."
-            className="flex-1 bg-canvas border border-line rounded px-2.5 py-1 text-xs font-mono text-fg-soft focus:outline-none focus:border-accent/50 placeholder-fg-subtle"
+            className="flex-1 bg-canvas border border-line rounded-control px-2.5 py-1 text-xs font-mono text-fg-soft focus:outline-none focus:border-accent/50 placeholder-fg-subtle"
           />
           <button
             onClick={() => setShowQuickOpen(true)}
             title="Quick Open File (Ctrl+P)"
-            className="bg-raised hover:bg-overlay text-fg-subtle hover:text-accent-fg px-1.5 py-1 rounded text-xs font-mono border border-line cursor-pointer flex-shrink-0"
+            className="bg-raised hover:bg-overlay text-fg-subtle hover:text-accent-fg px-1.5 py-1 rounded-control text-xs font-mono border border-line cursor-pointer flex-shrink-0"
           >
             Ctrl+P
           </button>
@@ -250,7 +250,7 @@ export function Sidebar() {
                   <span>No folder open.</span>
                   <button
                     onClick={() => setShowOpenProjectModal(true)}
-                    className="self-start px-2.5 py-1 rounded-md border border-line text-fg-soft hover:bg-raised cursor-pointer"
+                    className="self-start px-2.5 py-1 rounded-control border border-line text-fg-soft hover:bg-raised cursor-pointer"
                   >
                     Open folder
                   </button>

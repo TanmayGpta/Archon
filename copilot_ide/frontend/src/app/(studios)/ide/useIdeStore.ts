@@ -105,6 +105,8 @@ export function useIdeStore() {
   const [chatProjectKey, setChatProjectKey] = useState('');
   const agentAbortRef = useRef<AbortController | null>(null);
   const agentInputRef = useRef<HTMLTextAreaElement>(null);
+  // A line to scroll to once its file is in the editor (deep links)
+  const [pendingReveal, setPendingReveal] = useState<{ path: string; line: number } | null>(null);
 
   const [agentInput, setAgentInput] = useState('');
   const [agentLoading, setAgentLoading] = useState(false);
@@ -236,6 +238,8 @@ export function useIdeStore() {
     setChatProjectKey,
     agentAbortRef,
     agentInputRef,
+    pendingReveal,
+    setPendingReveal,
     agentInput,
     setAgentInput,
     agentLoading,

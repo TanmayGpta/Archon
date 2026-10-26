@@ -1,6 +1,7 @@
 "use client";
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
+import { errorMessage } from '@/lib/api';
 
 /* -- Cloud LLM API keys: status, save, clear, test - */
 export function useApiKeys(ide: IdeProps & IdeStore) {
@@ -88,8 +89,8 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
       } else {
         setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'error', message: data.message || 'Connection failed' } }));
       }
-    } catch (e: any) {
-      setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'error', message: e.message || 'Network error' } }));
+    } catch (e) {
+      setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'error', message: errorMessage(e) || 'Network error' } }));
     }
   };
 

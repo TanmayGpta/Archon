@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import { Glyph, type GlyphName } from './Icons';
 import { EVALUATION_DATA } from './evaluation/evaluationData';
 import { JsonDataModal } from './evaluation/JsonDataModal';
 import { ExecutiveOverview } from './evaluation/ExecutiveOverview';
@@ -17,14 +18,14 @@ export function EvaluationDashboard() {
   const [isJsonModalOpen, setIsJsonModalOpen] = useState<boolean>(false);
 
   const tabs = [
-    { id: 0, label: 'Overview', sub: 'Executive Summary', icon: '🏆' },
-    { id: 1, label: 'Models', sub: 'Profiles & Invariants', icon: '🤖' },
-    { id: 2, label: 'Dataset', sub: '26-Question Bank', icon: '📋' },
-    { id: 3, label: 'Metrics', sub: 'Formulas & Charts', icon: '📊' },
-    { id: 4, label: 'Trade-offs', sub: 'Trade-offs & Router', icon: '⚖️' },
-    { id: 5, label: 'Traces', sub: 'RAG Pipeline Flow', icon: '🔍' },
-    { id: 6, label: 'Multi-hop', sub: 'Repository Graph', icon: '🕸️' },
-    { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: '⚡' },
+    { id: 0, label: 'Overview', sub: 'Executive Summary', icon: 'trophy' as GlyphName },
+    { id: 1, label: 'Models', sub: 'Profiles & Invariants', icon: 'bot' as GlyphName },
+    { id: 2, label: 'Dataset', sub: '26-Question Bank', icon: 'clipboard' as GlyphName },
+    { id: 3, label: 'Metrics', sub: 'Formulas & Charts', icon: 'chart' as GlyphName },
+    { id: 4, label: 'Trade-offs', sub: 'Trade-offs & Router', icon: 'scale' as GlyphName },
+    { id: 5, label: 'Traces', sub: 'RAG Pipeline Flow', icon: 'search' as GlyphName },
+    { id: 6, label: 'Multi-hop', sub: 'Repository Graph', icon: 'network' as GlyphName },
+    { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: 'zap' as GlyphName },
   ];
 
   return (
@@ -33,8 +34,8 @@ export function EvaluationDashboard() {
       <div className="border-b border-line-subtle bg-surface/95 backdrop-blur-md sticky top-[56px] z-40">
         <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg font-bold text-sm">
-              📊
+            <div className="w-8 h-8 rounded-panel bg-accent/15 border border-accent/30 flex items-center justify-center text-accent-fg font-bold text-sm">
+              <Glyph name="chart" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -54,7 +55,7 @@ export function EvaluationDashboard() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsJsonModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-overlay hover:bg-selected text-[#93c5fd] hover:text-white border border-line-strong text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+              className="px-3.5 py-1.5 rounded-control bg-overlay hover:bg-selected text-[#93c5fd] hover:text-white border border-line-strong text-xs font-mono font-semibold transition-all flex items-center gap-2 cursor-pointer"
               title="Inspect complete evaluation_report.json data"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -77,13 +78,13 @@ export function EvaluationDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                  className={`px-3.5 py-2 rounded-control text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                     isActive
-                      ? 'bg-selected text-accent-fg border border-accent/40 font-bold shadow-md'
+                      ? 'bg-selected text-accent-fg border border-accent/40 font-bold '
                       : 'bg-raised text-fg-muted hover:text-fg-soft hover:bg-overlay border border-line'
                   }`}
                 >
-                  <span className="text-sm">{tab.icon}</span>
+                  <span className="text-sm"><Glyph name={tab.icon} /></span>
                   <div className="text-left">
                     <div className="leading-tight">{tab.label}</div>
                     <div className={`text-xs font-normal leading-tight ${isActive ? 'text-[#93c5fd]' : 'text-fg-subtle'}`}>

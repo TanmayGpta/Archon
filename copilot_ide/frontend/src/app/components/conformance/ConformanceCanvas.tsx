@@ -13,6 +13,7 @@ const introSeen = () => {
 };
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
+import { prefersReducedMotion } from '@/lib/motion';
 
 interface ConformanceCanvasProps {
   nodes: ConformanceNode[];
@@ -322,6 +323,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
   const introEndedAtRef = useRef(0);
+  const reduceMotionRef = useRef(false);
+  useEffect(() => {
+    reduceMotionRef.current = prefersReducedMotion();
+  }, []);
   const hoverArmedRef = useRef(true);
   const hoverOriginRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -351,7 +356,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
   // Seen before: end the intro before the first paint. Otherwise a click or Esc skips it.
   useLayoutEffect(() => {
-    if (introSeen()) finishIntro();
+    if (introSeen() || prefersReducedMotion()) finishIntro();
   }, [finishIntro]);
   useEffect(() => {
     if (!introActive) return;
@@ -634,7 +639,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
     layoutTweenRef.current = {
       t0: performance.now(),
-      dur: 950,
+      dur: reduceMotionRef.current ? 1 : 950,
       starts,
       targets
     };
@@ -840,7 +845,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         }
 
         // Gentle ambient cosmic rotation (paused while hovering, dragging, or inspecting)
-        if (!introNow && !isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current && !selectedNode) {
+        if (!introNow && !reduceMotionRef.current && !isDraggingRef.current && !hoveredNodeRef.current && !hoveredEdgeRef.current && !selectedNode) {
           ambientRotationRef.current += 0.00018;
         }
         const rot = mode === 'network' ? ambientRotationRef.current : 0;
@@ -1391,7 +1396,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     const targetCam = computeFitT(currentNodes, w, h, 75);
     cameraTweenRef.current = {
       t0: performance.now(),
-      dur: 600,
+      dur: reduceMotionRef.current ? 1 : 600,
       startX: cameraRef.current.x,
       startY: cameraRef.current.y,
       startZoom: cameraRef.current.zoom,

@@ -6,6 +6,13 @@ import { useFeedback } from '../../components/Feedback';
 import { PIPELINE_STAGES } from './RagPipeline';
 
 /* -- Ask studio state and actions: retrieval, streaming generation, uploads - */
+/** One ranked chunk from a retrieval stage */
+export interface RetrievalHit {
+  rank: number;
+  score: number;
+  text: string;
+}
+
 export function useAskState() {
   const { toast } = useFeedback();
   // Model selection is shared with the IDE (see ModelsContext)
@@ -28,7 +35,7 @@ export function useAskState() {
   const [metricsB, setMetricsB] = useState<{ latencyMs: number; tokens: number } | null>(null);
   const [pipelineStage, setPipelineStage] = useState<number>(-1);
   const [activeTab, setActiveTab] = useState<'terminal' | 'search' | 'db'>('terminal');
-  const [searchData, setSearchData] = useState<{ bm25: any[]; dense: any[]; cross_encoder: any[] } | null>(null);
+  const [searchData, setSearchData] = useState<{ bm25: RetrievalHit[]; dense: RetrievalHit[]; cross_encoder: RetrievalHit[] } | null>(null);
   const [highlightStrategy, setHighlightStrategy] = useState<string | null>(null);
   
   const [uploading, setUploading] = useState(false);
@@ -140,7 +147,7 @@ export function useAskState() {
 
       const elapsed = Math.round(performance.now() - startTime);
       onComplete({ latencyMs: elapsed, tokens: tokenCount });
-    } catch (e: any) {
+    } catch {
       onError(`Connection error to ${targetModel}`);
     }
   };

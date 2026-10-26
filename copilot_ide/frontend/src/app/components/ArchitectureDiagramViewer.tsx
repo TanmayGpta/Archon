@@ -394,34 +394,34 @@ export function ArchitectureDiagramViewer({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-canvas border border-line-strong rounded-xl overflow-hidden relative select-none">
+    <div className="flex-1 flex flex-col bg-canvas border border-line-strong rounded-panel overflow-hidden relative select-none">
       {/* ── TOP CONTROL TOOLBAR ────────────────────────────────────── */}
       <div className="bg-surface border-b border-line-strong px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
         {/* Left: Diagram View Tabs */}
-        <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-lg">
+        <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-panel">
           <button
             onClick={() => {
               setViewMode('canvas');
               setShowCode(false);
             }}
-            className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'canvas' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
+            className={`px-3 py-1 rounded-control transition-all cursor-pointer ${
+              viewMode === 'canvas' ? 'bg-selected text-info font-bold ' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             Interactive Canvas
           </button>
           <button
             onClick={() => setViewMode('mermaid')}
-            className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'mermaid' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
+            className={`px-3 py-1 rounded-control transition-all cursor-pointer ${
+              viewMode === 'mermaid' ? 'bg-selected text-info font-bold ' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             Mermaid (.mmd)
           </button>
           <button
             onClick={() => setViewMode('plantuml')}
-            className={`px-3 py-1 rounded transition-all cursor-pointer ${
-              viewMode === 'plantuml' ? 'bg-selected text-info font-bold shadow-sm' : 'text-fg-subtle hover:text-fg-soft'
+            className={`px-3 py-1 rounded-control transition-all cursor-pointer ${
+              viewMode === 'plantuml' ? 'bg-selected text-info font-bold ' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
             PlantUML (.puml)
@@ -430,10 +430,10 @@ export function ArchitectureDiagramViewer({
 
         {/* Center: Secondary Code / Render Toggle (when in Mermaid or PlantUML) */}
         {viewMode !== 'canvas' && (
-          <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-lg">
+          <div className="flex items-center gap-1 bg-canvas p-1 border border-line-strong rounded-panel">
             <button
               onClick={() => setShowCode(false)}
-              className={`px-2.5 py-0.5 rounded text-xs transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 rounded-control text-xs transition-all cursor-pointer ${
                 !showCode ? 'bg-selected text-info font-semibold' : 'text-fg-subtle hover:text-fg-soft'
               }`}
             >
@@ -441,7 +441,7 @@ export function ArchitectureDiagramViewer({
             </button>
             <button
               onClick={() => setShowCode(true)}
-              className={`px-2.5 py-0.5 rounded text-xs transition-all cursor-pointer ${
+              className={`px-2.5 py-0.5 rounded-control text-xs transition-all cursor-pointer ${
                 showCode ? 'bg-selected text-info font-semibold' : 'text-fg-subtle hover:text-fg-soft'
               }`}
             >
@@ -453,7 +453,7 @@ export function ArchitectureDiagramViewer({
         {/* Right: Zoom & Export Controls */}
         <div className="flex items-center gap-2">
           {/* Zoom Controls */}
-          <div className="flex items-center gap-1 bg-canvas border border-line-strong rounded-lg px-1.5 py-0.5">
+          <div className="flex items-center gap-1 bg-canvas border border-line-strong rounded-panel px-1.5 py-0.5">
             <button
               onClick={() => setZoom(z => Math.max(0.4, z - 0.15))}
               className="text-fg-muted hover:text-white px-1 cursor-pointer font-bold"
@@ -488,7 +488,7 @@ export function ArchitectureDiagramViewer({
                 'diagram_text'
               )
             }
-            className="px-2.5 py-1 rounded bg-selected text-fg-muted hover:text-fg-strong text-xs cursor-pointer border border-[#334155] transition-all"
+            className="px-2.5 py-1 rounded-control bg-selected text-fg-muted hover:text-fg-strong text-xs cursor-pointer border border-[#334155] transition-all"
           >
             {copiedKey === 'diagram_text' ? 'Copied' : 'Copy Code'}
           </button>
@@ -497,7 +497,7 @@ export function ArchitectureDiagramViewer({
           {((viewMode === 'mermaid' && mermaidSvg) || (viewMode === 'plantuml' && pumlUrl)) && (
             <button
               onClick={handleExportSvg}
-              className="px-2.5 py-1 rounded bg-info-strong hover:bg-[#0369a1] text-white text-xs cursor-pointer transition-all font-semibold"
+              className="px-2.5 py-1 rounded-control bg-info-strong hover:bg-[#0369a1] text-white text-xs cursor-pointer transition-all font-semibold"
             >
               {viewMode === 'plantuml' ? 'Open High-Res' : 'Export SVG'}
             </button>
@@ -532,7 +532,7 @@ export function ArchitectureDiagramViewer({
               return (
                 <div
                   key={layerName}
-                  className="bg-surface/70 border border-line-strong rounded-2xl p-4 shadow-xl backdrop-blur-sm relative"
+                  className="bg-surface/70 border border-line-strong rounded-panel p-4 backdrop-blur-sm relative"
                 >
                   {/* Layer Header Pill */}
                   <div className="flex items-center justify-between mb-3 border-b border-line-strong/50 pb-2">
@@ -561,11 +561,11 @@ export function ArchitectureDiagramViewer({
                             e.stopPropagation();
                             setSelectedNodeId(selectedNodeId === node.node_id ? null : node.node_id);
                           }}
-                          className={`p-3.5 rounded-xl border transition-all cursor-pointer relative ${
+                          className={`p-3.5 rounded-panel border transition-all cursor-pointer relative ${
                             isSelected
-                              ? 'bg-overlay border-info ring-2 ring-info/50 shadow-lg shadow-[#0284c7]/20'
+                              ? 'bg-overlay border-info ring-2 ring-info/50 '
                               : isHovered
-                              ? 'bg-overlay border-info/80 shadow-md shadow-[#0284c7]/10'
+                              ? 'bg-overlay border-info/80 '
                               : isDimmed
                               ? 'bg-surface/40 border-line-strong/40 opacity-30'
                               : 'bg-raised border-line-strong hover:border-[#334155]'
@@ -577,7 +577,7 @@ export function ArchitectureDiagramViewer({
                               {node.name}
                             </span>
                             <span
-                              className={`px-1.5 py-0.5 rounded text-xs font-mono uppercase font-semibold border ${getNodeStereotypeStyle(
+                              className={`px-1.5 py-0.5 rounded-control text-xs font-mono uppercase font-semibold border ${getNodeStereotypeStyle(
                                 node.node_type
                               )}`}
                             >
@@ -595,7 +595,7 @@ export function ArchitectureDiagramViewer({
                             {node.traced_requirements.slice(0, 3).map(req => (
                               <span
                                 key={req}
-                                className="px-1.5 py-0.5 rounded text-xs font-mono bg-info-strong/15 text-info border border-info-strong/25"
+                                className="px-1.5 py-0.5 rounded-control text-xs font-mono bg-info-strong/15 text-info border border-info-strong/25"
                               >
                                 {req}
                               </span>
@@ -620,7 +620,7 @@ export function ArchitectureDiagramViewer({
         {viewMode === 'mermaid' && (
           <div className="w-full h-full flex flex-col items-center justify-center p-6">
             {showCode ? (
-              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-success-fg overflow-auto rounded-xl border border-line-strong">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-success-fg overflow-auto rounded-panel border border-line-strong">
                 {effectiveMermaid || 'No Mermaid specification generated.'}
               </pre>
             ) : mermaidLoading ? (
@@ -632,12 +632,12 @@ export function ArchitectureDiagramViewer({
                 <span>Synthesizing vector graph with Mermaid.js...</span>
               </div>
             ) : mermaidError ? (
-              <div className="max-w-md bg-raised border border-[#f43f5e]/40 p-4 rounded-xl text-xs text-[#fca5a5] font-mono">
+              <div className="max-w-md bg-raised border border-[#f43f5e]/40 p-4 rounded-panel text-xs text-[#fca5a5] font-mono">
                 <div className="font-bold text-[#f43f5e] mb-1">Mermaid Render Notice:</div>
                 <div className="mb-3 text-xs leading-relaxed">{mermaidError}</div>
                 <button
                   onClick={() => setShowCode(true)}
-                  className="px-2.5 py-1 rounded bg-[#331b20] text-[#fca5a5] hover:text-white border border-[#f43f5e]/30 text-xs cursor-pointer"
+                  className="px-2.5 py-1 rounded-control bg-[#331b20] text-[#fca5a5] hover:text-white border border-[#f43f5e]/30 text-xs cursor-pointer"
                 >
                   Inspect Raw .mmd Source
                 </button>
@@ -658,7 +658,7 @@ export function ArchitectureDiagramViewer({
         {viewMode === 'plantuml' && (
           <div className="w-full h-full flex flex-col items-center justify-center p-6">
             {showCode ? (
-              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-line-strong">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-panel border border-line-strong">
                 {effectivePlantUML || 'No PlantUML specification generated.'}
               </pre>
             ) : pumlLoading ? (
@@ -680,7 +680,7 @@ export function ArchitectureDiagramViewer({
                 <img
                   src={pumlUrl}
                   alt="Rendered PlantUML Architecture Diagram"
-                  className="max-w-none max-h-none shadow-2xl rounded-lg border border-line-strong/60 bg-canvas"
+                  className="max-w-none max-h-none rounded-panel border border-line-strong/60 bg-canvas"
                   onError={() => {
                     console.warn('Failed to load PlantUML SVG, falling back to source view');
                     setShowCode(true);
@@ -688,7 +688,7 @@ export function ArchitectureDiagramViewer({
                 />
               </div>
             ) : (
-              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-xl border border-line-strong">
+              <pre className="w-full h-full bg-canvas p-6 text-xs font-mono text-[#a5b4fc] overflow-auto rounded-panel border border-line-strong">
                 {effectivePlantUML}
               </pre>
             )}
@@ -698,7 +698,7 @@ export function ArchitectureDiagramViewer({
         {/* ── SLIDE-OVER NODE CONTRACT INSPECTOR DRAWER ──────────────── */}
         {selectedNode && (
           <div
-            className="absolute top-4 right-4 bottom-4 w-96 bg-surface/95 border border-info/40 rounded-2xl shadow-2xl backdrop-blur-md p-5 flex flex-col gap-4 overflow-y-auto z-20"
+            className="absolute top-4 right-4 bottom-4 w-96 bg-surface/95 border border-info/40 rounded-panel shadow-raised backdrop-blur-md p-5 flex flex-col gap-4 overflow-y-auto z-20"
             onClick={e => e.stopPropagation()}
           >
             {/* Inspector Header */}
@@ -763,7 +763,7 @@ export function ArchitectureDiagramViewer({
                     return (
                       <div
                         key={e.edge_id}
-                        className="p-2 rounded-lg bg-overlay border border-line-strong text-xs font-mono flex items-center justify-between"
+                        className="p-2 rounded-panel bg-overlay border border-line-strong text-xs font-mono flex items-center justify-between"
                       >
                         <div>
                           <span className={isSource ? 'text-info' : 'text-success-fg'}>
@@ -778,7 +778,7 @@ export function ArchitectureDiagramViewer({
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-info bg-info-strong/20 px-1.5 py-0.5 rounded border border-info-strong/30">
+                        <span className="text-xs text-info bg-info-strong/20 px-1.5 py-0.5 rounded-control border border-info-strong/30">
                           {e.edge_type}
                         </span>
                       </div>
@@ -797,7 +797,7 @@ export function ArchitectureDiagramViewer({
                   {selectedNode.traced_requirements.map(req => (
                     <span
                       key={req}
-                      className="px-2 py-0.5 rounded text-xs font-mono bg-info-strong/15 text-info border border-info-strong/30 font-semibold"
+                      className="px-2 py-0.5 rounded-control text-xs font-mono bg-info-strong/15 text-info border border-info-strong/30 font-semibold"
                     >
                       {req}
                     </span>
@@ -816,7 +816,7 @@ export function ArchitectureDiagramViewer({
                   {selectedNode.kb_citations.map(cit => (
                     <span
                       key={cit}
-                      className="px-2 py-0.5 rounded text-xs font-mono bg-success/15 text-success-fg border border-success/30"
+                      className="px-2 py-0.5 rounded-control text-xs font-mono bg-success/15 text-success-fg border border-success/30"
                     >
                       {cit}
                     </span>

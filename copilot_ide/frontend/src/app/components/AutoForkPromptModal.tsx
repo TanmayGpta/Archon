@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Glyph } from './Icons';
 import { Dialog } from './Dialog';
 import { GitHubRepoInfo } from './GitHubOpenModal';
+import { errorMessage } from '@/lib/api';
 
 interface Props {
   isOpen: boolean;
@@ -56,20 +58,20 @@ export default function AutoForkPromptModal({
       const data = await res.json();
       onClose();
       onForkSuccess(data.fork_owner, data.fork_repo, data.default_branch || repoInfo.default_branch);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to fork repository');
+    } catch (e) {
+      setError(errorMessage(e) || 'Failed to fork repository');
       setForking(false);
     }
   };
 
   return (
     <Dialog onClose={onClose} label="Fork this repository" className="flex items-center justify-center p-4 select-none" backdrop="backdrop:bg-black/85 backdrop:backdrop-blur-sm" closeOnBackdrop={false}>
-      <div className="w-full max-w-md bg-surface border border-line-strong rounded-2xl shadow-2xl overflow-hidden flex flex-col text-fg animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md bg-surface border border-line-strong rounded-dialog shadow-raised overflow-hidden flex flex-col text-fg animate-in zoom-in-95 duration-200">
         
         {/* Header with Fork Icon */}
         <div className="p-5 border-b border-line flex items-center gap-3 bg-canvas">
-          <div className="w-10 h-10 rounded-xl bg-amber-950/50 border border-amber-600/40 flex items-center justify-center text-amber-400 font-mono text-lg shadow-sm">
-            🍴
+          <div className="w-10 h-10 rounded-panel bg-amber-950/50 border border-amber-600/40 flex items-center justify-center text-amber-400 font-mono text-lg">
+            <Glyph name="fork" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-white">
@@ -84,12 +86,12 @@ export default function AutoForkPromptModal({
         {/* Modal Body */}
         <div className="p-6 flex flex-col gap-4 text-xs font-sans">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 font-mono text-xs">
+            <div className="p-3 rounded-panel bg-rose-950/40 border border-rose-800/50 text-rose-300 font-mono text-xs">
               {error}
             </div>
           )}
 
-          <div className="p-3.5 rounded-xl bg-raised border border-line-strong flex flex-col gap-1.5">
+          <div className="p-3.5 rounded-panel bg-raised border border-line-strong flex flex-col gap-1.5">
             <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
               Repository Access Level:
             </span>
@@ -114,7 +116,7 @@ export default function AutoForkPromptModal({
             <button
               onClick={handleFork}
               disabled={forking}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-mono text-xs font-semibold shadow-lg shadow-blue-900/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 rounded-control bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-mono text-xs font-semibold shadow-blue-900/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {forking ? (
                 <>
@@ -123,7 +125,7 @@ export default function AutoForkPromptModal({
                 </>
               ) : (
                 <>
-                  <span>🍴 1-Click Fork & Start Editing</span>
+                  <span><Glyph name="fork" /> 1-Click Fork & Start Editing</span>
                 </>
               )}
             </button>
@@ -134,9 +136,9 @@ export default function AutoForkPromptModal({
                 onContinueReadOnly();
               }}
               disabled={forking}
-              className="w-full py-2 rounded-xl bg-overlay hover:bg-selected border border-line-strong text-slate-300 text-xs font-mono transition-all cursor-pointer"
+              className="w-full py-2 rounded-control bg-overlay hover:bg-selected border border-line-strong text-slate-300 text-xs font-mono transition-all cursor-pointer"
             >
-              👁️ Continue in Read-Only Mode
+              <Glyph name="eye" /> Continue in Read-Only Mode
             </button>
           </div>
         </div>

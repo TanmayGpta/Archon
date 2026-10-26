@@ -57,7 +57,7 @@ export function AskStudio() {
                 <span className="text-xs font-mono font-medium text-fg-subtle tracking-[0.2em] uppercase">RAG Engine Live</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-raised border border-line flex items-center justify-center p-1.5 shadow-sm">
+                <div className="w-8 h-8 rounded-panel bg-raised border border-line flex items-center justify-center p-1.5">
                   <img src="/aionlabs.svg" alt="Archon" className="w-full h-full object-contain" />
                 </div>
                 <h1 className="text-xl font-semibold text-fg tracking-[-0.02em] leading-tight">
@@ -88,7 +88,7 @@ export function AskStudio() {
                   />
                   <label 
                     htmlFor="file-upload" 
-                    className="cursor-pointer flex items-center gap-2 bg-surface border border-line hover:border-line-strong text-fg-subtle hover:text-fg-soft px-3.5 py-2 rounded-lg text-base font-mono transition-all duration-300"
+                    className="cursor-pointer flex items-center gap-2 bg-surface border border-line hover:border-line-strong text-fg-subtle hover:text-fg-soft px-3.5 py-2 rounded-panel text-base font-mono transition-all duration-300"
                   >
                     {uploading ? (
                       <span className="flex items-center gap-2"><span className="animate-spin text-accent">⟳</span>Ingesting</span>
@@ -105,7 +105,7 @@ export function AskStudio() {
                 <select 
                   value={selectedModel} 
                   onChange={e => setSelectedModel(e.target.value)}
-                  className="bg-surface border border-line hover:border-line-strong text-fg-soft py-2 px-3.5 rounded-lg text-base font-mono outline-none focus:border-accent/50 transition-all duration-300 cursor-pointer max-w-[190px] truncate"
+                  className="bg-surface border border-line hover:border-line-strong text-fg-soft py-2 px-3.5 rounded-control text-base font-mono outline-none focus:border-accent/50 transition-all duration-300 cursor-pointer max-w-[190px] truncate"
                   title={selectedModel}
                 >
                   {models.map(m => (
@@ -121,7 +121,7 @@ export function AskStudio() {
                   <select 
                     value={comparisonModel} 
                     onChange={e => setComparisonModel(e.target.value)}
-                    className="bg-surface border border-ai/40 text-ai py-2 px-3.5 rounded-lg text-base font-mono outline-none focus:border-ai transition-all duration-300 cursor-pointer max-w-[190px] truncate shadow-sm"
+                    className="bg-surface border border-ai/40 text-ai py-2 px-3.5 rounded-control text-base font-mono outline-none focus:border-ai transition-all duration-300 cursor-pointer max-w-[190px] truncate"
                     title={comparisonModel}
                   >
                     {models.map(m => (
@@ -136,9 +136,9 @@ export function AskStudio() {
                 type="button"
                 onClick={() => setCompareMode(!compareMode)}
                 title="Toggle Side-by-Side Dual Model Comparison"
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-mono transition-all duration-200 cursor-pointer border ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-control text-sm font-mono transition-all duration-200 cursor-pointer border ${
                   compareMode
-                    ? 'bg-accent/20 text-accent-fg border-accent/50 shadow-md font-bold'
+                    ? 'bg-accent/20 text-accent-fg border-accent/50 font-bold'
                     : 'bg-surface border-line hover:border-line-strong text-fg-subtle hover:text-fg-soft'
                 }`}
               >
@@ -151,7 +151,7 @@ export function AskStudio() {
                 type="button"
                 onClick={() => setShowConfigModal(true)}
                 title="Configure Chunking & Retrieval Strategy"
-                className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-mono bg-surface border border-line hover:border-line-strong text-fg-subtle hover:text-fg-soft transition-all duration-200 cursor-pointer"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-control text-sm font-mono bg-surface border border-line hover:border-line-strong text-fg-subtle hover:text-fg-soft transition-all duration-200 cursor-pointer"
               >
                 <Icons.Settings />
                 <span>Configure</span>
@@ -168,7 +168,7 @@ export function AskStudio() {
 
         {/* Command Input Bar */}
         <div className={`mb-6 transition-all duration-500 ${inputFocused ? 'scale-[1.003]' : ''}`}>
-          <div className={`bg-surface border rounded-xl p-1.5 pl-5 flex items-center transition-all duration-500 ${inputFocused ? 'border-accent/50 shadow-[0_0_30px_rgba(59,130,246,0.08)]' : 'border-line'}`}>
+          <div className={`bg-surface border rounded-panel p-1.5 pl-5 flex items-center transition-all duration-500 ${inputFocused ? 'border-accent/50 shadow-[0_0_30px_rgba(59,130,246,0.08)]' : 'border-line'}`}>
             <span className="text-accent mr-3 font-mono text-sm select-none">▸</span>
             <input
               type="text"
@@ -183,10 +183,10 @@ export function AskStudio() {
             <button
               onClick={handleProcess}
               disabled={loading || !query.trim()}
-              className={`px-5 py-2.5 rounded-lg text-xs font-mono font-medium transition-all duration-300 flex items-center gap-2 cursor-pointer ${
+              className={`px-5 py-2.5 rounded-control text-xs font-mono font-medium transition-all duration-300 flex items-center gap-2 cursor-pointer ${
                 loading || !query.trim() 
                   ? 'bg-transparent text-fg-subtle cursor-not-allowed' 
-                  : 'bg-overlay text-fg-soft hover:bg-selected hover:text-white border border-line-strong/50 shadow-sm'
+                  : 'bg-overlay text-fg-soft hover:bg-selected hover:text-white border border-line-strong/50 '
               }`}
             >
               {loading ? (
@@ -209,7 +209,7 @@ export function AskStudio() {
               <button
                 key={i}
                 onClick={() => setQuery(sample)}
-                className="hover:text-fg-muted transition-colors duration-300 whitespace-nowrap bg-surface hover:bg-surface px-2.5 py-0.5 rounded border border-line-subtle hover:border-line cursor-pointer"
+                className="hover:text-fg-muted transition-colors duration-300 whitespace-nowrap bg-surface hover:bg-surface px-2.5 py-0.5 rounded-control border border-line-subtle hover:border-line cursor-pointer"
               >
                 {sample}
               </button>
@@ -218,14 +218,14 @@ export function AskStudio() {
         </div>
 
         {/* Strategy Tabs & Display Panel */}
-        <div className="bg-surface border border-line rounded-xl overflow-hidden shadow-2xl">
+        <div className="bg-surface border border-line rounded-panel overflow-hidden">
           
           {/* Tab Bar */}
           <div className="flex border-b border-line bg-surface">
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`flex items-center gap-2 px-6 py-3.5 text-xs font-mono transition-all duration-300 relative cursor-pointer ${
                   activeTab === tab.id
                     ? 'text-fg bg-surface font-medium'

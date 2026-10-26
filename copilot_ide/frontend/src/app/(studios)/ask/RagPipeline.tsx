@@ -61,7 +61,7 @@ export function RagPipeline({
   const [hoveredNode, setHoveredNode] = useState<number | null>(null);
 
   return (
-    <div className="border border-line bg-canvas rounded-xl p-5 mb-8 relative overflow-hidden transition-all duration-500 animate-fade-in">
+    <div className="border border-line bg-canvas rounded-panel p-5 mb-8 relative overflow-hidden transition-all duration-500 animate-fade-in">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-slow" />
@@ -87,13 +87,13 @@ export function RagPipeline({
                 onClick={() => onNavigateStage(s)}
                 onMouseEnter={() => setHoveredNode(s.id)}
                 onMouseLeave={() => setHoveredNode(null)}
-                className={`group flex-1 min-w-[130px] p-3 rounded-lg border text-left transition-all duration-300 cursor-pointer relative ${
+                className={`group flex-1 min-w-[130px] p-3 rounded-control border text-left transition-all duration-300 cursor-pointer relative ${
                   isActive
                     ? 'bg-accent/10 border-accent/50 shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-accent/30'
                     : isDone
                       ? 'bg-success/5 border-success/30 hover:border-success/50'
                       : isHovered
-                        ? 'bg-surface border-line-strong shadow-lg'
+                        ? 'bg-surface border-line-strong '
                         : 'bg-canvas border-line hover:border-line-strong'
                 }`}
               >

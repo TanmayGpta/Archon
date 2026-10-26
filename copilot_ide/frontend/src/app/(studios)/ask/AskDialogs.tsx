@@ -26,7 +26,7 @@ export function AskDialogs() {
       {showModal && (
         <Dialog onClose={() => setShowModal(false)} label="Document ingested" className="flex items-center justify-center p-6" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div 
-            className="bg-surface border border-line rounded-xl max-w-3xl w-full max-h-[75vh] flex flex-col shadow-2xl"
+            className="bg-surface border border-line rounded-dialog max-w-3xl w-full max-h-[75vh] flex flex-col shadow-raised"
             onClick={e => e.stopPropagation()}
           >
             <div className="px-6 py-5 border-b border-line flex justify-between items-center">
@@ -36,14 +36,14 @@ export function AskDialogs() {
               </div>
               <button aria-label="Close" 
                 onClick={() => setShowModal(false)} 
-                className="text-fg-subtle hover:text-fg-soft transition-colors duration-300 w-8 h-8 flex items-center justify-center rounded-md hover:bg-overlay cursor-pointer"
+                className="text-fg-subtle hover:text-fg-soft transition-colors duration-300 w-8 h-8 flex items-center justify-center rounded-control hover:bg-overlay cursor-pointer"
               >
                 <Icons.Close />
               </button>
             </div>
             <div className="p-5 overflow-y-auto flex-1 space-y-3 custom-scrollbar">
               {uploadChunks.map((chunk, i) => (
-                <div key={i} className="bg-canvas border border-line rounded-lg p-4 hover:border-line-strong transition-colors duration-300">
+                <div key={i} className="bg-canvas border border-line rounded-panel p-4 hover:border-line-strong transition-colors duration-300">
                   <div className="text-xs font-mono font-medium text-fg-subtle mb-2.5 tracking-wider uppercase">Segment {i + 1}</div>
                   <pre className="text-base text-fg-muted whitespace-pre-wrap font-mono leading-relaxed">{chunk}</pre>
                 </div>
@@ -52,7 +52,7 @@ export function AskDialogs() {
             <div className="px-6 py-4 border-t border-line flex justify-end">
               <button 
                 onClick={() => setShowModal(false)} 
-                className="bg-overlay hover:bg-selected text-fg-soft px-6 py-2 rounded-lg text-sm font-medium transition-all duration-300 cursor-pointer"
+                className="bg-overlay hover:bg-selected text-fg-soft px-6 py-2 rounded-control text-sm font-medium transition-all duration-300 cursor-pointer"
               >
                 Close
               </button>
@@ -65,7 +65,7 @@ export function AskDialogs() {
       {showConfigModal && (
         <Dialog onClose={() => setShowConfigModal(false)} label="Retrieval settings" className="flex items-center justify-center p-6" backdrop="backdrop:bg-black/80 backdrop:backdrop-blur-sm">
           <div 
-            className="bg-surface border border-line rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl"
+            className="bg-surface border border-line rounded-dialog max-w-lg w-full p-6 space-y-5 shadow-raised"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center pb-3 border-b border-line">
@@ -77,7 +77,7 @@ export function AskDialogs() {
               </div>
               <button aria-label="Close" 
                 onClick={() => setShowConfigModal(false)}
-                className="text-fg-subtle hover:text-fg-soft p-1 cursor-pointer rounded hover:bg-overlay"
+                className="text-fg-subtle hover:text-fg-soft p-1 cursor-pointer rounded-control hover:bg-overlay"
               >
                 <Icons.Close />
               </button>
@@ -97,10 +97,10 @@ export function AskDialogs() {
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setChunkingStrategy(opt.id as any)}
-                    className={`p-2.5 rounded-lg border text-left font-mono transition-all cursor-pointer ${
+                    onClick={() => setChunkingStrategy(opt.id as typeof chunkingStrategy)}
+                    className={`p-2.5 rounded-control border text-left font-mono transition-all cursor-pointer ${
                       chunkingStrategy === opt.id
-                        ? 'border-accent bg-accent/10 text-fg shadow-sm'
+                        ? 'border-accent bg-accent/10 text-fg '
                         : 'border-line bg-canvas text-fg-subtle hover:text-fg-muted hover:border-line-strong'
                     }`}
                   >
@@ -125,10 +125,10 @@ export function AskDialogs() {
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setSearchStrategy(opt.id as any)}
-                    className={`p-2.5 rounded-lg border text-left font-mono transition-all cursor-pointer ${
+                    onClick={() => setSearchStrategy(opt.id as typeof searchStrategy)}
+                    className={`p-2.5 rounded-control border text-left font-mono transition-all cursor-pointer ${
                       searchStrategy === opt.id
-                        ? 'border-accent bg-accent/10 text-fg shadow-sm'
+                        ? 'border-accent bg-accent/10 text-fg '
                         : 'border-line bg-canvas text-fg-subtle hover:text-fg-muted hover:border-line-strong'
                     }`}
                   >
@@ -151,7 +151,7 @@ export function AskDialogs() {
                 max="10"
                 value={topK}
                 onChange={(e) => setTopK(parseInt(e.target.value))}
-                className="w-full h-1.5 bg-overlay rounded-lg appearance-none cursor-pointer accent-[#3b82f6]"
+                className="w-full h-1.5 bg-overlay rounded-control appearance-none cursor-pointer accent-[#3b82f6]"
               />
               <div className="flex justify-between text-xs font-mono text-fg-subtle">
                 <span>1 (High Precision)</span>
@@ -162,7 +162,7 @@ export function AskDialogs() {
             <div className="flex justify-end pt-3 border-t border-line">
               <button
                 onClick={() => setShowConfigModal(false)}
-                className="bg-selected hover:bg-[#334155] text-fg px-5 py-2 rounded-lg text-sm font-mono font-semibold transition-all cursor-pointer border border-[#334155]"
+                className="bg-selected hover:bg-[#334155] text-fg px-5 py-2 rounded-control text-sm font-mono font-semibold transition-all cursor-pointer border border-[#334155]"
               >
                 Apply Configuration
               </button>

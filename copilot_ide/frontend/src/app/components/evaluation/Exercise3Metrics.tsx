@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import { Glyph } from '../Icons';
 import { EVALUATION_DATA } from './evaluationData';
 import { HallucinationExplainer } from './HallucinationExplainer';
 
@@ -23,10 +24,10 @@ export function Exercise3Metrics() {
   return (
     <div className="space-y-8 animate-fade-in font-sans">
       {/* Exercise Briefing Header */}
-      <div className="p-6 rounded-2xl bg-raised border border-line-strong space-y-3 shadow-lg">
+      <div className="p-6 rounded-panel bg-raised border border-line-strong space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-1 rounded-lg bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
+            <span className="px-2.5 py-1 rounded-panel bg-accent/20 border border-accent/40 text-accent-fg text-xs font-mono font-bold">
               EXERCISE 3
             </span>
             <h2 className="text-lg font-bold text-fg-strong font-mono">
@@ -52,12 +53,12 @@ export function Exercise3Metrics() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Accuracy Formula */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="font-bold text-accent-fg">1. Accuracy / Correctness</span>
-              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Quality</span>
+              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Quality</span>
             </div>
-            <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-info">
+            <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-info">
               Score = |K<sub>found</sub> ∩ K<sub>expected</sub>| / |K<sub>expected</sub>|
             </div>
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -66,12 +67,12 @@ export function Exercise3Metrics() {
           </div>
 
           {/* Context Relevance Formula */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="font-bold text-ai">2. Context Relevance</span>
-              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Quality</span>
+              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Quality</span>
             </div>
-            <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-[#c084fc]">
+            <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-[#c084fc]">
               Jaccard = |V<sub>ctx</sub> ∩ V<sub>resp</sub>| / |V<sub>ctx</sub> ∪ V<sub>resp</sub>|
             </div>
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -80,13 +81,13 @@ export function Exercise3Metrics() {
           </div>
 
           {/* Hallucination Detection */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2 flex flex-col justify-between">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="font-bold text-[#f43f5e]">3. Hallucination Detection</span>
-                <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Quality</span>
+                <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Quality</span>
               </div>
-              <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-[#fb7185] my-2">
+              <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-[#fb7185] my-2">
                 Flag = 1 if ∃ (e ∉ OpenAPI<sub>74</sub>), else 0
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
@@ -99,12 +100,12 @@ export function Exercise3Metrics() {
           </div>
 
           {/* Code Test-Pass Rate */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="font-bold text-success">4. Code Test-Pass Rate</span>
-              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Execution</span>
+              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Execution</span>
             </div>
-            <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-success-fg">
+            <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-success-fg">
               PassRate = |Tests<sub>passed</sub>| / |Tests<sub>total</sub>|
             </div>
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -113,12 +114,12 @@ export function Exercise3Metrics() {
           </div>
 
           {/* Latency Measurement */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="font-bold text-info">5. Wall-Clock Latency</span>
-              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Performance</span>
+              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Performance</span>
             </div>
-            <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-info">
+            <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-info">
               Latency = t<sub>end</sub> - t<sub>start</sub> (seconds)
             </div>
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -127,12 +128,12 @@ export function Exercise3Metrics() {
           </div>
 
           {/* System Resources */}
-          <div className="p-4 rounded-xl bg-surface border border-line space-y-2">
+          <div className="p-4 rounded-panel bg-surface border border-line space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="font-bold text-warning-fg">6. CPU % &amp; RAM (RSS)</span>
-              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded">Resource</span>
+              <span className="text-xs text-fg-subtle bg-raised px-2 py-0.5 rounded-control">Resource</span>
             </div>
-            <div className="p-2.5 bg-canvas rounded-lg border border-line-subtle text-center font-mono text-xs text-warning-fg">
+            <div className="p-2.5 bg-canvas rounded-panel border border-line-subtle text-center font-mono text-xs text-warning-fg">
               RSS = psutil.Process().memory_info().rss
             </div>
             <p className="text-xs text-fg-muted leading-relaxed">
@@ -153,7 +154,7 @@ export function Exercise3Metrics() {
           </span>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-line bg-surface custom-scrollbar shadow-xl">
+        <div className="overflow-x-auto rounded-panel border border-line bg-surface custom-scrollbar">
           <table className="w-full text-left border-collapse text-xs font-mono">
             <thead>
               <tr className="bg-raised border-b border-line text-fg-subtle uppercase tracking-wider text-xs">
@@ -224,8 +225,8 @@ export function Exercise3Metrics() {
                   <span className="text-warning-fg font-bold">{formatPercent(gemma?.code_pass_rate)} (2/3)</span>
                 </td>
                 <td className="py-3 px-4 border-l border-line">
-                  <span className="text-success font-bold text-sm bg-success/15 px-2 py-0.5 rounded border border-success/30">
-                    {formatPercent(codellama?.code_pass_rate)} (3/3 🏆)
+                  <span className="text-success font-bold text-sm bg-success/15 px-2 py-0.5 rounded-control border border-success/30">
+                    {formatPercent(codellama?.code_pass_rate)} (3/3 <Glyph name="trophy" />)
                   </span>
                 </td>
                 <td className="py-3 px-4 border-l border-line">
@@ -260,8 +261,8 @@ export function Exercise3Metrics() {
                   Response Latency (Seconds)
                 </td>
                 <td className="py-3 px-4 border-l border-line">
-                  <span className="text-success font-bold text-sm bg-success/15 px-2 py-0.5 rounded border border-success/30">
-                    {formatNumber(gemma?.latency_seconds.avg, 2)}s 🏆
+                  <span className="text-success font-bold text-sm bg-success/15 px-2 py-0.5 rounded-control border border-success/30">
+                    {formatNumber(gemma?.latency_seconds.avg, 2)}s <Glyph name="trophy" />
                   </span>
                   <span className="text-fg-subtle text-xs ml-1.5">[{formatNumber(gemma?.latency_seconds.min, 1)}s – {formatNumber(gemma?.latency_seconds.max, 1)}s]</span>
                 </td>
@@ -344,7 +345,7 @@ export function Exercise3Metrics() {
             Visual Comparison Charts
           </h3>
 
-          <div className="flex items-center gap-1.5 bg-surface p-1 rounded-xl border border-line">
+          <div className="flex items-center gap-1.5 bg-surface p-1 rounded-panel border border-line">
             {[
               { id: 'accuracy', label: 'Accuracy & Relevance' },
               { id: 'latency', label: 'Latency Ranges' },
@@ -353,8 +354,8 @@ export function Exercise3Metrics() {
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveChartTab(tab.id as any)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                onClick={() => setActiveChartTab(tab.id as typeof activeChartTab)}
+                className={`px-3 py-1 rounded-control text-xs font-mono transition-all cursor-pointer ${
                   activeChartTab === tab.id
                     ? 'bg-selected text-accent-fg border border-accent/40 font-semibold'
                     : 'text-fg-muted hover:text-fg'
@@ -367,15 +368,15 @@ export function Exercise3Metrics() {
         </div>
 
         {/* Chart Viewport */}
-        <div className="p-6 rounded-2xl bg-surface border border-line space-y-6 shadow-xl">
+        <div className="p-6 rounded-panel bg-surface border border-line space-y-6">
           {/* Chart 1: Accuracy & Relevance */}
           {activeChartTab === 'accuracy' && (
             <div className="space-y-5">
               <div className="flex justify-between items-center text-xs font-mono text-fg-subtle">
                 <span>Factual Correctness vs Jaccard Context Relevance</span>
                 <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-success" /> Correctness</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-accent" /> Relevance</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-control bg-success" /> Correctness</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-control bg-accent" /> Relevance</span>
                 </div>
               </div>
 
@@ -384,7 +385,7 @@ export function Exercise3Metrics() {
                 { name: 'codellama:7b', correctness: 81.79, relevance: 26.65, codePass: 100.0, color: '#0284c7' },
                 { name: 'starcoder2:3b', correctness: 50.58, relevance: 22.87, codePass: 33.3, color: '#d97706' },
               ].map(m => (
-                <div key={m.name} className="space-y-2 p-3 bg-canvas rounded-xl border border-line-subtle">
+                <div key={m.name} className="space-y-2 p-3 bg-canvas rounded-panel border border-line-subtle">
                   <div className="flex justify-between items-center text-xs font-mono font-bold text-fg">
                     <span>{m.name}</span>
                     <span className="text-success-fg">{m.correctness}% Accuracy</span>
@@ -435,7 +436,7 @@ export function Exercise3Metrics() {
                 { name: 'codellama:7b', min: 7.0, avg: 25.09, max: 74.1, barWidth: 74.1 / 3 },
                 { name: 'starcoder2:3b', min: 4.3, avg: 63.25, max: 300.1, barWidth: 100 },
               ].map(m => (
-                <div key={m.name} className="space-y-1.5 p-3.5 bg-canvas rounded-xl border border-line-subtle">
+                <div key={m.name} className="space-y-1.5 p-3.5 bg-canvas rounded-panel border border-line-subtle">
                   <div className="flex justify-between items-center text-xs font-mono">
                     <span className="font-bold text-fg">{m.name}</span>
                     <span className="text-accent-fg font-bold">{m.avg}s average (max: {m.max}s)</span>
@@ -465,8 +466,8 @@ export function Exercise3Metrics() {
               <div className="flex justify-between items-center text-xs font-mono text-fg-subtle">
                 <span>Token Distribution (Prompt Tokens vs Generated Completion Tokens)</span>
                 <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-accent" /> Prompt</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ai" /> Completion</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-control bg-accent" /> Prompt</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-control bg-ai" /> Completion</span>
                 </div>
               </div>
 
@@ -478,7 +479,7 @@ export function Exercise3Metrics() {
                 const promptPct = (m.prompt / m.total) * 100;
                 const compPct = (m.completion / m.total) * 100;
                 return (
-                  <div key={m.name} className="space-y-2 p-3.5 bg-canvas rounded-xl border border-line-subtle">
+                  <div key={m.name} className="space-y-2 p-3.5 bg-canvas rounded-panel border border-line-subtle">
                     <div className="flex justify-between items-center text-xs font-mono">
                       <span className="font-bold text-fg">{m.name}</span>
                       <span className="text-fg-soft">{m.total.toFixed(0)} Avg Total Tokens</span>
@@ -521,7 +522,7 @@ export function Exercise3Metrics() {
                   { name: 'codellama:7b', cpu: 2.30, peakCpu: 36.7, ram: 69.6, color: '#0284c7' },
                   { name: 'starcoder2:3b', cpu: 2.39, peakCpu: 38.6, ram: 69.8, color: '#d97706' },
                 ].map(m => (
-                  <div key={m.name} className="p-4 bg-canvas rounded-xl border border-line-subtle space-y-3 text-xs font-mono">
+                  <div key={m.name} className="p-4 bg-canvas rounded-panel border border-line-subtle space-y-3 text-xs font-mono">
                     <div className="font-bold text-fg pb-2 border-b border-line-subtle">{m.name}</div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-fg-subtle">

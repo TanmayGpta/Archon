@@ -352,7 +352,7 @@ export function QualitativeAnalysisView() {
     const formatted = formatVal(val, decimals) + suffix;
     if (isBest) {
       return (
-        <span className="inline-flex items-center justify-center font-bold px-2 py-0.5 rounded text-xs bg-success/20 text-success-fg border border-success/50 shadow-sm shadow-[#10b981]/15">
+        <span className="inline-flex items-center justify-center font-bold px-2 py-0.5 rounded-control text-xs bg-success/20 text-success-fg border border-success/50">
           {formatted}
         </span>
       );
@@ -369,7 +369,7 @@ export function QualitativeAnalysisView() {
           <div
             id="metric-tooltip"
             role="tooltip"
-            className="fixed z-50 pointer-events-none rounded-lg border border-[#334155] bg-overlay p-3 shadow-2xl shadow-black/50 text-left normal-case whitespace-normal"
+            className="fixed z-50 pointer-events-none rounded-panel border border-[#334155] bg-overlay p-3 shadow-raised text-left normal-case whitespace-normal"
             style={{
               left: tooltip.left,
               top: tooltip.top,
@@ -381,7 +381,7 @@ export function QualitativeAnalysisView() {
               <span className="text-xs font-bold text-fg-strong font-sans">{info.title}</span>
               {info.better && (
                 <span
-                  className={`px-1.5 py-0.5 rounded text-xs font-mono font-bold uppercase tracking-wider border flex-shrink-0 ${
+                  className={`px-1.5 py-0.5 rounded-control text-xs font-mono font-bold uppercase tracking-wider border flex-shrink-0 ${
                     info.better === 'higher'
                       ? 'bg-success/15 text-success-fg border-success/40'
                       : 'bg-warning/15 text-warning-fg border-warning/40'
@@ -410,7 +410,7 @@ export function QualitativeAnalysisView() {
       <div className="flex items-center justify-between flex-wrap gap-4 border-b border-line-strong pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded text-xs font-mono bg-info-strong/20 text-info border border-info-strong/40 font-bold uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded-control text-xs font-mono bg-info-strong/20 text-info border border-info-strong/40 font-bold uppercase tracking-wider">
               R2ABench Evaluation
             </span>
             <span className="text-xs text-fg-subtle font-mono">
@@ -427,13 +427,13 @@ export function QualitativeAnalysisView() {
 
         {/* Filter Controls */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-surface p-1 border border-line-strong rounded-lg text-xs font-mono">
+          <div className="flex items-center gap-1.5 bg-surface p-1 border border-line-strong rounded-panel text-xs font-mono">
             <span className="text-fg-subtle px-2 text-xs">Model:</span>
             {['all', 'codellama:7b', 'qwen2.5:7b', 'gemma3:12b'].map(m => (
               <button
                 key={m}
                 onClick={() => setModelFilter(m)}
-                className={`px-2.5 py-1 rounded text-xs cursor-pointer transition-all ${
+                className={`px-2.5 py-1 rounded-control text-xs cursor-pointer transition-all ${
                   modelFilter === m
                     ? 'bg-selected text-info font-semibold border border-info/30'
                     : 'text-fg-muted hover:text-white'
@@ -444,13 +444,13 @@ export function QualitativeAnalysisView() {
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 bg-surface p-1 border border-line-strong rounded-lg text-xs font-mono">
+          <div className="flex items-center gap-1.5 bg-surface p-1 border border-line-strong rounded-panel text-xs font-mono">
             <span className="text-fg-subtle px-2 text-xs">Framework:</span>
             {['all', 'archon', 'direct'].map(f => (
               <button
                 key={f}
                 onClick={() => setFrameworkFilter(f)}
-                className={`px-2.5 py-1 rounded text-xs cursor-pointer uppercase font-mono transition-all ${
+                className={`px-2.5 py-1 rounded-control text-xs cursor-pointer uppercase font-mono transition-all ${
                   frameworkFilter === f
                     ? 'bg-selected text-info font-semibold border border-info/30'
                     : 'text-fg-muted hover:text-white'
@@ -465,7 +465,7 @@ export function QualitativeAnalysisView() {
 
       {/* ── KPI HIGHLIGHT CARDS ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface border border-line-strong p-4 rounded-xl flex flex-col justify-between">
+        <div className="bg-surface border border-line-strong p-4 rounded-panel flex flex-col justify-between">
           <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">
             Zero Orphan Services
           </div>
@@ -478,7 +478,7 @@ export function QualitativeAnalysisView() {
           </div>
         </div>
 
-        <div className="bg-surface border border-line-strong p-4 rounded-xl flex flex-col justify-between">
+        <div className="bg-surface border border-line-strong p-4 rounded-panel flex flex-col justify-between">
           <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">
             Edge F1 Dataflow Lift
           </div>
@@ -491,7 +491,7 @@ export function QualitativeAnalysisView() {
           </div>
         </div>
 
-        <div className="bg-surface border border-line-strong p-4 rounded-xl flex flex-col justify-between">
+        <div className="bg-surface border border-line-strong p-4 rounded-panel flex flex-col justify-between">
           <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">
             Peak Graph Accuracy (GED)
           </div>
@@ -504,7 +504,7 @@ export function QualitativeAnalysisView() {
           </div>
         </div>
 
-        <div className="bg-surface border border-line-strong p-4 rounded-xl flex flex-col justify-between">
+        <div className="bg-surface border border-line-strong p-4 rounded-panel flex flex-col justify-between">
           <div className="text-xs font-mono text-fg-subtle uppercase tracking-wider">
             Syntax Validity (SV)
           </div>
@@ -519,7 +519,7 @@ export function QualitativeAnalysisView() {
       </div>
 
       {/* ── FULL QUALITATIVE BENCHMARK TABLE ────────────────────────── */}
-      <div className="bg-surface border border-line-strong rounded-xl overflow-hidden shadow-2xl flex flex-col">
+      <div className="bg-surface border border-line-strong rounded-panel overflow-hidden flex flex-col">
         <div className="p-4 bg-surface border-b border-line-strong flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-success"></span>
@@ -529,7 +529,7 @@ export function QualitativeAnalysisView() {
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-fg-subtle">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-success/20 border border-success/50"></span>
+              <span className="w-3 h-3 rounded-control bg-success/20 border border-success/50"></span>
               <strong className="text-fg-soft">Best in Column</strong>
             </span>
             <span className="text-fg-subtle">•</span>
@@ -583,7 +583,7 @@ export function QualitativeAnalysisView() {
                     {/* Framework */}
                     <td className="p-3 border-r border-line-strong">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider border ${
+                        className={`px-2 py-0.5 rounded-control text-xs font-bold uppercase tracking-wider border ${
                           isArchon
                             ? 'bg-info-strong/20 text-info border-info-strong/40'
                             : 'bg-selected text-fg-muted border-[#334155]'
@@ -676,7 +676,7 @@ export function QualitativeAnalysisView() {
 
       {/* ── ARCHITECTURAL ANALYSIS & DELTA TAKEAWAYS ──────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-surface border border-line-strong p-5 rounded-xl space-y-3">
+        <div className="bg-surface border border-line-strong p-5 rounded-panel space-y-3">
           <div className="text-xs font-mono text-info font-bold uppercase tracking-wider">
             1. Relational Topology &amp; Edge F1
           </div>
@@ -685,7 +685,7 @@ export function QualitativeAnalysisView() {
           </p>
         </div>
 
-        <div className="bg-surface border border-line-strong p-5 rounded-xl space-y-3">
+        <div className="bg-surface border border-line-strong p-5 rounded-panel space-y-3">
           <div className="text-xs font-mono text-info font-bold uppercase tracking-wider">
             2. Anti-Pattern &amp; Orphan Eradication
           </div>
@@ -694,7 +694,7 @@ export function QualitativeAnalysisView() {
           </p>
         </div>
 
-        <div className="bg-surface border border-line-strong p-5 rounded-xl space-y-3">
+        <div className="bg-surface border border-line-strong p-5 rounded-panel space-y-3">
           <div className="text-xs font-mono text-info font-bold uppercase tracking-wider">
             3. Layer Boundary &amp; Containment
           </div>

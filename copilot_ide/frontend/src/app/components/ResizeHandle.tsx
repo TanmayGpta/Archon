@@ -39,6 +39,7 @@ export function ResizeHandle({
   onReset,
   label,
   tone = 'accent',
+  className = '',
 }: {
   edge: 'left' | 'right' | 'top';
   size: number;
@@ -48,6 +49,7 @@ export function ResizeHandle({
   onReset: () => void;
   label: string;
   tone?: keyof typeof TONES;
+  className?: string;
 }) {
   const drag = useRef<{ start: number; size: number; max: number } | null>(null);
   const vertical = edge === 'top';
@@ -114,7 +116,7 @@ export function ResizeHandle({
       onKeyDown={onKeyDown}
       className={`relative z-20 flex-shrink-0 touch-none transition-colors ${TONES[tone]} ${
         vertical ? 'h-[6px] -my-[3px] w-full cursor-row-resize' : 'w-[6px] -mx-[3px] cursor-col-resize'
-      }`}
+      } ${className}`}
     />
   );
 }

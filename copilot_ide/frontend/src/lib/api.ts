@@ -41,3 +41,9 @@ export function errorDetail(body: string): string {
   const text = body.trim().slice(0, 200);
   return text || 'The server returned an error.';
 }
+
+/** A caught value as a readable message (errors thrown by fetch, JSON parsing, or our own code). */
+export function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return typeof e === 'string' ? e : String(e);
+}

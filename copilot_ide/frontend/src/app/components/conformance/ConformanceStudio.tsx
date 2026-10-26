@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Glyph } from '../Icons';
 import { ConformanceCanvas } from './ConformanceCanvas';
 import { ResizeHandle, usePanelSize } from '../ResizeHandle';
 import { errorDetail } from '@/lib/api';
+import { replaceQuery } from '@/lib/deepLinks';
 import { useCommand } from '../commandsContext';
 import archonAuditSnapshot from './archonAuditSnapshot.json';
 import {
@@ -21,6 +23,10 @@ interface ConformanceStudioProps {
   initialBlueprintId?: string;
   // Loading intro covers the whole viewport (default) or only the studio's own area
   introScope?: 'viewport' | 'studio';
+  // Deep link: start in this layout with this module selected; keep the URL in step
+  initialView?: LayoutMode;
+  initialFocus?: string;
+  syncUrl?: boolean;
 }
 
 const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
@@ -99,7 +105,7 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
   ]
 });
 
-export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId, introScope = 'viewport' }) => {
+export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId, introScope = 'viewport', initialView, initialFocus, syncUrl = false }) => {
   // Default target (Archon itself): start from the bundled snapshot instead of waiting on the API.
   // "Run audit" still fetches live. Regenerate the snapshot when Archon's structure changes.
   const fromSnapshot = !initialPath?.trim() && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
@@ -116,9 +122,12 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
   // Target Codebase Path State
   const [targetPath, setTargetPath] = useState<string>(initialPath || '');
+  // Path of the audit on screen ('' = workspace root), for the URL
+  const [auditedPath, setAuditedPath] = useState<string>(initialPath || '');
+  const [pendingFocus, setPendingFocus] = useState<string | undefined>(initialFocus);
 
   // View & Filter States
-  const [mode, setMode] = useState<LayoutMode>('network');
+  const [mode, setMode] = useState<LayoutMode>(initialView ?? 'network');
   const [selectedNode, setSelectedNode] = useState<ConformanceNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<ConformanceEdge | null>(null);
   const [highlightLayer, setHighlightLayer] = useState<string | null>(null);
@@ -176,12 +185,13 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         return;
       }
       setAuditData(data);
+      setAuditedPath(pathToScan.trim());
 
       const layersSet = new Set(data.layers.map(l => l.name));
       setFilterLayers(layersSet);
       setSelectedNode(null);
       setSelectedEdge(null);
-    } catch (err: any) {
+    } catch {
       // Orchestrator unreachable: keep any graph already on screen, else show the interactive preview
       setIsBackendOffline(true);
       if (!auditData) {
@@ -193,6 +203,23 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
       setLoading(false);
     }
   };
+
+  // Select the deep-linked module once the audit that contains it is on screen
+  if (pendingFocus && auditData && !loading) {
+    setPendingFocus(undefined);
+    const node = auditData.nodes.find(n => n.id === pendingFocus || n.label === pendingFocus);
+    if (node) setSelectedNode(node);
+  }
+
+  useEffect(() => {
+    if (!syncUrl) return;
+    replaceQuery({
+      path: auditedPath || undefined,
+      blueprint: selectedBlueprintId !== 'archon_architecture' ? selectedBlueprintId : undefined,
+      view: mode !== 'network' ? mode : undefined,
+      focus: selectedNode?.id,
+    });
+  }, [syncUrl, auditedPath, selectedBlueprintId, mode, selectedNode]);
 
   const retryAudit = () => runAudit(lastAuditRef.current.blueprintId, lastAuditRef.current.path);
   useCommand('conformance.run', { run: () => runAudit() });
@@ -264,9 +291,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   }, [selectedNode, auditData]);
 
   return (
-    <div data-intro-bounds className={`relative w-full h-[calc(100vh-56px)] bg-[#080808] text-[#e0e0e0] font-sans overflow-hidden flex flex-col [&_header]:transition-opacity [&_header]:duration-300 [&_header]:ease-out [&_aside]:transition-opacity [&_aside]:duration-300 [&_aside]:ease-out ${introActive ? '[&_header]:opacity-0 [&_aside]:opacity-0' : ''}`}>
+    <div data-intro-bounds className={`relative w-full min-h-[calc(100vh-56px)] md:h-[calc(100vh-56px)] bg-[#080808] text-[#e0e0e0] font-sans overflow-hidden flex flex-col [&_header]:transition-opacity [&_header]:duration-300 [&_header]:ease-out [&_aside]:transition-opacity [&_aside]:duration-300 [&_aside]:ease-out ${introActive ? '[&_header]:opacity-0 [&_aside]:opacity-0' : ''}`}>
       {/* ── TOP HUD HEADER ────────────────────────────────────────── */}
-      <header className="h-12 border-b border-[#1f1f1e] bg-[#0c0c0b]/90 backdrop-blur-md px-4 flex items-center justify-between z-20 flex-shrink-0">
+      <header className="min-h-12 md:h-12 py-2 md:py-0 flex-wrap gap-2 border-b border-[#1f1f1e] bg-[#0c0c0b]/90 backdrop-blur-md px-4 flex items-center justify-between z-20 flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsRailOpen(!isRailOpen)}
@@ -330,7 +357,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
         {/* Target Project Path Selector */}
         <div className="flex items-center gap-1.5 bg-[#141413] border border-[#2b2b2a] rounded px-2.5 py-1">
-          <span className="text-xs font-mono text-[#8b8b86]">📁 PATH:</span>
+          <span className="text-xs font-mono text-[#8b8b86]"><Glyph name="folder" /> PATH:</span>
           <input
             type="text"
             placeholder="Default: Workspace Root"
@@ -464,10 +491,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
       )}
 
       {/* ── MAIN WORKSPACE VIEWPORT ───────────────────────────────── */}
-      <div className="relative flex-1 flex overflow-hidden">
+      <div className="relative flex-1 flex flex-col md:flex-row md:overflow-hidden">
         {/* ── LEFT RAIL: FILTERS & PRESETS ─────────────────────────── */}
         {isRailOpen && (
-          <aside style={{ width: railPanel.size }} className="bg-[#0e0e0d]/95 border-r border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
+          <aside style={{ '--panel-w': `${railPanel.size}px` } as React.CSSProperties} className="w-full md:w-[var(--panel-w)] order-3 md:order-none bg-[#0e0e0d]/95 border-r border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
             <div className="p-4 space-y-5">
               {/* Layer Filters */}
               <div>
@@ -562,6 +589,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           <ResizeHandle
             edge="right"
             tone="conformance"
+            className="hidden md:block"
             label="Resize filters panel"
             size={railPanel.size}
             min={200}
@@ -572,7 +600,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         )}
 
         {/* ── CANVAS ENGINE (FULL BLEED) ───────────────────────────── */}
-        <div className="relative flex-1 min-w-0 h-full bg-[#080808]">
+        <div className="relative min-w-0 h-[65vh] flex-none md:flex-1 md:h-full order-1 md:order-none bg-[#080808]">
           <ConformanceCanvas
             nodes={auditData?.nodes || []}
             edges={auditData?.edges || []}
@@ -712,6 +740,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           <ResizeHandle
             edge="left"
             tone="conformance"
+            className="hidden md:block"
             label="Resize dossier panel"
             size={dossierPanel.size}
             min={260}
@@ -721,7 +750,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           />
         )}
         {/* ── RIGHT DOSSIER: INTELLIGENCE PANEL (#dossier) ─────────── */}
-        <aside style={{ width: dossierPanel.size }} className="bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
+        <aside style={{ '--panel-w': `${dossierPanel.size}px` } as React.CSSProperties} className="w-full md:w-[var(--panel-w)] order-2 md:order-none bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
           {selectedNode ? (
             /* Selected Module Dossier */
             <div className="p-4 space-y-4">

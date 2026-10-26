@@ -22,7 +22,8 @@ export interface CommandSpec {
   /** Studio whose page runs the command; the palette navigates there first. */
   route?: StudioRoute;
   args?: CommandArg[];
-  shortcut?: string;
+  /** Keyboard binding, e.g. 'Mod+P' (Mod = Ctrl, or Cmd on a Mac). Runs only while its studio is open. */
+  keys?: string;
 }
 
 export const COMMANDS: CommandSpec[] = [
@@ -34,12 +35,13 @@ export const COMMANDS: CommandSpec[] = [
 
   { id: 'workspace.openFolder', title: 'Open folder…', group: 'Workspace', route: '/ide', keywords: ['project', 'workspace', 'switch'] },
   { id: 'workspace.openGitHub', title: 'Open from GitHub…', group: 'Workspace', route: '/ide', keywords: ['repo', 'clone', 'remote'] },
-  { id: 'workspace.quickOpen', title: 'Go to file…', group: 'Workspace', route: '/ide', keywords: ['quick open', 'find file'], shortcut: 'Ctrl+P' },
+  { id: 'workspace.quickOpen', title: 'Go to file…', group: 'Workspace', route: '/ide', keywords: ['quick open', 'find file'], keys: 'Mod+P' },
   { id: 'workspace.index', title: 'Index codebase (SCIP)', group: 'Workspace', route: '/ide', keywords: ['sourcegraph', 'knowledge graph'] },
   { id: 'workspace.graph', title: 'Show knowledge graph', group: 'Workspace', route: '/ide', keywords: ['dependencies', 'visualize'] },
 
-  { id: 'editor.save', title: 'Save file', group: 'Editor', route: '/ide', keywords: ['write', 'commit'], shortcut: 'Ctrl+S' },
-  { id: 'terminal.toggle', title: 'Toggle terminal', group: 'Editor', route: '/ide', keywords: ['panel', 'shell', 'console'] },
+  { id: 'editor.save', title: 'Save file', group: 'Editor', route: '/ide', keywords: ['write', 'commit'], keys: 'Mod+S' },
+  { id: 'editor.closeTab', title: 'Close editor tab', group: 'Editor', route: '/ide', keywords: ['tab', 'file'], keys: 'Alt+W' },
+  { id: 'terminal.toggle', title: 'Toggle terminal', group: 'Editor', route: '/ide', keywords: ['panel', 'shell', 'console'], keys: 'Mod+`' },
 
   { id: 'chat.new', title: 'New chat', group: 'Agent', route: '/ide', keywords: ['clear', 'conversation', 'reset'] },
   { id: 'chat.focus', title: 'Ask the agent…', group: 'Agent', route: '/ide', keywords: ['chat', 'prompt', 'message'] },
@@ -85,4 +87,29 @@ export function searchCommands<T extends Pick<CommandSpec, 'title' | 'group' | '
     .filter((r): r is { cmd: T; i: number; score: number } => r.score !== null)
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map(r => r.cmd);
+}
+
+type KeyEventLike = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>;
+
+// e.code for a key, so Alt combinations still match on a Mac (where Alt+W types '∑')
+const codeFor = (key: string) =>
+  /^[a-z]$/.test(key) ? `Key${key.toUpperCase()}` : /^[0-9]$/.test(key) ? `Digit${key}` : key === '`' ? 'Backquote' : '';
+
+/** Whether a key event is exactly this binding (no extra modifiers). */
+export function matchesKeys(e: KeyEventLike, keys: string, isMac = false): boolean {
+  const parts = keys.split('+');
+  const key = parts.pop()!.toLowerCase();
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+  const otherMod = isMac ? e.ctrlKey : e.metaKey;
+  if (mod !== parts.includes('Mod') || otherMod || e.altKey !== parts.includes('Alt') || e.shiftKey !== parts.includes('Shift')) return false;
+  return e.key.toLowerCase() === key || (!!codeFor(key) && e.code === codeFor(key));
+}
+
+/** A binding as people read it: 'Ctrl+P' on Windows/Linux, '⌘P' on a Mac. */
+export function formatKeys(keys: string, isMac = false): string {
+  const parts = keys.split('+');
+  const key = parts.pop()!.toUpperCase();
+  const names = isMac ? { Mod: '⌘', Alt: '⌥', Shift: '⇧' } : { Mod: 'Ctrl', Alt: 'Alt', Shift: 'Shift' };
+  const mods = parts.map(p => names[p as keyof typeof names] ?? p);
+  return isMac ? [...mods, key].join('') : [...mods, key].join('+');
 }
