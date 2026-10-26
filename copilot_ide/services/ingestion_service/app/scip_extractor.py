@@ -2,10 +2,144 @@ import os
 import ast
 import re
 import hashlib
+import inspect
 from typing import List, Dict, Any, Tuple, Optional
 
 def compute_hash(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
+
+class _PyFileOut:
+    """Per-file output lists plus the symbol ids already used in that file."""
+
+    def __init__(self, rel_path: str, lines: List[str]):
+        self.rel_path = rel_path
+        self.lines = lines
+        self.chunks: List[Dict[str, Any]] = []
+        self.nodes: List[Dict[str, Any]] = []
+        self.edges: List[Dict[str, Any]] = []
+        self._seen_ids = set()
+
+    def unique_id(self, base: str, line: int) -> str:
+        # A redefinition (property setter, if/else variants, a block duplicated in a
+        # broken file) gets its line appended instead of being dropped at dedup.
+        node_id = base if base not in self._seen_ids else f"{base}@{line}"
+        self._seen_ids.add(node_id)
+        return node_id
+
+def _qualname(parent_qual: str, parent_kind: str, name: str) -> str:
+    """Same naming as Python's __qualname__: Class.method, outer.<locals>.inner."""
+    if not parent_qual:
+        return name
+    return f"{parent_qual}.<locals>.{name}" if parent_kind == "function" else f"{parent_qual}.{name}"
+
+def _wants_chunk(parent_kind: str, docstring: str, start_l: int, end_l: int) -> bool:
+    # A nested def's code is already in its parent's chunk; only give it its own
+    # search chunk when it carries extra signal (docstring) or is sizeable.
+    return parent_kind != "function" or bool(docstring) or (end_l - start_l + 1) > 8
+
+def _py_signature(node: Any) -> str:
+    args_list = []
+    for a in node.args.args:
+        arg_str = a.arg
+        if a.annotation:
+            arg_str += f": {ast.unparse(a.annotation)}"
+        args_list.append(arg_str)
+    ret_str = f" -> {ast.unparse(node.returns)}" if node.returns else ""
+    prefix = "async def " if isinstance(node, ast.AsyncFunctionDef) else "def "
+    return f"{prefix}{node.name}({', '.join(args_list)}){ret_str}"
+
+def _own_ast_calls(func: Any) -> List[str]:
+    """Names called by this function itself; nested defs/classes report their own calls."""
+    names = []
+    stack = [func]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, ast.Call):
+            if isinstance(cur.func, ast.Name):
+                names.append(cur.func.id)
+            elif isinstance(cur.func, ast.Attribute):
+                names.append(cur.func.attr)
+        for child in ast.iter_child_nodes(cur):
+            if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                stack.append(child)
+    return names
+
+class _PySymbolVisitor(ast.NodeVisitor):
+    """
+    Visits every def/class at any depth (inside other defs and module-level
+    if/try/with blocks), keeping a scope stack so ids follow __qualname__.
+    """
+
+    def __init__(self, extractor: "SCIPExtractor", out: _PyFileOut, file_node_id: str):
+        self.extractor = extractor
+        self.out = out
+        self.scope = [(file_node_id, "", "file")]  # (node_id, qualname, kind)
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        parent_id, parent_qual, parent_kind = self.scope[-1]
+        qualname = _qualname(parent_qual, parent_kind, node.name)
+        start_l = node.lineno
+        end_l = getattr(node, 'end_lineno', start_l + 10)
+        docstring = ast.get_docstring(node) or ""
+        class_id = self.extractor._emit_py_class(self.out, node.name, qualname, parent_id, start_l, end_l, docstring,
+                                                 with_chunk=_wants_chunk(parent_kind, docstring, start_l, end_l))
+        self.scope.append((class_id, qualname, "class"))
+        self.generic_visit(node)
+        self.scope.pop()
+
+    def visit_FunctionDef(self, node: Any):
+        parent_id, parent_qual, parent_kind = self.scope[-1]
+        qualname = _qualname(parent_qual, parent_kind, node.name)
+        start_l = node.lineno
+        end_l = getattr(node, 'end_lineno', start_l + 15)
+        docstring = ast.get_docstring(node) or ""
+        decorators = [ast.unparse(dec) for dec in node.decorator_list]
+        func_id = self.extractor._emit_py_func(self.out, node.name, qualname, parent_id, start_l, end_l,
+                                               _py_signature(node), docstring, decorators, _own_ast_calls(node),
+                                               with_chunk=_wants_chunk(parent_kind, docstring, start_l, end_l))
+        self.scope.append((func_id, qualname, "function"))
+        self.generic_visit(node)
+        self.scope.pop()
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+def _ts_text(ts_node: Any) -> str:
+    return ts_node.text.decode("utf-8", errors="replace")
+
+def _ts_docstring(body: Any) -> str:
+    if body is None or not body.named_children:
+        return ""
+    first = body.named_children[0]
+    if first.type == "expression_statement" and first.named_children and first.named_children[0].type == "string":
+        try:
+            return inspect.cleandoc(ast.literal_eval(_ts_text(first.named_children[0])))
+        except Exception:
+            return ""
+    return ""
+
+def _ts_own_calls(body: Any) -> List[Any]:
+    """tree-sitter call nodes in this body, not descending into nested defs/classes."""
+    calls = []
+    stack = [body] if body is not None else []
+    while stack:
+        cur = stack.pop()
+        if cur.type == "call":
+            calls.append(cur)
+        for child in cur.children:
+            if child.type not in ("function_definition", "class_definition", "decorated_definition"):
+                stack.append(child)
+    return calls
+
+def _ts_call_name(call: Any) -> str:
+    fn = call.child_by_field_name("function")
+    if fn is None:
+        return ""
+    if fn.type == "identifier":
+        return _ts_text(fn)
+    if fn.type == "attribute":
+        attr = fn.child_by_field_name("attribute")
+        return _ts_text(attr) if attr is not None else ""
+    return ""
 
 class SCIPExtractor:
     """
@@ -16,13 +150,15 @@ class SCIPExtractor:
     """
 
     def __init__(self):
-        # Optional tree-sitter support if installed
-        self.has_treesitter = False
+        # Optional tree-sitter Python parser, used to recover symbols from files ast can't parse
+        self._ts_python = None
         try:
-            import tree_sitter
-            self.has_treesitter = True
-        except ImportError:
-            self.has_treesitter = False
+            import tree_sitter_python
+            from tree_sitter import Language, Parser
+            self._ts_python = Parser(Language(tree_sitter_python.language()))
+        except Exception:  # not installed, or an incompatible binding version
+            self._ts_python = None
+        self.has_treesitter = self._ts_python is not None
 
     def extract_file(self, rel_path: str, content: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
@@ -44,123 +180,159 @@ class SCIPExtractor:
             return [], [], []
 
     def _extract_python(self, rel_path: str, content: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
-        chunks = []
-        nodes = []
-        edges = []
+        lines = content.splitlines()
+        out = _PyFileOut(rel_path, lines)
 
         file_node_id = f"file:{rel_path}"
-        nodes.append({
+        file_node = {
             "id": file_node_id,
             "label": os.path.basename(rel_path),
             "kind": "file",
             "file_path": rel_path,
             "language": "python",
             "line_start": 1,
-            "line_end": len(content.splitlines())
-        })
+            "line_end": len(lines)
+        }
+        out.nodes.append(file_node)
 
         try:
             tree = ast.parse(content)
-        except Exception as e:
-            # Syntax error in parsed file, return base file node
-            return chunks, nodes, edges
+        except (SyntaxError, ValueError) as e:
+            # ValueError: source contains null bytes. Record why, then recover what we can.
+            line = getattr(e, "lineno", None)
+            msg = getattr(e, "msg", None) or str(e)
+            file_node["parse_error"] = f"line {line}: {msg}" if line else msg
+            self._extract_python_partial(out, file_node_id, content)
+            return out.chunks, out.nodes, out.edges
 
-        lines = content.splitlines()
-
-        # Track top-level imports for edge creation
+        # Track imports for edge creation
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 mod_name = getattr(node, 'module', None) or (node.names[0].name if node.names else "")
                 if mod_name:
-                    edges.append({
+                    out.edges.append({
                         "source": file_node_id,
                         "target": f"file:{mod_name}",
                         "relationship": "IMPORTS"
                     })
 
-        # Traverse classes and functions
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef):
-                class_node_id = f"class:{rel_path}:{node.name}"
-                docstring = ast.get_docstring(node) or ""
-                start_l = node.lineno
-                end_l = getattr(node, 'end_lineno', start_l + 10)
-                class_code = "\n".join(lines[start_l - 1:min(end_l, start_l + 30)])
+        # Classes and functions at any depth
+        _PySymbolVisitor(self, out, file_node_id).visit(tree)
 
-                nodes.append({
-                    "id": class_node_id,
-                    "label": f"class {node.name}",
-                    "kind": "class",
-                    "file_path": rel_path,
-                    "line_start": start_l,
-                    "line_end": end_l,
-                    "signature": f"class {node.name}",
-                    "docstring": docstring,
-                    "language": "python",
-                    "code_snippet": class_code
-                })
-                edges.append({
-                    "source": file_node_id,
-                    "target": class_node_id,
-                    "relationship": "CONTAINS"
-                })
+        return out.chunks, out.nodes, out.edges
 
-                # Class chunk
-                chunk_text = f"[Code Symbol: class] class {node.name}\nFile: {rel_path} (Lines {start_l}-{end_l})\n"
-                if docstring:
-                    chunk_text += f"Docstring: {docstring}\n"
-                chunk_text += f"Code Snippet:\n{class_code}"
-                chunks.append({
-                    "source": rel_path,
-                    "api_title": f"Class: {node.name}",
-                    "endpoint": f"class {node.name}",
-                    "hash": compute_hash(chunk_text),
-                    "chunk_type": "code_symbol",
-                    "symbol_name": node.name,
-                    "symbol_kind": "class",
-                    "file_path": rel_path,
-                    "line_range": f"L{start_l}-L{end_l}",
-                    "language": "python",
-                    "text": chunk_text
-                })
+    def _extract_python_partial(self, out: "_PyFileOut", file_node_id: str, content: str):
+        """
+        Best-effort symbols for a file ast can't parse. tree-sitter keeps going past
+        errors (the broken span becomes an ERROR node), so the defs around it survive.
+        """
+        if not self.has_treesitter:
+            return
+        root = self._ts_python.parse(content.encode("utf-8")).root_node
+        self._walk_ts_python(out, root, [(file_node_id, "", "file")])
 
-                # Methods inside class
-                for item in node.body:
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        self._process_py_func(item, rel_path, lines, class_node_id, nodes, edges, chunks, is_method=True, class_name=node.name)
+    def _walk_ts_python(self, out: "_PyFileOut", ts_node: Any, scope: List[Tuple[str, str, str]]):
+        for child in ts_node.children:
+            target, decorators = child, []
+            if child.type == "decorated_definition":
+                decorators = [_ts_text(d).lstrip("@").strip() for d in child.children if d.type == "decorator"]
+                target = child.child_by_field_name("definition") or child
 
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self._process_py_func(node, rel_path, lines, file_node_id, nodes, edges, chunks, is_method=False)
+            name_node = target.child_by_field_name("name")
+            body = target.child_by_field_name("body")
+            if target.type not in ("function_definition", "class_definition") or name_node is None:
+                self._walk_ts_python(out, child, scope)
+                continue
 
-        return chunks, nodes, edges
+            parent_id, parent_qual, parent_kind = scope[-1]
+            name = _ts_text(name_node)
+            qualname = _qualname(parent_qual, parent_kind, name)
+            start_l = target.start_point[0] + 1
+            end_l = target.end_point[0] + 1
+            docstring = _ts_docstring(body)
+            with_chunk = _wants_chunk(parent_kind, docstring, start_l, end_l)
 
-    def _process_py_func(self, node: Any, rel_path: str, lines: List[str], parent_id: str,
-                          nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]], chunks: List[Dict[str, Any]],
-                          is_method: bool = False, class_name: str = ""):
-        func_name = node.name
-        start_l = node.lineno
-        end_l = getattr(node, 'end_lineno', start_l + 15)
-        docstring = ast.get_docstring(node) or ""
+            if target.type == "class_definition":
+                sym_id = self._emit_py_class(out, name, qualname, parent_id, start_l, end_l, docstring,
+                                             with_chunk=with_chunk, precision="partial")
+                kind = "class"
+            else:
+                params = target.child_by_field_name("parameters")
+                ret = target.child_by_field_name("return_type")
+                is_async = any(c.type == "async" for c in target.children)
+                signature = f"{'async def ' if is_async else 'def '}{name}{' '.join(_ts_text(params).split()) if params else '()'}"
+                if ret is not None:
+                    signature += f" -> {_ts_text(ret)}"
+                calls = [_ts_call_name(c) for c in _ts_own_calls(body)]
+                sym_id = self._emit_py_func(out, name, qualname, parent_id, start_l, end_l, signature, docstring,
+                                            decorators, calls, with_chunk=with_chunk, precision="partial")
+                kind = "function"
 
-        # Construct clean signature
-        is_async = isinstance(node, ast.AsyncFunctionDef)
-        args_list = []
-        for a in node.args.args:
-            arg_str = a.arg
-            if a.annotation:
-                arg_str += f": {ast.unparse(a.annotation)}"
-            args_list.append(arg_str)
-        ret_str = f" -> {ast.unparse(node.returns)}" if node.returns else ""
-        prefix = "async def " if is_async else "def "
-        signature = f"{prefix}{func_name}({', '.join(args_list)}){ret_str}"
+            if body is not None:
+                self._walk_ts_python(out, body, scope + [(sym_id, qualname, kind)])
+
+    def _emit_py_class(self, out: "_PyFileOut", name: str, qualname: str, parent_id: str,
+                       start_l: int, end_l: int, docstring: str,
+                       with_chunk: bool = True, precision: Optional[str] = None) -> str:
+        rel_path, lines = out.rel_path, out.lines
+        class_node_id = out.unique_id(f"class:{rel_path}:{qualname}", start_l)
+        class_code = "\n".join(lines[start_l - 1:min(end_l, start_l + 30)])
+
+        class_node = {
+            "id": class_node_id,
+            "label": f"class {name}",
+            "kind": "class",
+            "file_path": rel_path,
+            "line_start": start_l,
+            "line_end": end_l,
+            "signature": f"class {name}",
+            "docstring": docstring,
+            "language": "python",
+            "code_snippet": class_code
+        }
+        if precision:
+            class_node["precision"] = precision
+        out.nodes.append(class_node)
+        out.edges.append({
+            "source": parent_id,
+            "target": class_node_id,
+            "relationship": "CONTAINS"
+        })
+
+        # Class chunk
+        if with_chunk:
+            chunk_text = f"[Code Symbol: class] class {name}\nFile: {rel_path} (Lines {start_l}-{end_l})\n"
+            if docstring:
+                chunk_text += f"Docstring: {docstring}\n"
+            chunk_text += f"Code Snippet:\n{class_code}"
+            out.chunks.append({
+                "source": rel_path,
+                "api_title": f"Class: {name}",
+                "endpoint": f"class {name}",
+                "hash": compute_hash(chunk_text),
+                "chunk_type": "code_symbol",
+                "symbol_name": name,
+                "symbol_kind": "class",
+                "file_path": rel_path,
+                "line_range": f"L{start_l}-L{end_l}",
+                "language": "python",
+                "text": chunk_text
+            })
+        return class_node_id
+
+    def _emit_py_func(self, out: "_PyFileOut", func_name: str, qualname: str, parent_id: str,
+                      start_l: int, end_l: int, signature: str, docstring: str,
+                      decorators: List[str], calls: List[str],
+                      with_chunk: bool = True, precision: Optional[str] = None) -> str:
+        rel_path, lines = out.rel_path, out.lines
+        nodes, edges, chunks = out.nodes, out.edges, out.chunks
 
         func_code = "\n".join(lines[start_l - 1:end_l])
-        func_node_id = f"func:{rel_path}:{class_name + '.' if class_name else ''}{func_name}"
+        func_node_id = out.unique_id(f"func:{rel_path}:{qualname}", start_l)
 
         # Detect Web API Endpoints (FastAPI, Flask, Starlette decorators)
         api_route_info = None
-        for dec in node.decorator_list:
-            dec_text = ast.unparse(dec) if hasattr(ast, 'unparse') else ""
+        for dec_text in decorators:
             route_match = re.search(r'\.(get|post|put|delete|patch|options)\s*\(\s*["\']([^"\']+)["\']', dec_text, re.IGNORECASE)
             if route_match:
                 http_verb = route_match.group(1).upper()
@@ -171,7 +343,7 @@ class SCIPExtractor:
         if api_route_info:
             http_verb, route_path = api_route_info
             endpoint_id = f"endpoint:{http_verb} {route_path}"
-            nodes.append({
+            endpoint_node = {
                 "id": endpoint_id,
                 "label": f"{http_verb} {route_path}",
                 "kind": "endpoint",
@@ -185,7 +357,10 @@ class SCIPExtractor:
                 "docstring": docstring,
                 "language": "python",
                 "code_snippet": "\n".join(lines[start_l - 1:min(end_l, start_l + 25)])
-            })
+            }
+            if precision:
+                endpoint_node["precision"] = precision
+            nodes.append(endpoint_node)
             edges.append({
                 "source": parent_id,
                 "target": endpoint_id,
@@ -221,7 +396,7 @@ class SCIPExtractor:
             })
 
         # Function Node
-        nodes.append({
+        func_node = {
             "id": func_node_id,
             "label": f"{func_name}()",
             "kind": "function",
@@ -232,7 +407,10 @@ class SCIPExtractor:
             "docstring": docstring,
             "language": "python",
             "code_snippet": "\n".join(lines[start_l - 1:min(end_l, start_l + 25)])
-        })
+        }
+        if precision:
+            func_node["precision"] = precision
+        nodes.append(func_node)
         edges.append({
             "source": parent_id,
             "target": func_node_id,
@@ -240,22 +418,16 @@ class SCIPExtractor:
         })
 
         # Function Call edges (CALLS)
-        for sub in ast.walk(node):
-            if isinstance(sub, ast.Call):
-                call_name = ""
-                if isinstance(sub.func, ast.Name):
-                    call_name = sub.func.id
-                elif isinstance(sub.func, ast.Attribute):
-                    call_name = sub.func.attr
-                if call_name and call_name != func_name:
-                    edges.append({
-                        "source": func_node_id,
-                        "target": f"func:{call_name}",
-                        "relationship": "CALLS"
-                    })
+        for call_name in calls:
+            if call_name and call_name != func_name:
+                edges.append({
+                    "source": func_node_id,
+                    "target": f"func:{call_name}",
+                    "relationship": "CALLS"
+                })
 
         # Function semantic chunk (if not already added as endpoint)
-        if not api_route_info:
+        if not api_route_info and with_chunk:
             chunk_text = (
                 f"[Code Symbol: function] {signature}\n"
                 f"File: {rel_path} (Lines {start_l}-{end_l})\n"
@@ -276,6 +448,8 @@ class SCIPExtractor:
                 "language": "python",
                 "text": chunk_text
             })
+        return func_node_id
+
 
     def _extract_js_ts(self, rel_path: str, content: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
         chunks = []
@@ -694,6 +868,7 @@ class SCIPExtractor:
             "endpoints": 0,
             "functions": 0,
             "classes": 0,
+            "parse_errors": 0,
             "total_chunks": 0
         }
 
@@ -718,6 +893,8 @@ class SCIPExtractor:
                         stats["functions"] += 1
                     elif kind == "class":
                         stats["classes"] += 1
+                    elif kind == "file" and n.get("parse_error"):
+                        stats["parse_errors"] += 1
 
         stats["total_chunks"] = len(all_chunks)
 
