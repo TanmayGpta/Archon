@@ -79,6 +79,7 @@ services:
       - DEFAULT_MODEL=gemma3:4b
       - OLLAMA_MODEL=gemma3:4b
       - DEFAULT_WORKSPACE_DIR=/workspace
+      - OMNIKEY_API_KEY=${OMNIKEY_API_KEY:-}
       - PYTHONUNBUFFERED=1
     extra_hosts:
       - "host.docker.internal:host-gateway"

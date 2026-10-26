@@ -7,10 +7,7 @@ OMNIKEY_BASE_URL = os.getenv(
     "OMNIKEY_BASE_URL",
     "https://omnikey-ai-unified-key-manager.onrender.com/v1beta"
 )
-OMNIKEY_API_KEY = os.getenv(
-    "OMNIKEY_API_KEY",
-    ""
-)
+OMNIKEY_API_KEY = os.getenv("OMNIKEY_API_KEY", "")
 OMNIKEY_MODEL = os.getenv(
     "OMNIKEY_MODEL",
     "gemini-2.5-flash"
@@ -146,6 +143,8 @@ Codebase File & Symbol Manifest:
     }
 
     try:
+        if not OMNIKEY_API_KEY:
+            raise RuntimeError("OMNIKEY_API_KEY not set")
         async with httpx.AsyncClient(timeout=16.0) as client:
             resp = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
             if resp.status_code == 200:

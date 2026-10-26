@@ -1,7 +1,8 @@
+import os
 import urllib.request
 import json
 
-url = 'https://omnikey-ai-unified-key-manager.onrender.com/v1beta/models/gemini-2.5-flash:generateContent?key='
+url = 'https://omnikey-ai-unified-key-manager.onrender.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + os.environ['OMNIKEY_API_KEY']
 payload = {
     'contents': [{'parts': [{'text': 'Return JSON only with suggested_files list: {"suggested_files": [{"path": "services/rag_service/app/search_engine.py", "reason": "Handles search ranking", "confidence": 0.95}]}'}]}],
     'generationConfig': {'temperature': 0.1}
