@@ -18,6 +18,7 @@ import { Sidebar } from './Sidebar';
 import { EditorPane } from './EditorPane';
 import { AgentChat } from './AgentChat';
 import { IdeDialogs } from './IdeDialogs';
+import { useCommand } from '../../components/commandsContext';
 
 /* -- VS Code Style Archon Agent IDE Workspace ---------------- */
 function VSCodeAgentIDE(props: IdeProps) {
@@ -70,6 +71,22 @@ function VSCodeAgentIDE(props: IdeProps) {
     showIndexDrawer,
     showKnowledgeGraph,
   } = ide;
+
+  useCommand('workspace.openFolder', { run: () => ide.setShowOpenProjectModal(true) });
+  useCommand('workspace.openGitHub', { run: () => setShowGitHubModal(true) });
+  useCommand('workspace.quickOpen', { run: () => ide.setShowQuickOpen(true) });
+  useCommand('workspace.index', { run: () => setShowIndexDrawer(true) });
+  useCommand('workspace.graph', { run: () => setShowKnowledgeGraph(true) });
+  useCommand('editor.save', { run: () => ide.handleSaveFile() });
+  useCommand('terminal.toggle', { run: () => setShowBottomPanel(!showBottomPanel) });
+  useCommand('chat.new', { run: () => ide.handleNewChat() });
+  useCommand('chat.focus', { run: () => ide.agentInputRef.current?.focus() });
+  useCommand('settings.apiKeys', {
+    run: () => {
+      ide.setShowApiKeysModal(true);
+      ide.fetchApiKeyStatus();
+    },
+  });
 
   return (
     <IdeContext.Provider value={ide}>

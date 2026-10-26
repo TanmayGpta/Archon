@@ -2,24 +2,34 @@
 import { useEffect } from 'react';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import { parseDiffBlocks } from '@/lib/diff';
+import { errorDetail } from '@/lib/api';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { EditorApi } from './useEditorActions';
 import type { AgentMessage } from './types';
 import type { ContextFileItem } from '../../components/ContextFileChips';
+import { readChat, writeChat, WELCOME_MESSAGE } from './chatHistory';
+
+let messageCount = 0;
+const messageId = (role: string) => `${role}-${Date.now()}-${++messageCount}`;
 
 /* -- Agent chat: context files, file suggestions, streamed replies, auto-apply - */
 export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
   const {
     activeTab,
     activeTabPath,
+    agentAbortRef,
     agentInput,
     agentLoading,
     agentMessages,
     apiBase,
     autoApplyEdits,
+    chatProjectKey,
     chatScrollRef,
     contextFiles,
+    currentProjectPath,
+    githubRepoInfo,
+    isGitHubWorkspace,
     editorContent,
     handleApplyCodeToEditor,
     handleApplyDiff,
@@ -30,9 +40,25 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
     setAgentInput,
     setAgentLoading,
     setAgentMessages,
+    setChatProjectKey,
     setContextFiles,
     setSuggestedFiles,
   } = ide;
+
+  const projectKey = isGitHubWorkspace && githubRepoInfo ? `github:${githubRepoInfo.full_name}` : currentProjectPath;
+  if (projectKey !== chatProjectKey) {
+    setChatProjectKey(projectKey);
+    // Opening the first folder keeps a chat started before it; otherwise load that project's chat
+    const keepCurrent = chatProjectKey === '' && agentMessages.some(m => m.role === 'user');
+    setAgentMessages(readChat(projectKey) ?? (keepCurrent ? agentMessages : [WELCOME_MESSAGE]));
+  }
+
+  useEffect(() => {
+    if (!agentLoading) writeChat(chatProjectKey, agentMessages);
+  }, [agentMessages, agentLoading, chatProjectKey]);
+
+  // A reply still streaming for the previous project (or after leaving the IDE) is dropped
+  useEffect(() => () => agentAbortRef.current?.abort(), [chatProjectKey, agentAbortRef]);
 
   const handleAddContextFile = async (path: string, name?: string) => {
     if (contextFiles.some(f => f.path === path)) return;
@@ -99,32 +125,63 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
     }
   }, [agentMessages, chatScrollRef]);
 
+  const pendingReply = (): AgentMessage => ({
+    id: messageId('assistant'),
+    role: 'assistant',
+    content: '',
+    status: includeFileContext && activeTab ? `Inspecting ${activeTab.name} & generating response...` : 'Connecting to Archon Agent...',
+  });
+
   // Send Archon Agent Message (Multi-turn SSE Stream with Line-Buffer & ID-based state)
   const handleSendAgentMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || agentInput;
     if (!textToSend.trim() || agentLoading) return;
 
-    const userMsgId = `user-${Date.now()}`;
-    const assistantMsgId = `assistant-${Date.now() + 1}`;
-
-    const userMsg: AgentMessage = { id: userMsgId, role: 'user', content: textToSend };
-    const assistantMsg: AgentMessage = { 
-      id: assistantMsgId, 
-      role: 'assistant', 
-      content: '', 
-      status: includeFileContext && activeTab ? `Inspecting ${activeTab.name} & generating response...` : 'Connecting to Archon Agent...' 
-    };
+    // Record exactly which files go with this message
+    const context = [
+      ...(includeFileContext && activeTab ? [{ path: activeTab.path, name: activeTab.name }] : []),
+      ...contextFiles.filter(f => f.path !== activeTab?.path).map(f => ({ path: f.path, name: f.name })),
+    ];
+    const userMsg: AgentMessage = { id: messageId('user'), role: 'user', content: textToSend, context: context.length ? context : undefined };
+    const assistantMsg = pendingReply();
 
     const newHistory = [...agentMessages, userMsg];
     setAgentMessages(prev => [...prev, userMsg, assistantMsg]);
     setAgentInput('');
     setSuggestedFiles([]);
+    await streamReply(newHistory, assistantMsg.id);
+  };
+
+  // Ask again for the reply to the last message (same files, as they are now)
+  const handleRetryAgentMessage = (assistantMsgId: string) => {
+    if (agentLoading) return;
+    const at = agentMessages.findIndex(m => m.id === assistantMsgId);
+    const userAt = agentMessages.slice(0, at).map(m => m.role).lastIndexOf('user');
+    if (at < 0 || userAt < 0) return;
+    const history = agentMessages.slice(0, userAt + 1);
+    const assistantMsg = pendingReply();
+    setAgentMessages([...history, assistantMsg]);
+    streamReply(history, assistantMsg.id);
+  };
+
+  const handleStopAgent = () => agentAbortRef.current?.abort();
+
+  const handleNewChat = () => {
+    agentAbortRef.current?.abort();
+    setAgentMessages([WELCOME_MESSAGE]);
+  };
+
+  const streamReply = async (newHistory: AgentMessage[], assistantMsgId: string) => {
+    const controller = new AbortController();
+    agentAbortRef.current = controller;
     setAgentLoading(true);
+    let streamedResponse = '';
 
     try {
       const activeTab = openTabs.find(t => t.path === activeTabPath);
       const res = await fetch(`${apiBase}/api/agent/chat`, {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newHistory.map(m => ({ role: m.role, content: m.content })),
@@ -136,7 +193,9 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
       });
 
       if (!res.ok) {
-        setAgentMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: '❌ **Error:** Failed to connect to Agent service.', status: undefined } : m));
+        const detail = errorDetail(await res.text());
+        setAgentMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: `❌ **Error:** The agent service answered ${res.status}. ${detail}`, status: undefined } : m));
+        if (agentAbortRef.current === controller) agentAbortRef.current = null;
         setAgentLoading(false);
         return;
       }
@@ -144,7 +203,6 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let lineBuffer = '';
-      let streamedResponse = '';
 
       if (reader) {
         while (true) {
@@ -230,9 +288,15 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
           }
         }
       }
-    } catch (e) {
-      setAgentMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: '❌ **Error:** Connection lost.', status: undefined } : m));
+    } catch {
+      if (controller.signal.aborted) {
+        // Stopped by the user: keep what arrived so far
+        setAgentMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: streamedResponse, status: undefined, stopped: true } : m));
+      } else {
+        setAgentMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: `❌ **Error:** Lost the connection to the orchestrator service (${apiBase}). Retry, or check it's running.`, status: undefined } : m));
+      }
     }
+    if (agentAbortRef.current === controller) agentAbortRef.current = null;
     setAgentLoading(false);
   };
 
@@ -240,6 +304,9 @@ export function useAgentChat(ide: IdeProps & IdeStore & EditorApi) {
     handleAddContextFile,
     handleRemoveContextFile,
     handleSendAgentMessage,
+    handleRetryAgentMessage,
+    handleStopAgent,
+    handleNewChat,
   };
 }
 

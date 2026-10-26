@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ConformanceCanvas } from './ConformanceCanvas';
 import { ResizeHandle, usePanelSize } from '../ResizeHandle';
 import { errorDetail } from '@/lib/api';
+import { useCommand } from '../commandsContext';
 import archonAuditSnapshot from './archonAuditSnapshot.json';
 import {
   ConformanceAuditResult,
@@ -194,6 +195,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   };
 
   const retryAudit = () => runAudit(lastAuditRef.current.blueprintId, lastAuditRef.current.path);
+  useCommand('conformance.run', { run: () => runAudit() });
 
   useEffect(() => {
     if (auditedExternalRef.current === includeExternal) return;

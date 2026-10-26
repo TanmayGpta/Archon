@@ -8,6 +8,7 @@ import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
 import { ErrorState, Skeleton } from './StateViews';
 import { errorDetail } from '@/lib/api';
+import { useCommand } from './commandsContext';
 
 interface ArcGenStudioProps {
   apiBase: string;
@@ -351,6 +352,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE }: ArcGenStudioProps) {
       setIsGenerating(false);
     }
   };
+  useCommand('architect.generate', { run: () => { if (!isGenerating) handleGenerateArchitecture(); } });
 
   // Save to Workspace
   const handleSaveToWorkspace = async () => {

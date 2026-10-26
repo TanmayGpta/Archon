@@ -6,6 +6,7 @@ import { AskContext } from './AskContext';
 import { useAskState } from './useAskState';
 import { AskDialogs } from './AskDialogs';
 import { AskResults } from './AskResults';
+import { useCommand } from '../../components/commandsContext';
 
 /* -- Ask route: RAG over your API docs ---------------------- */
 export function AskStudio() {
@@ -35,6 +36,9 @@ export function AskStudio() {
     handleUpload,
     tabs,
   } = ask;
+
+  useCommand('ask.upload', { run: () => fileInputRef.current?.click() });
+  useCommand('ask.settings', { run: () => setShowConfigModal(true) });
 
   return (
     <AskContext.Provider value={ask}>

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icons } from '../components/Icons';
 import { ServiceStatus } from './ServiceStatus';
+import { usePaletteShortcut } from './CommandPalette';
+import { useOpenCommandPalette } from '../components/commandsContext';
 
 const APP_VERSION = 'v1.0';
 
@@ -18,6 +20,8 @@ const STUDIOS = [
 /* ── Top Universal Header & Studio Nav ─────────────────────── */
 export function StudioHeader() {
   const pathname = usePathname();
+  const openPalette = useOpenCommandPalette();
+  const shortcut = usePaletteShortcut();
 
   return (
     <header className="border-b border-line-subtle bg-canvas/95 backdrop-blur-md sticky top-0 z-50 select-none">
@@ -52,7 +56,17 @@ export function StudioHeader() {
           })}
         </nav>
 
-        <ServiceStatus appVersion={APP_VERSION} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openPalette}
+            aria-label={`Command palette (${shortcut})`}
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg border border-line bg-surface text-xs text-fg-muted hover:text-fg-soft hover:border-line-strong cursor-pointer"
+          >
+            <span>Commands</span>
+            <kbd className="font-mono text-fg-subtle">{shortcut}</kbd>
+          </button>
+          <ServiceStatus appVersion={APP_VERSION} />
+        </div>
       </div>
     </header>
   );

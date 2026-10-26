@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { Icons } from '../../components/Icons';
 import { FormattedMarkdown } from '../../components/markdown/FormattedMarkdown';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
@@ -13,6 +13,10 @@ export function AgentChat() {
     activeTab,
     agentEdits,
     agentInput,
+    agentInputRef,
+    handleNewChat,
+    handleRetryAgentMessage,
+    handleStopAgent,
     agentLoading,
     agentMessages,
     apiBase,
@@ -36,7 +40,6 @@ export function AgentChat() {
     setActiveFlowSequence,
     setActiveFlowSteps,
     setAgentInput,
-    setAgentMessages,
     setAutoApplyEdits,
     setIncludeFileContext,
     setIsDraggingOverChat,
@@ -47,6 +50,17 @@ export function AgentChat() {
     setSuggestedFiles,
     suggestedFiles,
   } = useIde();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const lastReplyId = [...agentMessages].reverse().find(m => m.role === 'assistant')?.id;
+  const copyMessage = async (id: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(c => (c === id ? null : c)), 1500);
+    } catch {
+      // clipboard blocked: nothing to show
+    }
+  };
   const panel = usePanelSize('ide.chat', { initial: 380, min: 300, max: 760 });
 
   return (
@@ -94,7 +108,7 @@ export function AgentChat() {
             </button>
 
             <button
-              onClick={() => setAgentMessages([{ id: 'cleared', role: 'assistant', content: "Chat history cleared. How can I help you?" }])}
+              onClick={handleNewChat}
               title="Clear Chat History" aria-label="Clear Chat History"
               className="text-fg-subtle hover:text-fg-soft text-xs font-mono p-1 rounded hover:bg-overlay cursor-pointer flex-shrink-0"
             >
@@ -184,6 +198,29 @@ export function AgentChat() {
                   </span>
                 )}
 
+                <span className="flex items-center gap-1 ml-auto mr-2 font-normal">
+                  {msg.stopped && <span className="text-warning-fg">Stopped</span>}
+                  {!msg.status && msg.content && msg.id !== 'welcome' && (
+                    <button
+                      onClick={() => copyMessage(msg.id, msg.content)}
+                      aria-label="Copy message"
+                      title="Copy message"
+                      className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
+                    >
+                      {copiedId === msg.id ? 'Copied' : <Icons.Copy />}
+                    </button>
+                  )}
+                  {msg.role === 'assistant' && msg.id === lastReplyId && msg.id !== 'welcome' && !agentLoading && (
+                    <button
+                      onClick={() => handleRetryAgentMessage(msg.id)}
+                      aria-label="Retry reply"
+                      title="Ask again"
+                      className="px-1.5 py-0.5 rounded text-fg-subtle hover:text-fg-soft hover:bg-overlay cursor-pointer"
+                    >
+                      <Icons.Refresh />
+                    </button>
+                  )}
+                </span>
                 {msg.status ? (
                   <span className="text-xs text-accent-fg font-mono flex items-center gap-1.5 animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-accent-fg" />
@@ -282,6 +319,16 @@ export function AgentChat() {
                 </div>
               )}
 
+              {msg.context && msg.context.length > 0 && (
+                <div className="mb-2 flex flex-wrap items-center gap-1 text-xs font-normal" aria-label="Files sent with this message">
+                  <span className="text-fg-subtle">Sent with</span>
+                  {msg.context.map(f => (
+                    <span key={f.path} title={f.path} className="px-1.5 py-0.5 rounded border border-accent/25 bg-accent/10 text-accent-fg">
+                      {f.name}
+                    </span>
+                  ))}
+                </div>
+              )}
               {msg.content ? (
                 <FormattedMarkdown
                   content={msg.content}
@@ -295,6 +342,8 @@ export function AgentChat() {
                   <div className="w-3.5 h-3.5 border-2 border-line border-t-accent-fg rounded-full animate-spin flex-shrink-0" />
                   <span>{msg.status}</span>
                 </div>
+              ) : msg.stopped ? (
+                <p className="text-sm text-fg-subtle">Stopped before the agent replied. Use Retry to ask again.</p>
               ) : null}
             </div>
           ))}
@@ -366,6 +415,7 @@ export function AgentChat() {
               isDraggingOver={isDraggingOverChat}
             />
             <textarea
+              ref={agentInputRef}
               value={agentInput}
               onChange={(e) => setAgentInput(e.target.value)}
               onKeyDown={(e) => {
@@ -402,6 +452,15 @@ export function AgentChat() {
                 </button>
               </div>
 
+              {agentLoading ? (
+              <button
+                onClick={handleStopAgent}
+                className="flex-shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer bg-danger/15 text-danger-fg border border-danger/40 hover:bg-danger/25"
+              >
+                <span className="w-2 h-2 bg-current rounded-[1px]" />
+                <span>Stop</span>
+              </button>
+              ) : (
               <button
                 onClick={() => handleSendAgentMessage()}
                 disabled={!agentInput.trim() || agentLoading}
@@ -414,6 +473,7 @@ export function AgentChat() {
                 <span>Send</span>
                 <span className="text-xs opacity-75">↵</span>
               </button>
+              )}
             </div>
           </div>
         </div>

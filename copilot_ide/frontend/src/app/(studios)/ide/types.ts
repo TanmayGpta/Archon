@@ -28,6 +28,10 @@ export interface AgentMessage {
   status?: string;
   flowSequence?: string[];
   flowSteps?: FlowStep[];
+  /** Files sent with a user message: the open file (if included) and attached context files */
+  context?: { path: string; name: string }[];
+  /** The reply was stopped before it finished */
+  stopped?: boolean;
 }
 
 /* -- Agent edits: proposed for review, or applied and logged so they can be reverted - */

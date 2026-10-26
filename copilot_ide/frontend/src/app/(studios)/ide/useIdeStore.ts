@@ -6,6 +6,7 @@ import type { ContextFileItem, SuggestedFileItem } from '../../components/Contex
 import type { TreeNode } from './FileTree';
 import type { EditorState } from '@codemirror/state';
 import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit } from './types';
+import { WELCOME_MESSAGE } from './chatHistory';
 
 /* -- All IDE state in one place; the action hooks and panels read it through IdeContext - */
 export function useIdeStore() {
@@ -99,13 +100,11 @@ export function useIdeStore() {
 
   // Archon Agent Multi-Turn Chat & Auto-Apply State
   const [autoApplyEdits, setAutoApplyEdits] = useState<boolean>(false);
-  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Ask for a change, or drag files here to add context."
-    }
-  ]);
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([WELCOME_MESSAGE]);
+  // Project whose saved conversation is loaded ('' = none yet)
+  const [chatProjectKey, setChatProjectKey] = useState('');
+  const agentAbortRef = useRef<AbortController | null>(null);
+  const agentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [agentInput, setAgentInput] = useState('');
   const [agentLoading, setAgentLoading] = useState(false);
@@ -233,6 +232,10 @@ export function useIdeStore() {
     setAutoApplyEdits,
     agentMessages,
     setAgentMessages,
+    chatProjectKey,
+    setChatProjectKey,
+    agentAbortRef,
+    agentInputRef,
     agentInput,
     setAgentInput,
     agentLoading,
