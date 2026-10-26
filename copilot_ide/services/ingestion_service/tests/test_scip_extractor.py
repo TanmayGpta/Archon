@@ -81,8 +81,16 @@ class TestNestedSymbols(unittest.TestCase):
                        "relationship": "CONTAINS"}, self.edges)
 
     def test_route_inside_except_block_is_an_endpoint(self):
-        self.assertIn("endpoint:GET /status", ids(self.nodes))
+        self.assertIn("endpoint:pkg/mod.py:GET /status", ids(self.nodes))
         self.assertIn("func:pkg/mod.py:status", ids(self.nodes))
+
+    def test_same_route_in_two_services_stays_two_endpoints(self):
+        graph = SCIPExtractor().index_codebase([
+            {"path": "svc_a/main.py", "content": NESTED},
+            {"path": "svc_b/main.py", "content": NESTED},
+        ])["graph"]
+        status = [n for n in graph["nodes"] if n["kind"] == "endpoint" and n["label"] == "GET /status"]
+        self.assertEqual(sorted(n["file_path"] for n in status), ["svc_a/main.py", "svc_b/main.py"])
 
     def test_calls_belong_to_the_innermost_function(self):
         self.assertIn("func:helper", calls_from(self.edges, "func:pkg/mod.py:outer.<locals>.inner"))

@@ -342,7 +342,7 @@ class SCIPExtractor:
 
         if api_route_info:
             http_verb, route_path = api_route_info
-            endpoint_id = f"endpoint:{http_verb} {route_path}"
+            endpoint_id = f"endpoint:{rel_path}:{http_verb} {route_path}"
             endpoint_node = {
                 "id": endpoint_id,
                 "label": f"{http_verb} {route_path}",
@@ -481,7 +481,7 @@ class SCIPExtractor:
             ids = [w for w in re.findall(r'[a-zA-Z0-9_$]+', handlers_raw) if w not in ['async', 'req', 'res', 'next']]
             handler = ids[-1] if ids else "handler"
             line_no = content[:m.start()].count('\n') + 1
-            endpoint_id = f"endpoint:{verb} {route_path}"
+            endpoint_id = f"endpoint:{rel_path}:{verb} {route_path}"
             nodes.append({
                 "id": endpoint_id,
                 "label": f"{verb} {route_path}",
@@ -531,7 +531,7 @@ class SCIPExtractor:
             line_no = content[:m.start()].count('\n') + 1
             # In Next.js, file path indicates route e.g. app/api/auth/route.ts
             route_path = "/" + rel_path.replace("\\", "/").replace("/route.ts", "").replace("/route.js", "").replace("src/app", "").replace("app", "")
-            endpoint_id = f"endpoint:{verb} {route_path}"
+            endpoint_id = f"endpoint:{rel_path}:{verb} {route_path}"
             nodes.append({
                 "id": endpoint_id,
                 "label": f"{verb} {route_path}",
