@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog } from './Dialog';
 import { errorMessage } from '@/lib/api';
+import { githubAuth, githubFetch, type GitHubAuth } from '@/lib/github';
+import { forgetGitHubToken, saveGitHubToken } from '@/lib/runner';
+import { useRunner } from './useRunner';
 
 export interface GitHubRepoInfo {
   owner: string;
@@ -19,6 +22,9 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   apiBase: string;
+  /** Token typed earlier this session (memory only) */
+  sessionToken: string;
+  /** `token` is what to keep in memory for this tab: '' when the runner holds it */
   onOpenRepo: (info: GitHubRepoInfo, branch: string, tree: any[], token: string) => void;
   onForkNeeded?: (info: GitHubRepoInfo, token: string) => void;
 }
@@ -27,26 +33,32 @@ export default function GitHubOpenModal({
   isOpen,
   onClose,
   apiBase,
+  sessionToken,
   onOpenRepo,
   onForkNeeded
 }: Props) {
   const [repoUrl, setRepoUrl] = useState('');
-  const [token, setToken] = useState('');
-  const [rememberToken, setRememberToken] = useState(true);
+  const [token, setToken] = useState(sessionToken);
+  const [seenSessionToken, setSeenSessionToken] = useState(sessionToken);
+  if (seenSessionToken !== sessionToken) {
+    setSeenSessionToken(sessionToken);
+    setToken(sessionToken);
+  }
+  // With the runner: keep a new token there (OS keychain) instead of only in this tab
+  const [keepInRunner, setKeepInRunner] = useState(true);
+  const [replacingToken, setReplacingToken] = useState(false);
+  const runner = useRunner();
+  const live = runner.status === 'online' ? runner.info : null;
+  const signedInAs = live?.github.connected ? live.github.login ?? 'GitHub' : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedToken = localStorage.getItem('archon_github_token') || '';
-      if (savedToken) setToken(savedToken);
-
-      try {
-        const recents = JSON.parse(localStorage.getItem('archon_recent_repos') || '[]');
-        if (Array.isArray(recents)) setRecentRepos(recents);
-      } catch {}
-    }
+    try {
+      const recents = JSON.parse(localStorage.getItem('archon_recent_repos') || '[]');
+      if (Array.isArray(recents)) setRecentRepos(recents);
+    } catch {}
   }, []);
 
   if (!isOpen) return null;
@@ -59,18 +71,19 @@ export default function GitHubOpenModal({
     setError(null);
 
     try {
-      if (rememberToken && token.trim()) {
-        localStorage.setItem('archon_github_token', token.trim());
+      const typed = signedInAs && !replacingToken ? '' : token.trim();
+      // What to keep in memory for this tab ('' when the runner holds the token)
+      let keep = typed;
+      let auth: GitHubAuth = githubAuth(typed, runner);
+      if (typed && live && keepInRunner) {
+        await saveGitHubToken(typed); // GitHub checks it first; a bad token stops here
+        keep = '';
+        auth = { token: '', viaRunner: true };
+        setToken('');
+        setReplacingToken(false);
       }
 
-      const res = await fetch(`${apiBase}/api/github/open-repo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repo_url: repoUrl.trim(),
-          token: token.trim() || undefined
-        })
-      });
+      const res = await githubFetch('openRepo', apiBase, auth, { body: { repo_url: repoUrl.trim() } });
 
       if (!res.ok) {
         const errText = await res.text();
@@ -89,14 +102,23 @@ export default function GitHubOpenModal({
 
       // Check if user has write access
       if (!repoInfo.can_push && onForkNeeded) {
-        onForkNeeded(repoInfo, token.trim());
+        onForkNeeded(repoInfo, keep);
       } else {
-        onOpenRepo(repoInfo, data.branch, data.tree, token.trim());
+        onOpenRepo(repoInfo, data.branch, data.tree, keep);
       }
     } catch (err) {
       setError(errorMessage(err) || 'Error opening repository');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    setError(null);
+    try {
+      await forgetGitHubToken();
+    } catch (err) {
+      setError(errorMessage(err));
     }
   };
 
@@ -144,30 +166,67 @@ export default function GitHubOpenModal({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-mono text-slate-300">
-                Personal Access Token (PAT):
-              </label>
-              <span className="text-xs text-slate-500">Optional for public repos</span>
+          {signedInAs && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-panel bg-raised border border-line text-xs">
+              <span className="text-slate-300">
+                Signed in as <span className="font-mono text-white">@{signedInAs}</span>
+                <span className="block text-slate-500 mt-0.5">The token is kept by the local runner; this page never sees it.</span>
+              </span>
+              <span className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setReplacingToken(r => !r)}
+                  aria-pressed={replacingToken}
+                  className="px-2.5 py-1 rounded-control bg-overlay hover:bg-selected border border-line-strong text-slate-300 cursor-pointer"
+                >
+                  {replacingToken ? 'Keep this one' : 'Use another token'}
+                </button>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="px-2.5 py-1 rounded-control bg-overlay hover:bg-selected border border-line-strong text-slate-300 cursor-pointer"
+                >
+                  Sign out
+                </button>
+              </span>
             </div>
-            <input
-              type="password"
-              placeholder="ghp_... (needed for private repos or committing)"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              className="h-9 bg-raised border border-line-strong rounded-control px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
-            />
-            <label className="flex items-center gap-2 text-xs text-slate-400 mt-1 cursor-pointer">
+          )}
+
+          {(!signedInAs || replacingToken) && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="github-token" className="text-xs font-mono text-slate-300">
+                  Personal Access Token (PAT):
+                </label>
+                <span className="text-xs text-slate-500">Optional for public repos</span>
+              </div>
               <input
-                type="checkbox"
-                checked={rememberToken}
-                onChange={(e) => setRememberToken(e.target.checked)}
-                className="rounded-control border-line-strong text-cyan-500 focus:ring-0"
+                id="github-token"
+                type="password"
+                autoComplete="off"
+                placeholder="ghp_... (needed for private repos or committing)"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                className="h-9 bg-raised border border-line-strong rounded-control px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
               />
-              <span>Remember token in local browser storage</span>
-            </label>
-          </div>
+              {live ? (
+                <label className="flex items-center gap-2 text-xs text-slate-400 mt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keepInRunner}
+                    onChange={(e) => setKeepInRunner(e.target.checked)}
+                    className="rounded-control border-line-strong text-cyan-500 focus:ring-0"
+                  />
+                  <span>Keep it in the local runner (your OS keychain), not in this browser</span>
+                </label>
+              ) : (
+                <p className="text-xs text-slate-500 mt-1">
+                  Kept in this tab until you reload. To keep it between visits without storing it in the browser,
+                  run <code className="font-mono text-slate-300">archon</code> on your machine.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Recent Repos */}
           {recentRepos.length > 0 && (

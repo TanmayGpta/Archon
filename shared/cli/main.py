@@ -315,11 +315,17 @@ def resolve_ruleset_path(rules_arg: Optional[str]) -> str:
 
 
 # ── Click CLI Group ───────────────────────────────────────────────────────────
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version="1.0.0", prog_name="archon")
-def cli():
-    """🏛️ Archon - Architecture Generation & Continuous Conformance Governance CLI"""
-    pass
+@click.pass_context
+def cli(ctx):
+    """🏛️ Archon - Architecture Generation & Continuous Conformance Governance CLI
+
+    Run `archon` on its own in a project folder to start the local runner:
+    the IDE then gets a real terminal in that folder.
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(runner_command)
 
 
 @cli.command("check")
@@ -509,6 +515,36 @@ def generate_command(srs: str, out: str):
     click.echo(f"🤖 Multi-agent generation pipeline (Analyst -> Architect -> Evaluator)...")
     click.secho(f"ℹ️  Generation integration endpoint linked to generation/ pipeline.", fg="yellow")
     click.echo(f"Target output: {out}\n")
+
+
+@cli.command("runner")
+@click.option("--port", "-p", default=7337, show_default=True, help="Port on 127.0.0.1 the IDE connects to.")
+@click.option("--ui-url", default=lambda: os.environ.get("ARCHON_UI_URL", "http://localhost:3000"), show_default="http://localhost:3000", help="Where the IDE runs; its origin is the only one allowed in.")
+@click.option("--api-url", default=lambda: os.environ.get("ARCHON_API_URL", "http://localhost:8000"), show_default="http://localhost:8000", help="Orchestrator that GitHub calls are forwarded to.")
+@click.option("--allow-origin", multiple=True, help="Another browser origin to allow (repeatable).")
+@click.option("--shell", "shell", default=None, help="Shell to start, e.g. bash or pwsh (default: your usual shell).")
+@click.option("--no-browser", is_flag=True, help="Don't open the IDE.")
+def runner_command(port: int, ui_url: str, api_url: str, allow_origin: tuple, shell: Optional[str], no_browser: bool):
+    """Start the local runner: a real terminal and the GitHub token for the IDE."""
+    try:
+        from shared.runner import RunnerConfig, origins_for, serve
+        from shared.runner.pty_session import default_shell
+    except ImportError as e:
+        click.secho(f"The runner needs extra packages ({e.name}). Install them with:", fg="red")
+        click.echo('  pip install -e ".[runner]"')
+        sys.exit(1)
+
+    config = RunnerConfig(
+        cwd=os.getcwd(),
+        api_url=api_url,
+        allowed_origins=origins_for(ui_url, list(allow_origin)),
+        shell=shell.split() if shell else default_shell(),
+    )
+    try:
+        serve(config, port=port, open_url=None if no_browser else f"{ui_url.rstrip('/')}/ide", echo=click.echo)
+    except OSError:
+        click.secho(f"Port {port} is in use. Is another archon runner open? Stop it, or pass --port.", fg="red")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

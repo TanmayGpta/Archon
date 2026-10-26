@@ -7,6 +7,7 @@ import type { TreeNode } from './FileTree';
 import type { EditorState } from '@codemirror/state';
 import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit } from './types';
 import { WELCOME_MESSAGE } from './chatHistory';
+import { useGitHubAuth } from '../../components/useRunner';
 
 /* -- All IDE state in one place; the action hooks and panels read it through IdeContext - */
 export function useIdeStore() {
@@ -28,7 +29,9 @@ export function useIdeStore() {
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showAutoForkModal, setShowAutoForkModal] = useState(false);
   const [githubRepoInfo, setGithubRepoInfo] = useState<GitHubRepoInfo | null>(null);
+  // A token typed this session; kept in memory only. The local runner keeps one between visits.
   const [githubToken, setGithubToken] = useState('');
+  const githubAuth = useGitHubAuth(githubToken);
   const [isGitHubWorkspace, setIsGitHubWorkspace] = useState(false);
   const [currentGitHubBranch, setCurrentGitHubBranch] = useState('main');
   const [remoteFileShas, setRemoteFileShas] = useState<Record<string, string>>({});
@@ -154,6 +157,7 @@ export function useIdeStore() {
     setGithubRepoInfo,
     githubToken,
     setGithubToken,
+    githubAuth,
     isGitHubWorkspace,
     setIsGitHubWorkspace,
     currentGitHubBranch,

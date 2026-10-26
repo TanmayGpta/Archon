@@ -3,6 +3,7 @@ import React from 'react';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import { parseDiffBlocks, applyDiffBlocks } from '@/lib/diff';
 import { errorDetail, errorMessage } from '@/lib/api';
+import { githubFetch } from '@/lib/github';
 import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { PendingEdit } from './types';
@@ -18,8 +19,8 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     currentGitHubBranch,
     editorContent,
     editorStates,
+    githubAuth,
     githubRepoInfo,
-    githubToken,
     isGitHubWorkspace,
     openTabs,
     remoteFileShas,
@@ -51,8 +52,9 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     // Remote GitHub Workspace file fetch
     if (isGitHubWorkspace && githubRepoInfo) {
       try {
-        const url = `${apiBase}/api/github/file?owner=${githubRepoInfo.owner}&repo=${githubRepoInfo.repo}&path=${encodeURIComponent(path)}&branch=${currentGitHubBranch}${githubToken ? `&token=${encodeURIComponent(githubToken)}` : ''}`;
-        const res = await fetch(url);
+        const res = await githubFetch('file', apiBase, githubAuth, {
+          query: { owner: githubRepoInfo.owner, repo: githubRepoInfo.repo, path, branch: currentGitHubBranch },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.sha) {
@@ -185,10 +187,8 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     if (isGitHubWorkspace && githubRepoInfo) {
       setSaveStatus('Committing to GitHub...');
       try {
-        const res = await fetch(`${apiBase}/api/github/save`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const res = await githubFetch('save', apiBase, githubAuth, {
+          body: {
             owner: githubRepoInfo.owner,
             repo: githubRepoInfo.repo,
             path: activeTabPath,
@@ -196,8 +196,7 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
             commit_message: `Update ${activeTabPath} via Archon Copilot`,
             branch: currentGitHubBranch,
             sha: remoteFileShas[activeTabPath] || undefined,
-            token: githubToken || undefined
-          })
+          },
         });
 
         if (res.ok) {

@@ -5,6 +5,7 @@ import { Glyph, type GlyphName } from './Icons';
 import { Dialog } from './Dialog';
 import { KnowledgeGraphData } from './CodeKnowledgeGraph';
 import { errorMessage } from '@/lib/api';
+import { githubFetch, NO_GITHUB_AUTH, type GitHubAuth } from '@/lib/github';
 
 interface IndexResult {
   status: string;
@@ -29,7 +30,7 @@ interface Props {
   workspacePath?: string;
   isGitHubWorkspace?: boolean;
   githubRepoInfo?: any;
-  githubToken?: string;
+  githubAuth?: GitHubAuth;
   currentGitHubBranch?: string;
   onIndexingComplete?: (data: KnowledgeGraphData) => void;
   onOpenGraph?: () => void;
@@ -44,7 +45,7 @@ export default function SourcegraphIndexDrawer({
   workspacePath,
   isGitHubWorkspace,
   githubRepoInfo,
-  githubToken,
+  githubAuth = NO_GITHUB_AUTH,
   currentGitHubBranch,
   onIndexingComplete,
   onOpenGraph,
@@ -83,14 +84,9 @@ export default function SourcegraphIndexDrawer({
         github_owner: githubRepoInfo?.owner || null,
         github_repo: githubRepoInfo?.repo || null,
         github_branch: currentGitHubBranch || 'main',
-        github_token: githubToken || null
       };
 
-      const res = await fetch(`${apiBase}/api/workspace/index-codebase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
-      });
+      const res = await githubFetch('index', apiBase, githubAuth, { body: bodyPayload });
 
       if (!res.ok) {
         const err = await res.text();

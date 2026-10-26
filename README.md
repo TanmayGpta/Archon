@@ -85,6 +85,21 @@ docker compose up -d
 # Evaluation Benchmark Service: http://localhost:8003
 ```
 
+#### Real terminal and GitHub sign-in: `archon`
+The IDE's terminal runs in your own shell on your own machine through a small local runner. Start it from the folder you want the terminal to open in:
+```bash
+pip install -e ".[runner]"   # once
+cd path/to/your/project
+archon                       # same as `archon runner`; Ctrl+C stops it
+```
+It listens on `127.0.0.1:7337` and opens the IDE. Interactive programs (`python`, `htop`, `vim`), colours and Ctrl+C all work. Each terminal tab is a separate shell.
+
+The runner also keeps your GitHub token in the OS keychain (`~/.archon/credentials.json` when no keychain is available). The browser never stores or reads the token. GitHub calls from the IDE go through the runner, which adds the token.
+
+Only the IDE's origin can talk to the runner. To use other ports, run `archon runner --port`, `--ui-url` or `--api-url`, and set `NEXT_PUBLIC_RUNNER_URL` for the UI.
+
+Without the runner, the IDE still works. The terminal falls back to a basic one-command-at-a-time shell in the container, and a token you enter is kept only until the tab reloads.
+
 
 ## Status
 

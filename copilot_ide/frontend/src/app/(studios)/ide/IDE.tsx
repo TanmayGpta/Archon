@@ -9,6 +9,9 @@ import GitHubOpenModal from '../../components/GitHubOpenModal';
 import AutoForkPromptModal from '../../components/AutoForkPromptModal';
 import { useModels } from '../ModelsContext';
 import { API_BASE } from '@/lib/api';
+import { githubFetch } from '@/lib/github';
+import { saveGitHubToken, takeLegacyToken } from '@/lib/runner';
+import { useRunner } from '../../components/useRunner';
 import { IdeContext, Ide, IdeProps } from './IdeContext';
 import { useIdeStore } from './useIdeStore';
 import { useApiKeys } from './useApiKeys';
@@ -44,6 +47,7 @@ function VSCodeAgentIDE(props: IdeProps) {
     cursorPos,
     gitBranch,
     githubRepoInfo,
+    githubAuth,
     githubToken,
     handleOpenFile,
     isGitHubWorkspace,
@@ -91,6 +95,18 @@ function VSCodeAgentIDE(props: IdeProps) {
     if (!deepLinkDone.current || isGitHubWorkspace) return;
     replaceQuery({ project: currentProjectPath || undefined, file: activeTabPath || undefined });
   }, [currentProjectPath, activeTabPath, isGitHubWorkspace]);
+
+  // A token older versions left in localStorage: give it to the runner, or keep it in memory for this tab
+  const runner = useRunner();
+  const legacyTokenDone = useRef(false);
+  useEffect(() => {
+    if (legacyTokenDone.current || runner.status === 'checking') return;
+    legacyTokenDone.current = true;
+    const legacy = takeLegacyToken();
+    if (!legacy || (runner.status === 'online' && runner.info.github.connected)) return;
+    const keep = runner.status === 'online' ? saveGitHubToken(legacy) : Promise.reject();
+    keep.catch(() => setGithubToken(legacy));
+  }, [runner, setGithubToken]);
 
   useCommand('workspace.openFolder', { run: () => ide.setShowOpenProjectModal(true) });
   useCommand('workspace.openGitHub', { run: () => setShowGitHubModal(true) });
@@ -160,7 +176,7 @@ function VSCodeAgentIDE(props: IdeProps) {
         workspacePath={currentProjectPath}
         isGitHubWorkspace={isGitHubWorkspace}
         githubRepoInfo={githubRepoInfo}
-        githubToken={githubToken}
+        githubAuth={githubAuth}
         currentGitHubBranch={currentGitHubBranch}
         onIndexingComplete={(data) => {
           setKnowledgeGraphData(data);
@@ -190,6 +206,7 @@ function VSCodeAgentIDE(props: IdeProps) {
         isOpen={showGitHubModal}
         onClose={() => setShowGitHubModal(false)}
         apiBase={apiBase}
+        sessionToken={githubToken}
         onOpenRepo={(info, branch, tree, token) => {
           setGithubRepoInfo(info);
           setGithubToken(token);
@@ -214,18 +231,12 @@ function VSCodeAgentIDE(props: IdeProps) {
         isOpen={showAutoForkModal}
         onClose={() => setShowAutoForkModal(false)}
         repoInfo={githubRepoInfo}
-        token={githubToken}
+        auth={githubAuth}
         apiBase={apiBase}
         onForkSuccess={async (forkOwner, forkRepo, defaultBranch) => {
           try {
-            const res = await fetch(`${apiBase}/api/github/open-repo`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                repo_url: `${forkOwner}/${forkRepo}`,
-                token: githubToken,
-                branch: defaultBranch
-              })
+            const res = await githubFetch('openRepo', apiBase, githubAuth, {
+              body: { repo_url: `${forkOwner}/${forkRepo}`, branch: defaultBranch },
             });
             if (res.ok) {
               const data = await res.json();
@@ -246,14 +257,8 @@ function VSCodeAgentIDE(props: IdeProps) {
         onContinueReadOnly={async () => {
           if (githubRepoInfo) {
             try {
-              const res = await fetch(`${apiBase}/api/github/open-repo`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  repo_url: githubRepoInfo.full_name,
-                  token: githubToken || undefined,
-                  branch: githubRepoInfo.default_branch
-                })
+              const res = await githubFetch('openRepo', apiBase, githubAuth, {
+                body: { repo_url: githubRepoInfo.full_name, branch: githubRepoInfo.default_branch },
               });
               if (res.ok) {
                 const data = await res.json();

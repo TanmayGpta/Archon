@@ -21,8 +21,16 @@ dependencies = [
     "streamlit>=1.38.0"
 ]
 
+[project.optional-dependencies]
+# `archon` with no arguments: local terminal + GitHub token store for the IDE
+runner = [
+    "aiohttp>=3.9",
+    "keyring>=24",
+    "pywinpty>=2.0; sys_platform == 'win32'"
+]
+
 [project.scripts]
 archon = "shared.cli.main:cli"
 
 [tool.setuptools]
-packages = ["shared", "shared.cli", "conformance", "generation"]
+packages = ["shared", "shared.cli", "shared.runner", "conformance", "generation"]

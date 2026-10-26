@@ -18,6 +18,13 @@ archon check
 archon check "C:\path\to\YourProject" -b mvc
 
 
+# Start the local runner for the IDE (real terminal in this folder + GitHub token):
+archon
+# Same, with options (port, UI/API URLs, shell, no browser):
+archon runner --port 7337 --shell bash --no-browser
+# Needs: pip install -e ".[runner]"
+
+
 2. VIEW HELP & OPTIONS
 --------------------------------------------------------------------------------
 # General CLI help:

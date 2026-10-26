@@ -5,12 +5,13 @@ import { Glyph } from './Icons';
 import { Dialog } from './Dialog';
 import { GitHubRepoInfo } from './GitHubOpenModal';
 import { errorMessage } from '@/lib/api';
+import { githubFetch, hasGitHubToken, type GitHubAuth } from '@/lib/github';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   repoInfo: GitHubRepoInfo | null;
-  token: string;
+  auth: GitHubAuth;
   apiBase: string;
   onForkSuccess: (forkOwner: string, forkRepo: string, defaultBranch: string) => void;
   onContinueReadOnly: () => void;
@@ -20,7 +21,7 @@ export default function AutoForkPromptModal({
   isOpen,
   onClose,
   repoInfo,
-  token,
+  auth,
   apiBase,
   onForkSuccess,
   onContinueReadOnly
@@ -31,7 +32,7 @@ export default function AutoForkPromptModal({
   if (!isOpen || !repoInfo) return null;
 
   const handleFork = async () => {
-    if (!token.trim()) {
+    if (!hasGitHubToken(auth)) {
       setError('A GitHub Personal Access Token (PAT) is required to fork this repository.');
       return;
     }
@@ -40,15 +41,7 @@ export default function AutoForkPromptModal({
     setError(null);
 
     try {
-      const res = await fetch(`${apiBase}/api/github/fork`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner: repoInfo.owner,
-          repo: repoInfo.repo,
-          token: token.trim()
-        })
-      });
+      const res = await githubFetch('fork', apiBase, auth, { body: { owner: repoInfo.owner, repo: repoInfo.repo } });
 
       if (!res.ok) {
         const errText = await res.text();
