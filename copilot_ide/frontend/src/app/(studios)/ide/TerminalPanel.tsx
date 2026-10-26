@@ -2,6 +2,7 @@
 import React from 'react';
 import { Icons } from '../../components/Icons';
 import { useIde } from './IdeContext';
+import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 
 /* -- Bottom panel: terminals, output, diagnostics - */
 export function TerminalPanel() {
@@ -33,12 +34,24 @@ export function TerminalPanel() {
     terminalCopied,
     terminals,
   } = useIde();
+  const panel = usePanelSize('ide.terminal', { initial: 180, min: 90, max: 1200 });
 
   return (
     <>
       {/* ── Interactive Multi-Tab Terminal & Diagnostics Panel ── */}
       {showBottomPanel && (
-        <div className="h-[180px] bg-canvas border-t border-line-subtle flex flex-col flex-shrink-0">
+        <ResizeHandle
+          edge="top"
+          label="Resize terminal"
+          size={panel.size}
+          min={90}
+          max={handle => (handle.parentElement?.clientHeight ?? 600) - 120}
+          onResize={panel.setSize}
+          onReset={panel.reset}
+        />
+      )}
+      {showBottomPanel && (
+        <div style={{ height: panel.size }} className="bg-canvas border-t border-line-subtle flex flex-col flex-shrink-0">
           
           {/* Bottom Tab Bar with + New Terminal & Copy Button */}
           <div className="flex justify-between items-center px-3 py-1 bg-canvas border-b border-line-subtle text-xs font-mono select-none">

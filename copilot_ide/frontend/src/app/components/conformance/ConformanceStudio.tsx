@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ConformanceCanvas } from './ConformanceCanvas';
+import { ResizeHandle, usePanelSize } from '../ResizeHandle';
 import archonAuditSnapshot from './archonAuditSnapshot.json';
 import {
   ConformanceAuditResult,
@@ -132,6 +133,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
   // Left rail collapse
   const [isRailOpen, setIsRailOpen] = useState<boolean>(true);
+  const railPanel = usePanelSize('conformance.rail', { initial: 256, min: 200, max: 480 });
+  const dossierPanel = usePanelSize('conformance.dossier', { initial: 320, min: 260, max: 640 });
   const [introActive, setIntroActive] = useState<boolean>(true);
 
   // Fetch / Run Audit
@@ -415,7 +418,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
       <div className="relative flex-1 flex overflow-hidden">
         {/* ── LEFT RAIL: FILTERS & PRESETS ─────────────────────────── */}
         {isRailOpen && (
-          <aside className="w-64 bg-[#0e0e0d]/95 border-r border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
+          <aside style={{ width: railPanel.size }} className="bg-[#0e0e0d]/95 border-r border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
             <div className="p-4 space-y-5">
               {/* Layer Filters */}
               <div>
@@ -506,9 +509,21 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             </div>
           </aside>
         )}
+        {isRailOpen && !introActive && (
+          <ResizeHandle
+            edge="right"
+            tone="conformance"
+            label="Resize filters panel"
+            size={railPanel.size}
+            min={200}
+            max={() => Math.min(480, window.innerWidth * 0.3)}
+            onResize={railPanel.setSize}
+            onReset={railPanel.reset}
+          />
+        )}
 
         {/* ── CANVAS ENGINE (FULL BLEED) ───────────────────────────── */}
-        <div className="relative flex-1 h-full bg-[#080808]">
+        <div className="relative flex-1 min-w-0 h-full bg-[#080808]">
           <ConformanceCanvas
             nodes={auditData?.nodes || []}
             edges={auditData?.edges || []}
@@ -626,8 +641,20 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           </div>
         </div>
 
+        {!introActive && (
+          <ResizeHandle
+            edge="left"
+            tone="conformance"
+            label="Resize dossier panel"
+            size={dossierPanel.size}
+            min={260}
+            max={() => Math.min(640, window.innerWidth * 0.4)}
+            onResize={dossierPanel.setSize}
+            onReset={dossierPanel.reset}
+          />
+        )}
         {/* ── RIGHT DOSSIER: INTELLIGENCE PANEL (#dossier) ─────────── */}
-        <aside className="w-80 bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
+        <aside style={{ width: dossierPanel.size }} className="bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
           {selectedNode ? (
             /* Selected Module Dossier */
             <div className="p-4 space-y-4">

@@ -5,6 +5,7 @@ import { FormattedMarkdown } from '../../components/markdown/FormattedMarkdown';
 import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import ContextFileChips from '../../components/ContextFileChips';
 import { useIde } from './IdeContext';
+import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 
 /* -- Agent chat panel - */
 export function AgentChat() {
@@ -46,11 +47,21 @@ export function AgentChat() {
     setSuggestedFiles,
     suggestedFiles,
   } = useIde();
+  const panel = usePanelSize('ide.chat', { initial: 380, min: 300, max: 760 });
 
   return (
     <>
-      {/* ── 4. Archon Agent Chat Panel (Right, 380px) ───────────── */}
-      <div className="w-[380px] bg-surface border-l border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
+      <ResizeHandle
+        edge="left"
+        label="Resize agent chat"
+        size={panel.size}
+        min={300}
+        max={() => Math.min(760, window.innerWidth * 0.5)}
+        onResize={panel.setSize}
+        onReset={panel.reset}
+      />
+      {/* ── 4. Archon Agent Chat Panel (Right, resizable) ─────────── */}
+      <div style={{ width: panel.size }} className="bg-surface border-l border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
         
         <div className="px-3 py-2 border-b border-line-subtle bg-canvas flex justify-between items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">

@@ -3,6 +3,7 @@ import React from 'react';
 import { Icons } from '../../components/Icons';
 import { FileTree } from './FileTree';
 import { useIde } from './IdeContext';
+import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -32,6 +33,7 @@ export function Sidebar() {
     setShowQuickOpen,
     workspaceTree,
   } = useIde();
+  const panel = usePanelSize('ide.sidebar', { initial: 260, min: 180, max: 560 });
 
   return (
     <>
@@ -93,8 +95,8 @@ export function Sidebar() {
       </div>
 
 
-      {/* ── 2. Sidebar (Explorer / Search, 260px) ────────────────── */}
-      <div className="w-[260px] bg-surface border-r border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
+      {/* ── 2. Sidebar (Explorer / Search, resizable) ──────────────── */}
+      <div style={{ width: panel.size }} className="bg-surface border-r border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
         
         {/* Project Title Bar & Explorer Actions Toolbar */}
         <div className="px-3 py-2 border-b border-line-subtle flex justify-between items-center bg-canvas">
@@ -249,6 +251,15 @@ export function Sidebar() {
           )}
         </div>
       </div>
+      <ResizeHandle
+        edge="right"
+        label="Resize explorer"
+        size={panel.size}
+        min={180}
+        max={() => Math.min(560, window.innerWidth * 0.4)}
+        onResize={panel.setSize}
+        onReset={panel.reset}
+      />
 
     </>
   );

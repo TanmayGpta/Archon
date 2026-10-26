@@ -47,7 +47,7 @@ export function EditorPane() {
   return (
     <>
       {/* ── 3. Central Code Editor Panel (Flex-1) ────────────────── */}
-      <div className="flex-1 flex flex-col bg-canvas overflow-hidden">
+      <div className="flex-1 min-w-0 isolate flex flex-col bg-canvas overflow-hidden">
         
         {/* Tab Bar */}
         <div className="flex items-center bg-canvas border-b border-line-subtle overflow-x-auto custom-scrollbar flex-shrink-0 h-[38px] select-none">
