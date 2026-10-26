@@ -102,14 +102,9 @@ class SearchEngine:
             return 0
 
         if clear_existing and self.collection:
-            try:
-                self.chroma_client.delete_collection(self.collection_name)
-                self.collection = self.chroma_client.create_collection(self.collection_name)
-                self.bm25 = None
-                self.corpus = []
-                self.tokenized_corpus = []
-            except Exception as e:
-                print(f"Error resetting collection in ingest_chunks: {e}")
+            # The only caller is the codebase re-index: replace the old codebase chunks but keep the
+            # API-docs corpus (a codebase batch can also carry api_spec chunks from yaml/json files)
+            self.clear_scip_chunks()
 
         if not chunks:
             return 0
