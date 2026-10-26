@@ -3,6 +3,8 @@ import ast
 import re
 import hashlib
 import inspect
+import builtins
+from collections import defaultdict
 from typing import List, Dict, Any, Tuple, Optional
 
 def compute_hash(text: str) -> str:
@@ -48,21 +50,25 @@ def _py_signature(node: Any) -> str:
     prefix = "async def " if isinstance(node, ast.AsyncFunctionDef) else "def "
     return f"{prefix}{node.name}({', '.join(args_list)}){ret_str}"
 
-def _own_ast_calls(func: Any) -> List[str]:
-    """Names called by this function itself; nested defs/classes report their own calls."""
-    names = []
+def _own_ast_calls(func: Any) -> List[Tuple[str, Optional[str]]]:
+    """
+    (name, receiver) for calls made by this function itself; nested defs/classes report
+    their own. receiver is "" for foo(), "x" for x.foo(), None for a.b.foo() or f().foo().
+    """
+    calls = []
     stack = [func]
     while stack:
         cur = stack.pop()
         if isinstance(cur, ast.Call):
             if isinstance(cur.func, ast.Name):
-                names.append(cur.func.id)
+                calls.append((cur.func.id, ""))
             elif isinstance(cur.func, ast.Attribute):
-                names.append(cur.func.attr)
+                value = cur.func.value
+                calls.append((cur.func.attr, value.id if isinstance(value, ast.Name) else None))
         for child in ast.iter_child_nodes(cur):
             if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 stack.append(child)
-    return names
+    return calls
 
 class _PySymbolVisitor(ast.NodeVisitor):
     """
@@ -130,16 +136,206 @@ def _ts_own_calls(body: Any) -> List[Any]:
                 stack.append(child)
     return calls
 
-def _ts_call_name(call: Any) -> str:
+def _ts_call(call: Any) -> Tuple[str, Optional[str]]:
+    """Same (name, receiver) shape as _own_ast_calls."""
     fn = call.child_by_field_name("function")
     if fn is None:
-        return ""
+        return "", None
     if fn.type == "identifier":
-        return _ts_text(fn)
+        return _ts_text(fn), ""
     if fn.type == "attribute":
         attr = fn.child_by_field_name("attribute")
-        return _ts_text(attr) if attr is not None else ""
-    return ""
+        obj = fn.child_by_field_name("object")
+        receiver = _ts_text(obj) if obj is not None and obj.type == "identifier" else None
+        return (_ts_text(attr) if attr is not None else ""), receiver
+    return "", None
+
+_BUILTIN_NAMES = set(dir(builtins))
+
+def _py_module_names(path: str) -> List[str]:
+    """Every dotted name a repo file could be imported as: a/b/c.py -> a.b.c, b.c, c."""
+    parts = path[:-3].split("/")
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return [".".join(parts[i:]) for i in range(len(parts))]
+
+def _shared_dirs(a: str, b: str) -> int:
+    n = 0
+    for x, y in zip(a.split("/")[:-1], b.split("/")[:-1]):
+        if x != y:
+            break
+        n += 1
+    return n
+
+class _PyResolver:
+    """
+    Rewrites placeholder IMPORTS/CALLS targets (file:<module>, func:<name>) to real
+    node ids. Deterministic and conservative: an edge that can't be pinned to one
+    repo symbol is dropped rather than guessed.
+    """
+
+    def __init__(self, nodes: Dict[str, Dict[str, Any]]):
+        self.nodes = nodes
+        self.files = sorted(n["file_path"] for n in nodes.values()
+                            if n.get("kind") == "file" and n.get("language") == "python")
+        self._file_set = set(self.files)
+        self.by_module = defaultdict(list)
+        for path in self.files:
+            for name in _py_module_names(path):
+                self.by_module[name].append(path)
+
+        self.symbols = {}                  # (file, qualname) -> node id, first definition wins
+        self.top_level = defaultdict(list)  # name -> ids of module-level defs/classes, repo-wide
+        for n in nodes.values():
+            if n.get("kind") in ("function", "class") and "qualname" in n:
+                key = (n["file_path"], n["qualname"])
+                if key not in self.symbols:
+                    self.symbols[key] = n["id"]
+                    if "." not in n["qualname"]:
+                        self.top_level[n["qualname"]].append(n["id"])
+
+        # file -> local name -> ("module", file) | ("symbol", file, name) | ("external",)
+        self.bindings = defaultdict(dict)
+
+    def module_file(self, importer: str, module: str, level: int) -> Optional[str]:
+        if level:
+            base = importer.split("/")[:-1]
+            if level - 1 > len(base):
+                return None
+            base = base[:len(base) - (level - 1)]
+            parts = base + (module.split(".") if module else [])
+            candidates = ["/".join(parts + ["__init__"]) + ".py"]
+            if module:
+                candidates.insert(0, "/".join(parts) + ".py")
+            return next((c for c in candidates if c in self._file_set), None)
+        # Absolute: services put different roots on sys.path, so match by dotted suffix
+        # and prefer the candidate closest to the importing file (e.g. its own service's app/).
+        candidates = self.by_module.get(module, [])
+        if not candidates:
+            return None
+        return max(candidates, key=lambda p: (_shared_dirs(p, importer), -len(p)))
+
+    def _bind_import(self, file: str, hint: Dict[str, Any]) -> Tuple[List[str], Optional[str]]:
+        """Records the names this import binds. Returns (resolved files, external module or None)."""
+        module, level = hint["module"], hint["level"]
+        binds = self.bindings[file]
+        if "names" not in hint:  # import a.b [as c]
+            target = self.module_file(file, module, 0)
+            local = hint.get("alias") or (module if "." not in module else None)
+            if local:
+                binds[local] = ("module", target) if target else ("external",)
+            return ([target] if target else []), (None if target else module)
+
+        base = self.module_file(file, module, level) if (module or level) else None
+        targets = []
+        for name, asname in hint["names"]:
+            local = asname or name
+            if name == "*":
+                if base:
+                    targets.append(base)
+                continue
+            sub = self.module_file(file, f"{module}.{name}" if module else name, level)
+            if sub:
+                binds[local] = ("module", sub)
+                targets.append(sub)
+            elif base:
+                binds[local] = ("symbol", base, name)
+                targets.append(base)
+            else:
+                binds[local] = ("external",)
+        if targets:
+            return targets, None
+        return [], ("." * level + module) or None
+
+    def _symbol_in(self, file: str, name: str, depth: int = 0) -> Optional[str]:
+        """A module-level def/class in file, following one-hop re-exports like package __init__s."""
+        hit = self.symbols.get((file, name))
+        if hit or depth >= 3:
+            return hit
+        bound = self.bindings[file].get(name)
+        if bound and bound[0] == "symbol":
+            return self._symbol_in(bound[1], bound[2], depth + 1)
+        return None
+
+    def resolve_call(self, file: str, qualname: str, name: str, receiver: Optional[str]) -> Optional[str]:
+        binds = self.bindings[file]
+        if receiver == "":
+            # Enclosing function scopes, innermost first (class bodies aren't visible from methods)
+            scope = qualname
+            while scope:
+                hit = self.symbols.get((file, f"{scope}.<locals>.{name}"))
+                if hit:
+                    return hit
+                scope = scope.rsplit(".<locals>.", 1)[0] if ".<locals>." in scope else ""
+            hit = self.symbols.get((file, name))
+            if hit:
+                return hit
+            bound = binds.get(name)
+            if bound:
+                return self._symbol_in(bound[1], bound[2]) if bound[0] == "symbol" else None
+            if name in _BUILTIN_NAMES:
+                return None
+            unique = self.top_level.get(name, [])
+            return unique[0] if len(unique) == 1 else None
+
+        if receiver in ("self", "cls"):
+            # Climb out of closures to the method: Cls.m.<locals>.inner -> Cls.m (but keep f.<locals>.Cls.m)
+            method = qualname
+            while ".<locals>." in method and "." not in method.rsplit(".<locals>.", 1)[1]:
+                method = method.rsplit(".<locals>.", 1)[0]
+            if "." not in method:
+                return None
+            return self.symbols.get((file, f"{method.rsplit('.', 1)[0]}.{name}"))
+
+        if receiver:
+            bound = binds.get(receiver)
+            if bound and bound[0] == "module":
+                return self._symbol_in(bound[1], name)
+            if bound and bound[0] == "symbol":   # ImportedClass.method()
+                return self.symbols.get((bound[1], f"{bound[2]}.{name}"))
+            return self.symbols.get((file, f"{receiver}.{name}"))  # LocalClass.method()
+        return None
+
+    def resolve(self, edges: List[Dict[str, Any]], stats: Dict[str, int]) -> List[Dict[str, Any]]:
+        stats.update(resolved_calls=0, unresolved_calls=0)  # counted per call site
+        resolved = []
+        external = defaultdict(set)
+        import_pairs = set()
+
+        # Imports first: they populate the bindings call resolution relies on
+        for e in edges:
+            hint = e.get("_import")
+            if hint is None:
+                continue
+            file = self.nodes[e["source"]]["file_path"]
+            targets, ext = self._bind_import(file, hint)
+            if ext:
+                external[file].add(ext)
+            for t in targets:
+                if t != file and (file, t) not in import_pairs:
+                    import_pairs.add((file, t))
+                    resolved.append({"source": e["source"], "target": f"file:{t}", "relationship": "IMPORTS"})
+        stats["resolved_imports"] = len(import_pairs)
+
+        for e in edges:
+            if "_import" in e:
+                continue
+            hint = e.get("_call")
+            if hint is None:
+                resolved.append(e)
+                continue
+            caller = self.nodes.get(e["source"], {})
+            target = self.resolve_call(caller.get("file_path", ""), caller.get("qualname", ""),
+                                       hint["name"], hint["receiver"])
+            if target and target != e["source"]:
+                resolved.append({"source": e["source"], "target": target, "relationship": "CALLS"})
+                stats["resolved_calls"] += 1
+            else:
+                stats["unresolved_calls"] += 1
+
+        for file, modules in external.items():
+            self.nodes[f"file:{file}"]["external_imports"] = sorted(modules)
+        return resolved
 
 class SCIPExtractor:
     """
@@ -205,16 +401,26 @@ class SCIPExtractor:
             self._extract_python_partial(out, file_node_id, content)
             return out.chunks, out.nodes, out.edges
 
-        # Track imports for edge creation
+        # Track imports for edge creation. The target is a placeholder; index_codebase
+        # resolves it to a repo file using the "_import" hint (or drops it as external).
         for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                mod_name = getattr(node, 'module', None) or (node.names[0].name if node.names else "")
-                if mod_name:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
                     out.edges.append({
                         "source": file_node_id,
-                        "target": f"file:{mod_name}",
-                        "relationship": "IMPORTS"
+                        "target": f"file:{alias.name}",
+                        "relationship": "IMPORTS",
+                        "_import": {"module": alias.name, "level": 0, "alias": alias.asname}
                     })
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                out.edges.append({
+                    "source": file_node_id,
+                    "target": f"file:{'.' * node.level}{module}",
+                    "relationship": "IMPORTS",
+                    "_import": {"module": module, "level": node.level,
+                                "names": [(a.name, a.asname) for a in node.names]}
+                })
 
         # Classes and functions at any depth
         _PySymbolVisitor(self, out, file_node_id).visit(tree)
@@ -263,7 +469,7 @@ class SCIPExtractor:
                 signature = f"{'async def ' if is_async else 'def '}{name}{' '.join(_ts_text(params).split()) if params else '()'}"
                 if ret is not None:
                     signature += f" -> {_ts_text(ret)}"
-                calls = [_ts_call_name(c) for c in _ts_own_calls(body)]
+                calls = [_ts_call(c) for c in _ts_own_calls(body)]
                 sym_id = self._emit_py_func(out, name, qualname, parent_id, start_l, end_l, signature, docstring,
                                             decorators, calls, with_chunk=with_chunk, precision="partial")
                 kind = "function"
@@ -288,7 +494,8 @@ class SCIPExtractor:
             "signature": f"class {name}",
             "docstring": docstring,
             "language": "python",
-            "code_snippet": class_code
+            "code_snippet": class_code,
+            "qualname": qualname
         }
         if precision:
             class_node["precision"] = precision
@@ -322,7 +529,7 @@ class SCIPExtractor:
 
     def _emit_py_func(self, out: "_PyFileOut", func_name: str, qualname: str, parent_id: str,
                       start_l: int, end_l: int, signature: str, docstring: str,
-                      decorators: List[str], calls: List[str],
+                      decorators: List[str], calls: List[Tuple[str, Optional[str]]],
                       with_chunk: bool = True, precision: Optional[str] = None) -> str:
         rel_path, lines = out.rel_path, out.lines
         nodes, edges, chunks = out.nodes, out.edges, out.chunks
@@ -406,7 +613,8 @@ class SCIPExtractor:
             "signature": signature,
             "docstring": docstring,
             "language": "python",
-            "code_snippet": "\n".join(lines[start_l - 1:min(end_l, start_l + 25)])
+            "code_snippet": "\n".join(lines[start_l - 1:min(end_l, start_l + 25)]),
+            "qualname": qualname
         }
         if precision:
             func_node["precision"] = precision
@@ -417,13 +625,14 @@ class SCIPExtractor:
             "relationship": "CONTAINS"
         })
 
-        # Function Call edges (CALLS)
-        for call_name in calls:
+        # Function Call edges (CALLS). Placeholder target; index_codebase resolves it from the "_call" hint.
+        for call_name, receiver in calls:
             if call_name and call_name != func_name:
                 edges.append({
                     "source": func_node_id,
                     "target": f"func:{call_name}",
-                    "relationship": "CALLS"
+                    "relationship": "CALLS",
+                    "_call": {"name": call_name, "receiver": receiver}
                 })
 
         # Function semantic chunk (if not already added as endpoint)
@@ -897,6 +1106,9 @@ class SCIPExtractor:
                         stats["parse_errors"] += 1
 
         stats["total_chunks"] = len(all_chunks)
+
+        # Point IMPORTS/CALLS at real nodes; drop what can't be resolved (stdlib, third-party, dynamic)
+        all_edges = _PyResolver(all_nodes_dict).resolve(all_edges, stats)
 
         # Deduplicate edges
         dedup_edges = []

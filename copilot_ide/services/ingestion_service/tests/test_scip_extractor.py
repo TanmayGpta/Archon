@@ -20,6 +20,9 @@ NESTED = textwrap.dedent('''
         def status():
             return {"status": "error"}
 
+    def helper(x):
+        return x
+
     def outer(items):
         def inner(x):
             return helper(x)
@@ -93,9 +96,9 @@ class TestNestedSymbols(unittest.TestCase):
         self.assertEqual(sorted(n["file_path"] for n in status), ["svc_a/main.py", "svc_b/main.py"])
 
     def test_calls_belong_to_the_innermost_function(self):
-        self.assertIn("func:helper", calls_from(self.edges, "func:pkg/mod.py:outer.<locals>.inner"))
-        self.assertNotIn("func:helper", calls_from(self.edges, "func:pkg/mod.py:outer"))
-        self.assertIn("func:inner", calls_from(self.edges, "func:pkg/mod.py:outer"))
+        edges = SCIPExtractor().index_codebase([{"path": "pkg/mod.py", "content": NESTED}])["graph"]["edges"]
+        self.assertEqual(calls_from(edges, "func:pkg/mod.py:outer.<locals>.inner"), {"func:pkg/mod.py:helper"})
+        self.assertEqual(calls_from(edges, "func:pkg/mod.py:outer"), {"func:pkg/mod.py:outer.<locals>.inner"})
 
     def test_small_closures_get_no_chunk_but_documented_ones_do(self):
         names = {c["symbol_name"] for c in self.chunks}
@@ -131,6 +134,96 @@ class TestSyntaxErrors(unittest.TestCase):
         self.assertEqual(funcs[0]["docstring"], "Sends an SMS.")
         self.assertEqual(funcs[0]["signature"], "def send_sms(to, body)")
         self.assertIn("func:post", calls_from(edges, "func:bad.py:send_sms"))
+
+
+REPO = {
+    "pkg/__init__.py": "from .core import build\n",
+    "pkg/core.py": textwrap.dedent('''
+        import os
+        import json as j
+        from .util import slug
+        from . import util
+
+        def build(x):
+            os.path.join("a", "b")
+            print(x)
+            return slug(x) + util.trim(x)
+
+        class Graph:
+            def add(self):
+                return self.validate()
+
+            def validate(self):
+                return True
+    '''),
+    "pkg/util.py": textwrap.dedent('''
+        def slug(s):
+            return s
+
+        def trim(s):
+            return s
+
+        def run():
+            return trim("x")
+    '''),
+    "app/main.py": textwrap.dedent('''
+        from pkg import build
+        from pkg.core import Graph
+        import pkg.util as u
+
+        def main():
+            g = Graph()
+            g.add()
+            Graph.validate(g)
+            u.run()
+            return build(1)
+    '''),
+    "other/a.py": "def run():\n    pass\n\ndef only_here():\n    pass\n",
+    "other/b.py": "def caller():\n    run()\n    only_here()\n",
+}
+
+
+class TestEdgeResolution(unittest.TestCase):
+    def setUp(self):
+        result = SCIPExtractor().index_codebase([{"path": p, "content": c} for p, c in REPO.items()])
+        self.nodes = {n["id"]: n for n in result["graph"]["nodes"]}
+        self.edges = result["graph"]["edges"]
+        self.stats = result["stats"]
+
+    def imports_of(self, path):
+        return {e["target"] for e in self.edges if e["source"] == f"file:{path}" and e["relationship"] == "IMPORTS"}
+
+    def test_every_edge_points_at_a_real_node(self):
+        for e in self.edges:
+            self.assertIn(e["source"], self.nodes, e)
+            self.assertIn(e["target"], self.nodes, e)
+            self.assertFalse({"_call", "_import"} & set(e), e)
+
+    def test_relative_absolute_and_aliased_imports_resolve_to_files(self):
+        self.assertEqual(self.imports_of("pkg/core.py"), {"file:pkg/util.py"})
+        self.assertEqual(self.imports_of("pkg/__init__.py"), {"file:pkg/core.py"})
+        self.assertEqual(self.imports_of("app/main.py"),
+                         {"file:pkg/__init__.py", "file:pkg/core.py", "file:pkg/util.py"})
+
+    def test_external_imports_are_listed_on_the_file_node(self):
+        self.assertEqual(self.nodes["file:pkg/core.py"]["external_imports"], ["json", "os"])
+
+    def test_calls_resolve_through_imports_and_self(self):
+        self.assertEqual(calls_from(self.edges, "func:pkg/core.py:build"),
+                         {"func:pkg/util.py:slug", "func:pkg/util.py:trim"})
+        self.assertEqual(calls_from(self.edges, "func:pkg/core.py:Graph.add"), {"func:pkg/core.py:Graph.validate"})
+        self.assertEqual(calls_from(self.edges, "func:pkg/util.py:run"), {"func:pkg/util.py:trim"})
+
+    def test_calls_from_another_package(self):
+        # Graph() is the class, build() follows the pkg/__init__ re-export, g.add() has an unknown receiver
+        self.assertEqual(calls_from(self.edges, "func:app/main.py:main"), {
+            "class:pkg/core.py:Graph", "func:pkg/core.py:Graph.validate",
+            "func:pkg/util.py:run", "func:pkg/core.py:build",
+        })
+
+    def test_ambiguous_names_are_dropped_not_guessed(self):
+        self.assertEqual(calls_from(self.edges, "func:other/b.py:caller"), {"func:other/a.py:only_here"})
+        self.assertGreater(self.stats["unresolved_calls"], 0)
 
 
 if __name__ == "__main__":
