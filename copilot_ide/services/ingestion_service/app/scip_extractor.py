@@ -1107,6 +1107,11 @@ class SCIPExtractor:
 
         stats["total_chunks"] = len(all_chunks)
 
+        # Spec/config files go through the dataset chunker, so chunk_type alone can't tell a
+        # codebase chunk from an API-docs one. The tag lets RAG replace exactly these on re-index.
+        for c in all_chunks:
+            c["origin"] = "codebase"
+
         # Point IMPORTS/CALLS at real nodes; drop what can't be resolved (stdlib, third-party, dynamic)
         all_edges = _PyResolver(all_nodes_dict).resolve(all_edges, stats)
 

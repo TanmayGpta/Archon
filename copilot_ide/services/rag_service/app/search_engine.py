@@ -15,6 +15,18 @@ from .config import (
     DEFAULT_COLLECTION_NAME
 )
 
+def is_codebase_chunk(meta: Optional[Dict[str, Any]]) -> bool:
+    """Codebase (SCIP) chunk vs API-docs dataset chunk. The tag covers spec/config files; the rest covers chunks stored before it."""
+    if not meta:
+        return False
+    source = meta.get("source", "")
+    return (
+        meta.get("origin") == "codebase" or
+        meta.get("chunk_type", "") in ["code_symbol", "code_file"] or
+        meta.get("language") in ["python", "javascript", "typescript", "go"] or
+        any(source.startswith(p) for p in ["src/", "backend/", "frontend/"])
+    )
+
 class SearchEngine:
     def __init__(self):
         self.encoder = None
@@ -120,7 +132,8 @@ class SearchEngine:
             "symbol_kind": c.get("symbol_kind", ""),
             "file_path": c.get("file_path", c.get("source", "")),
             "line_range": c.get("line_range", ""),
-            "language": c.get("language", "")
+            "language": c.get("language", ""),
+            "origin": c.get("origin", "")
         } for c in chunks]
         ids = [str(uuid.uuid4()) for _ in chunks]
 
@@ -256,19 +269,7 @@ class SearchEngine:
             ids = all_docs.get("ids", [])
             metas = all_docs.get("metadatas", [])
             
-            scip_ids = []
-            for doc_id, meta in zip(ids, metas):
-                if not meta:
-                    continue
-                c_type = meta.get("chunk_type", "")
-                source = meta.get("source", "")
-                is_scip = (
-                    c_type in ["code_symbol", "code_file"] or
-                    meta.get("language") in ["python", "javascript", "typescript", "go"] or
-                    any(source.startswith(p) for p in ["src/", "backend/", "frontend/"])
-                )
-                if is_scip:
-                    scip_ids.append(doc_id)
+            scip_ids = [doc_id for doc_id, meta in zip(ids, metas) if is_codebase_chunk(meta)]
 
             if scip_ids:
                 batch_size = 500
@@ -289,18 +290,7 @@ class SearchEngine:
         try:
             all_docs = self.collection.get()
             metas = all_docs.get("metadatas", [])
-            scip_count = 0
-            for meta in metas:
-                if not meta:
-                    continue
-                c_type = meta.get("chunk_type", "")
-                source = meta.get("source", "")
-                if (
-                    c_type in ["code_symbol", "code_file"] or
-                    meta.get("language") in ["python", "javascript", "typescript", "go"] or
-                    any(source.startswith(p) for p in ["src/", "backend/", "frontend/"])
-                ):
-                    scip_count += 1
+            scip_count = sum(1 for meta in metas if is_codebase_chunk(meta))
             total = len(metas)
             return {
                 "total": total,

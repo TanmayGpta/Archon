@@ -205,6 +205,11 @@ class TestEdgeResolution(unittest.TestCase):
         self.assertEqual(self.imports_of("app/main.py"),
                          {"file:pkg/__init__.py", "file:pkg/core.py", "file:pkg/util.py"})
 
+    def test_every_chunk_is_tagged_as_codebase(self):
+        chunks = SCIPExtractor().index_codebase([{"path": p, "content": c} for p, c in REPO.items()])["chunks"]
+        self.assertTrue(chunks)
+        self.assertEqual({c["origin"] for c in chunks}, {"codebase"})
+
     def test_external_imports_are_listed_on_the_file_node(self):
         self.assertEqual(self.nodes["file:pkg/core.py"]["external_imports"], ["json", "os"])
 
