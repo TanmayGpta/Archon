@@ -1,0 +1,22 @@
+# Dev pod holding the account's one MIG slice. Files go in/out with tar over kubectl exec.
+# Self-terminates after 8h so an idle slice is never left held.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: clf-dev
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 28800
+  containers:
+  - name: dev
+    image: python:3.13-bookworm
+    command: ["bash", "-c", "mkdir -p /work && sleep infinity"]
+    env:
+    - name: HF_HUB_DISABLE_XET   # Xet downloads stalled repeatedly here; plain HTTP resumes cleanly
+      value: "1"
+    - name: HF_TOKEN             # from `kubectl create secret generic hf-token`; pod starts without it
+      valueFrom:
+        secretKeyRef: {name: hf-token, key: HF_TOKEN, optional: true}
+    resources:
+      requests: {cpu: "8", memory: 28Gi, nvidia.com/mig-2g.35gb: 1}
+      limits:   {cpu: "8", memory: 28Gi, nvidia.com/mig-2g.35gb: 1}
