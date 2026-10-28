@@ -12,6 +12,7 @@ import { Exercise5Traces } from './evaluation/Exercise5Traces';
 import { Exercise6MultiHop } from './evaluation/Exercise6MultiHop';
 import { AblationTab } from './evaluation/AblationTab';
 import { ClassifierBenchmarkTab } from './evaluation/ClassifierBenchmarkTab';
+import { ConformanceEngineTab } from './evaluation/ConformanceEngineTab';
 
 export function EvaluationDashboard() {
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -28,6 +29,7 @@ export function EvaluationDashboard() {
     { id: 6, label: 'Multi-hop', sub: 'Repository Graph', icon: 'network' as GlyphName },
     { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: 'zap' as GlyphName },
     { id: 8, label: 'Layer classifier', sub: 'Kev vs Groq vs Laya', icon: 'network' as GlyphName },
+    { id: 9, label: 'Conformance engine', sub: 'AST → graph → Tarjan → rules', icon: 'search' as GlyphName },
   ];
 
   return (
@@ -73,26 +75,23 @@ export function EvaluationDashboard() {
 
         {/* Stepper Navigation Tabs */}
         <div className="max-w-[1440px] mx-auto px-4 md:px-8">
-          <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-2">
+          <div className="flex flex-wrap items-center gap-1 py-2">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-3.5 py-2 rounded-control text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                  title={tab.sub}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`px-2.5 py-1 rounded-control text-xs font-mono transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-selected text-accent-fg border border-accent/40 font-bold '
                       : 'bg-raised text-fg-muted hover:text-fg-soft hover:bg-overlay border border-line'
                   }`}
                 >
                   <span className="text-sm"><Glyph name={tab.icon} /></span>
-                  <div className="text-left">
-                    <div className="leading-tight">{tab.label}</div>
-                    <div className={`text-xs font-normal leading-tight ${isActive ? 'text-[#93c5fd]' : 'text-fg-subtle'}`}>
-                      {tab.sub}
-                    </div>
-                  </div>
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
@@ -123,6 +122,7 @@ export function EvaluationDashboard() {
         {activeTab === 6 && <Exercise6MultiHop />}
         {activeTab === 7 && <AblationTab />}
         {activeTab === 8 && <ClassifierBenchmarkTab />}
+        {activeTab === 9 && <ConformanceEngineTab />}
       </main>
 
       {/* Raw JSON Explorer Modal */}
