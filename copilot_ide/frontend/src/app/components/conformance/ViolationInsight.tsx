@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { ConformanceEdge, ConformanceNode } from './types';
+import { BlueprintVsActual } from './BlueprintVsActual';
 
-// Inspector body for a flagged edge: a flow graph of the importing module's neighbourhood
-// (from the audit's AST edges, never the LLM) and the LLM's review of the dependency.
+// Inspector body for a flagged edge: blueprint route vs the actual import (from the blueprint's
+// rules and the AST edges, never the LLM), then the LLM's review of the dependency.
 
 interface Assessment {
   summary: string;
@@ -21,99 +22,30 @@ interface ViolationInsightProps {
   apiBase: string;
   targetPath: string;
   blueprintId?: string;
+  blueprintLayers?: string[];
+  allowed?: [string, string][];
   offline: boolean;
 }
 
-const MAX_PER_SIDE = 8;
-const LAYER_ORDER = ['Presentation', 'Application', 'Domain', 'Infrastructure'];
 const VERDICT = {
   fix: { label: 'FIX: BLUEPRINT IS RIGHT', color: '#ff3b30' },
   acceptable_deviation: { label: 'ACCEPTABLE DEVIATION', color: '#f5a524' },
   blueprint_gap: { label: 'BLUEPRINT GAP', color: '#4f9dff' },
 } as const;
 
-// One review per edge per audit; the inspector unmounts on close, so the cache lives here
+// One review per edge per audit; the inspector unmounts on close, so the cache lives here.
+// In-flight requests are shared too, so a re-run effect (React dev double-invoke) never asks twice.
 const reviewCache = new Map<string, Assessment>();
-
-const shortName = (id: string) => id.split('.').slice(-2).join('.').replace(/["[\](){}<>]/g, '');
-
-export function buildMermaid(edge: ConformanceEdge, nodes: ConformanceNode[], edges: ConformanceEdge[]): string {
-  const focus = edge.source;
-  const internal = new Set(nodes.filter(n => n.nodeType === 'internal').map(n => n.id));
-  // Violations first, so the cap never hides one
-  const pick = (list: ConformanceEdge[]) =>
-    [...list].sort((a, b) => Number(b.isViolation) - Number(a.isViolation)).slice(0, MAX_PER_SIDE);
-  const outgoing = pick(edges.filter(e => e.source === focus && internal.has(e.target)));
-  const incoming = pick(edges.filter(e => e.target === focus && internal.has(e.source)));
-  const shown = [...outgoing, ...incoming];
-  if (!shown.some(e => e.id === edge.id)) shown.unshift(edge);
-
-  const layerOf = new Map(nodes.map(n => [n.id, n.layer]));
-  const colorOf = new Map(nodes.map(n => [n.id, n.color]));
-  const ids = new Map<string, string>();
-  [focus, ...shown.flatMap(e => [e.source, e.target])].forEach(m => {
-    if (!ids.has(m)) ids.set(m, `n${ids.size}`);
-  });
-
-  const byLayer = new Map<string, string[]>();
-  ids.forEach((_, m) => {
-    const layer = layerOf.get(m) || (m === edge.source ? edge.sourceLayer : edge.targetLayer) || 'Unclassified';
-    byLayer.set(layer, [...(byLayer.get(layer) || []), m]);
-  });
-  const layers = [...byLayer.keys()].sort(
-    (a, b) => (LAYER_ORDER.indexOf(a) + 1 || 99) - (LAYER_ORDER.indexOf(b) + 1 || 99)
-  );
-
-  const lines = ['flowchart LR'];
-  layers.forEach((layer, i) => {
-    lines.push(`  subgraph L${i}["${layer}"]`);
-    byLayer.get(layer)!.forEach(m => lines.push(`    ${ids.get(m)}["${shortName(m)}"]`));
-    lines.push('  end');
-  });
-  shown.forEach(e => lines.push(`  ${ids.get(e.source)} ${e.isViolation ? '-- ✗ -->' : '-->'} ${ids.get(e.target)}`));
-
-  lines.push('  classDef focus fill:#3b0d0b,stroke:#ff3b30,stroke-width:2.5px,color:#ffffff');
-  ids.forEach((id, m) => {
-    if (m !== focus) lines.push(`  style ${id} fill:#141413,stroke:${colorOf.get(m) || '#343434'},color:#d4d4d0`);
-  });
-  lines.push(`  class ${ids.get(focus)} focus`);
-  shown.forEach((e, i) => {
-    if (e.id === edge.id) lines.push(`  linkStyle ${i} stroke:#ff3b30,stroke-width:3px`);
-    else if (e.isViolation) lines.push(`  linkStyle ${i} stroke:#ff3b30,stroke-width:1.5px,stroke-dasharray:4`);
-    else lines.push(`  linkStyle ${i} stroke:#5a5a56,stroke-width:1px`);
-  });
-  return lines.join('\n');
-}
+const inFlight = new Map<string, Promise<Assessment>>();
 
 export const ViolationInsight: React.FC<ViolationInsightProps> = ({
-  edge, nodes, edges, apiBase, targetPath, blueprintId, offline,
+  edge, nodes, edges, apiBase, targetPath, blueprintId, blueprintLayers, allowed, offline,
 }) => {
-  const source = useMemo(() => buildMermaid(edge, nodes, edges), [edge, nodes, edges]);
-  const [svg, setSvg] = useState('');
   const cacheKey = `${blueprintId}|${targetPath}|${edge.id}`;
   // Results are tagged with their edge so a stale answer never shows on another edge
   const [result, setResult] = useState<{ key: string; review?: Assessment; error?: string } | null>(null);
   const review = reviewCache.get(cacheKey) || (result?.key === cacheKey ? result.review : undefined) || null;
   const reviewError = result?.key === cacheKey ? result.error : undefined;
-
-  useEffect(() => {
-    let cancelled = false;
-    import('mermaid')
-      .then(m => {
-        m.default.initialize({
-          startOnLoad: false,
-          theme: 'dark',
-          securityLevel: 'strict',
-          fontFamily: 'monospace',
-          htmlLabels: false,
-          themeVariables: { background: '#0e0e0d', clusterBkg: '#0a0a09', clusterBorder: '#2b2b2a', fontSize: '11px' },
-        });
-        return m.default.render(`viol-${Math.random().toString(36).slice(2, 9)}`, source);
-      })
-      .then(({ svg }) => { if (!cancelled) setSvg(svg); })
-      .catch(() => { if (!cancelled) setSvg('error'); });
-    return () => { cancelled = true; };
-  }, [source]);
 
   useEffect(() => {
     if (reviewCache.has(cacheKey) || offline || !edge.violation) return;
@@ -122,22 +54,29 @@ export const ViolationInsight: React.FC<ViolationInsightProps> = ({
       .filter(e => e.source === edge.source && e.id !== edge.id)
       .slice(0, 30)
       .map(e => `${e.target} (${e.targetLayer})${e.isViolation ? ' [also flagged]' : ''}`);
-    fetch(`${apiBase}/api/conformance/assess`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        violation: edge.violation,
-        neighbours,
-        target_path: targetPath || undefined,
-        blueprint_id: blueprintId,
-      }),
-    })
-      .then(async res => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.status !== 'success') throw new Error(data.detail || data.error || `HTTP ${res.status}`);
-        reviewCache.set(cacheKey, data.assessment);
-        if (!cancelled) setResult({ key: cacheKey, review: data.assessment });
+    let request = inFlight.get(cacheKey);
+    if (!request) {
+      request = fetch(`${apiBase}/api/conformance/assess`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          violation: edge.violation,
+          neighbours,
+          target_path: targetPath || undefined,
+          blueprint_id: blueprintId,
+        }),
       })
+        .then(async res => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.status !== 'success') throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+          reviewCache.set(cacheKey, data.assessment);
+          return data.assessment as Assessment;
+        })
+        .finally(() => inFlight.delete(cacheKey));
+      inFlight.set(cacheKey, request);
+    }
+    request
+      .then(review => { if (!cancelled) setResult({ key: cacheKey, review }); })
       .catch(err => { if (!cancelled) setResult({ key: cacheKey, error: String(err.message || err) }); });
     return () => { cancelled = true; };
   }, [cacheKey, offline, apiBase, targetPath, blueprintId, edge, edges]);
@@ -146,16 +85,8 @@ export const ViolationInsight: React.FC<ViolationInsightProps> = ({
 
   return (
     <div className="space-y-2 text-xs">
-      {/* Flow graph: importing module in red, flagged imports red */}
-      <div className="rounded border border-[#1f1f1e] bg-[#0a0a09] p-2">
-        <div className="text-[#8b8b86] mb-1">MODULE FLOW ({shortName(edge.source)}):</div>
-        {svg === 'error' ? (
-          <div className="text-[#5a5a56] py-6 text-center">graph unavailable</div>
-        ) : svg ? (
-          <div className="overflow-auto max-h-56 [&_svg]:max-w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
-        ) : (
-          <div className="text-[#5a5a56] py-6 text-center">rendering…</div>
-        )}
+      <div className="rounded border border-[#1f1f1e] bg-[#0a0a09] p-3">
+        <BlueprintVsActual edge={edge} nodes={nodes} edges={edges} blueprintLayers={blueprintLayers} allowed={allowed} />
       </div>
 
       {review ? (

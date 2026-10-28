@@ -76,6 +76,9 @@ export interface BlueprintInfo {
   id: string;
   name: string;
   description: string;
+  // Only on the audited blueprint: layer order and allowed [source, target] layer pairs
+  layers?: string[];
+  allowed?: [string, string][];
 }
 
 export interface ConformanceAuditResult {

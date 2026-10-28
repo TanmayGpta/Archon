@@ -82,6 +82,7 @@ services:
       - OMNIKEY_API_KEY=${OMNIKEY_API_KEY:-}
       # Conformance layer classifier: Kev-9B on the college GPU via an ssh -L 8009 tunnel on the host, Groq fallback
       - KEV_URL=${KEV_URL:-http://host.docker.internal:8009}
+      - KEV_AGENT_URL=${KEV_AGENT_URL:-http://host.docker.internal:7338}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
       - PYTHONUNBUFFERED=1
@@ -152,6 +153,24 @@ services:
       - apicopilot-net
 
 
+
+  # 6. Kev GPU agent (profile "gpu"): one-click start/stop of the Kev-9B server on the college GPU
+  #    and the ssh tunnel to it. Host network so it can expose 172.17.0.1:8009 / :7338 to the containers.
+  #    Needs CLF_HOST (user@head-node) and KEV_SSH_DIR (folder with id_ed25519 + known_hosts) in .env;
+  #    COMPOSE_PROFILES=gpu in .env starts it with a plain `docker compose up`.
+  kev-agent:
+    build:
+      context: ./services/kev_agent
+    container_name: apicopilot-kev-agent
+    restart: unless-stopped
+    profiles: ["gpu"]
+    network_mode: host
+    environment:
+      - CLF_HOST=${CLF_HOST:-}
+      - AGENT_BIND=172.17.0.1
+    volumes:
+      - ${KEV_SSH_DIR:-./.no-ssh}:/keys:ro
+      - ../experiments/classifier_eval/gpu:/gpu:ro
 
 volumes:
   rag_data:

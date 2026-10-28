@@ -26,6 +26,9 @@ interface ConformanceCanvasProps {
   onSelectNode: (node: ConformanceNode | null) => void;
   onSelectEdge: (edge: ConformanceEdge | null) => void;
   onIntroChange?: (active: boolean) => void;
+  // Centre the camera on this node; a new focusSeq repeats the request for the same node
+  focusNodeId?: string;
+  focusSeq?: number;
   // Area the intro covers: whole viewport (default) or the nearest [data-intro-bounds] ancestor
   introBounds?: 'viewport' | 'container';
 }
@@ -282,6 +285,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   onSelectNode,
   onSelectEdge,
   onIntroChange,
+  focusNodeId,
+  focusSeq,
   introBounds = 'viewport'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1405,6 +1410,39 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       targetZoom: targetCam.zoom
     };
   }, []);
+
+  // Focus request (search pick, violation card): tween the camera so the node sits mid-screen.
+  // Waits a few frames for a layout switch (e.g. orbit) to place it, then follows where it lands.
+  useEffect(() => {
+    if (!focusNodeId) return;
+    let frames = 0;
+    let raf = 0;
+    const aim = () => {
+      const n = simNodesRef.current.find(x => x.id === focusNodeId);
+      if (!n || n.x === undefined || n.y === undefined) {
+        if (frames++ < 30) raf = requestAnimationFrame(aim);
+        return;
+      }
+      const rot = mode === 'network' ? ambientRotationRef.current : 0;
+      const rx = n.x * Math.cos(rot) - n.y * Math.sin(rot);
+      const ry = n.x * Math.sin(rot) + n.y * Math.cos(rot);
+      const zoom = Math.min(2.2, Math.max(cameraRef.current.zoom, 1.35));
+      cameraTweenRef.current = {
+        t0: performance.now(),
+        dur: reduceMotionRef.current ? 1 : 650,
+        startX: cameraRef.current.x,
+        startY: cameraRef.current.y,
+        startZoom: cameraRef.current.zoom,
+        targetX: -rx * zoom,
+        targetY: -ry * zoom,
+        targetZoom: zoom
+      };
+    };
+    // let the selection's layout tween run first so the camera aims at the node's final spot
+    const t = setTimeout(() => { raf = requestAnimationFrame(aim); }, layoutTweenRef.current ? 700 : 0);
+    return () => { clearTimeout(t); cancelAnimationFrame(raf); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new focusSeq is the trigger
+  }, [focusSeq]);
 
   // ── Precision High-DPI Mouse Spatial Raycasting ──
   const screenToWorld = useCallback((clientX: number, clientY: number) => {

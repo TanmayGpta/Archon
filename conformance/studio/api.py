@@ -56,6 +56,38 @@ def assess_violation(req: AssessRequest):
         raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
 
 
+def _kev_agent(method: str, path: str) -> Dict[str, Any]:
+    """Forward to the kev-agent service (copilot_ide/services/kev_agent), which owns the GPU pod + tunnel."""
+    import json
+    import urllib.request
+    base = os.getenv("KEV_AGENT_URL", "http://host.docker.internal:7338").rstrip("/")
+    try:
+        req = urllib.request.Request(f"{base}{path}", data=b"" if method == "POST" else None, method=method)
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except Exception as e:
+        return {"agent": False, "phase": "no agent", "error": str(e),
+                "hint": "Start it with COMPOSE_PROFILES=gpu (plus CLF_HOST, KEV_SSH_DIR) in copilot_ide/.env, then docker compose up -d."}
+
+
+@router.get("/gpu/status")
+def gpu_status():
+    """Kev GPU state: off | pod starting | loading model | connecting | ready."""
+    return _kev_agent("GET", "/status")
+
+
+@router.post("/gpu/start")
+def gpu_start():
+    """One click: create the pod, load Kev-9B, open the tunnel (returns at once; poll /gpu/status)."""
+    return _kev_agent("POST", "/start")
+
+
+@router.post("/gpu/stop")
+def gpu_stop():
+    """Delete the pod and free the GPU slice."""
+    return _kev_agent("POST", "/stop")
+
+
 @router.get("/classifier-status")
 def classifier_status():
     """Whether the Kev GPU server answers (else kev-* audits fall back to Groq)."""

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Glyph } from '../Icons';
 import { ConformanceCanvas } from './ConformanceCanvas';
 import { ViolationInsight } from './ViolationInsight';
+import { GpuControl } from './GpuControl';
 import { ResizeHandle, usePanelSize } from '../ResizeHandle';
 import { errorDetail } from '@/lib/api';
 import { replaceQuery } from '@/lib/deepLinks';
@@ -139,6 +140,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [selectedBlueprintId, setSelectedBlueprintId] = useState<string>(initialBlueprintId || 'archon_architecture');
   const [includeExternal, setIncludeExternal] = useState<boolean>(true);
   const [classifier, setClassifier] = useState<ClassifierId>('heuristic');
+  // Camera focus request for the canvas (search pick, violation card)
+  const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -278,6 +281,18 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
     });
   };
 
+  // Violation card -> its edge in the inspector, module selected and centred on the canvas
+  const openViolation = (v: ConformanceViolation) => {
+    if (!auditData) return;
+    const edge = auditData.edges.find(e => e.source === v.source_module && e.target === v.target_module);
+    const node = auditData.nodes.find(n => n.id === v.source_module);
+    if (node) {
+      setSelectedNode(node);
+      setFocus(f => ({ id: node.id, seq: (f?.seq ?? 0) + 1 }));
+    }
+    if (edge) setSelectedEdge(edge);
+  };
+
   // Find incoming/outgoing edges for selected node
   const nodeConnections = useMemo(() => {
     if (!selectedNode || !auditData) return { incoming: [], outgoing: [] };
@@ -297,7 +312,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   return (
     <div data-intro-bounds className={`relative w-full min-h-[calc(100vh-56px)] md:h-[calc(100vh-56px)] bg-[#080808] text-[#e0e0e0] font-sans overflow-hidden flex flex-col [&_header]:transition-opacity [&_header]:duration-300 [&_header]:ease-out [&_aside]:transition-opacity [&_aside]:duration-300 [&_aside]:ease-out ${introActive ? '[&_header]:opacity-0 [&_aside]:opacity-0' : ''}`}>
       {/* ── TOP HUD HEADER ────────────────────────────────────────── */}
-      <header className="min-h-12 md:h-12 py-2 md:py-0 flex-wrap gap-2 border-b border-[#1f1f1e] bg-[#0c0c0b]/90 backdrop-blur-md px-4 flex items-center justify-between z-20 flex-shrink-0">
+      <header className="relative py-2 gap-2 border-b border-[#1f1f1e] bg-[#0c0c0b]/90 backdrop-blur-md px-4 flex flex-col z-40 flex-shrink-0">
+        {/* Row 1: identity, search, target path */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsRailOpen(!isRailOpen)}
@@ -320,7 +337,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         </div>
 
         {/* Global Module Search */}
-        <div className="relative w-72">
+        <div className="relative w-full sm:w-72 lg:w-96 order-last sm:order-none">
           <div className="relative flex items-center">
             <input
               ref={searchInputRef}
@@ -343,6 +360,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   onClick={() => {
                     setSelectedNode(n);
                     setSelectedEdge(null);
+                    setFocus(f => ({ id: n.id, seq: (f?.seq ?? 0) + 1 }));
                     setIsSearchFocused(false);
                     setSearchQuery('');
                   }}
@@ -368,7 +386,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             value={targetPath}
             onChange={e => setTargetPath(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && runAudit(undefined, targetPath)}
-            className="w-44 md:w-56 bg-transparent text-xs font-mono text-[#e8ff00] placeholder-[#5a5a58] outline-none"
+            className="w-40 sm:w-56 lg:w-72 bg-transparent text-xs font-mono text-[#e8ff00] placeholder-[#5a5a58] outline-none"
             title="Type or paste any codebase folder path to audit (Press Enter to scan)"
           />
           {targetPath && (
@@ -391,9 +409,10 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             SCAN
           </button>
         </div>
+        </div>
 
-        {/* Blueprint & Audit Controls */}
-        <div className="flex items-center gap-3">
+        {/* Row 2: blueprint, classifier, GPU, audit controls (wraps on narrow screens) */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-mono text-[#8b8b86]">Blueprint:</span>
             <select
@@ -440,6 +459,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               <span className="text-xs font-mono text-[#10b981]" title={auditData.classifier.detail}>GPU ✓</span>
             )}
           </div>
+
+          <GpuControl apiBase={apiBase} offline={isBackendOffline} />
 
           <button
             onClick={() => setIncludeExternal(!includeExternal)}
@@ -642,6 +663,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               if (node && mode === 'network') setMode('orbit');
             }}
             onSelectEdge={setSelectedEdge}
+            focusNodeId={focus?.id}
+            focusSeq={focus?.seq}
             onIntroChange={setIntroActive}
             introBounds={introScope === 'studio' ? 'container' : 'viewport'}
           />
@@ -661,67 +684,6 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   Scan Archon itself
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* ── FLOATING EDGE INSPECTOR MODAL (#insp) ────────────────── */}
-          {selectedEdge && (
-            <div className="absolute top-4 left-4 max-w-md max-h-[calc(100%-6rem)] overflow-y-auto bg-[#0e0e0d]/95 border border-[#343434] rounded-lg p-4 shadow-2xl backdrop-blur-md z-30 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#1f1f1e]">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      selectedEdge.isViolation ? 'bg-[#ff3b30]' : 'bg-[#10b981]'
-                    }`}
-                  />
-                  <b className="text-white">
-                    {selectedEdge.isViolation ? 'ARCHITECTURAL VIOLATION' : 'CONFORMING DEPENDENCY'}
-                  </b>
-                </div>
-                <button aria-label="Close"
-                  onClick={() => setSelectedEdge(null)}
-                  className="text-[#8b8b86] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#1f1f1e]"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Source -> Target Vector */}
-              <div className="space-y-1 mb-3 bg-[#141413] p-2.5 rounded border border-[#1f1f1e]">
-                <div className="text-[#8b8b86] text-xs">VECTOR:</div>
-                <div className="text-white font-bold truncate">
-                  {selectedEdge.source} <span className="text-[#e8ff00]">───▶</span> {selectedEdge.target}
-                </div>
-                <div className="text-xs text-[#a0a0a0] flex gap-2 pt-1">
-                  <span>Layer: <b className="text-[#e8ff00]">{selectedEdge.sourceLayer}</b></span>
-                  <span>Target: <b className="text-[#4f9dff]">{selectedEdge.targetLayer}</b></span>
-                </div>
-              </div>
-
-              {/* Code Snippet & Line Number */}
-              {selectedEdge.codeSnippet && (
-                <div className="mb-3">
-                  <div className="text-xs text-[#8b8b86] mb-1">
-                    OFFENDING CODE {selectedEdge.lineNumber ? `(LINE ${selectedEdge.lineNumber})` : ''}:
-                  </div>
-                  <pre className="p-2 bg-[#050505] border border-[#222221] rounded text-xs text-[#f87171] overflow-x-auto">
-                    {selectedEdge.codeSnippet}
-                  </pre>
-                </div>
-              )}
-
-              {/* Module flow graph + AI review (rule-based text until it loads) */}
-              {selectedEdge.violation && (
-                <ViolationInsight
-                  edge={selectedEdge}
-                  nodes={auditData?.nodes || []}
-                  edges={auditData?.edges || []}
-                  apiBase={apiBase}
-                  targetPath={auditedPath}
-                  blueprintId={auditData?.blueprint?.id}
-                  offline={isBackendOffline}
-                />
-              )}
             </div>
           )}
 
@@ -773,8 +735,69 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           />
         )}
         {/* ── RIGHT DOSSIER: INTELLIGENCE PANEL (#dossier) ─────────── */}
-        <aside style={{ '--panel-w': `${dossierPanel.size}px` } as React.CSSProperties} className="w-full md:w-[var(--panel-w)] order-2 md:order-none bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
-          {selectedNode ? (
+        <aside style={{ '--panel-w': selectedEdge?.violation ? 'min(780px, 52vw)' : `${dossierPanel.size}px` } as React.CSSProperties} className="w-full md:w-[var(--panel-w)] transition-[width] duration-200 order-2 md:order-none bg-[#0e0e0d]/95 border-l border-[#1f1f1e] backdrop-blur-md z-10 flex flex-col justify-between flex-shrink-0 overflow-y-auto">
+          {selectedEdge ? (
+            /* Edge inspector: blueprint vs actual + AI review for violations */
+            <div className="p-4 font-mono text-xs">
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#1f1f1e]">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      selectedEdge.isViolation ? 'bg-[#ff3b30]' : 'bg-[#10b981]'
+                    }`}
+                  />
+                  <b className="text-white">
+                    {selectedEdge.isViolation ? 'ARCHITECTURAL VIOLATION' : 'CONFORMING DEPENDENCY'}
+                  </b>
+                </div>
+                <button aria-label="Back to module"
+                  onClick={() => setSelectedEdge(null)}
+                  className="text-[#8b8b86] hover:text-white px-1.5 py-0.5 rounded hover:bg-[#1f1f1e]"
+                >
+                  {selectedNode ? '← module' : '✕'}
+                </button>
+              </div>
+
+              {/* Source -> Target Vector */}
+              <div className="space-y-1 mb-3 bg-[#141413] p-2.5 rounded border border-[#1f1f1e]">
+                <div className="text-[#8b8b86] text-xs">VECTOR:</div>
+                <div className="text-white font-bold break-all">
+                  {selectedEdge.source} <span className="text-[#e8ff00]">───▶</span> {selectedEdge.target}
+                </div>
+                <div className="text-xs text-[#a0a0a0] flex gap-2 pt-1">
+                  <span>Layer: <b className="text-[#e8ff00]">{selectedEdge.sourceLayer}</b></span>
+                  <span>Target: <b className="text-[#4f9dff]">{selectedEdge.targetLayer}</b></span>
+                </div>
+              </div>
+
+              {/* Code Snippet & Line Number */}
+              {selectedEdge.codeSnippet && (
+                <div className="mb-3">
+                  <div className="text-xs text-[#8b8b86] mb-1">
+                    OFFENDING CODE {selectedEdge.lineNumber ? `(LINE ${selectedEdge.lineNumber})` : ''}:
+                  </div>
+                  <pre className="p-2 bg-[#050505] border border-[#222221] rounded text-xs text-[#f87171] overflow-x-auto">
+                    {selectedEdge.codeSnippet}
+                  </pre>
+                </div>
+              )}
+
+              {/* Module flow graph + AI review (rule-based text until it loads) */}
+              {selectedEdge.violation && (
+                <ViolationInsight
+                  edge={selectedEdge}
+                  nodes={auditData?.nodes || []}
+                  edges={auditData?.edges || []}
+                  apiBase={apiBase}
+                  targetPath={auditedPath}
+                  blueprintId={auditData?.blueprint?.id}
+                  blueprintLayers={auditData?.blueprint?.layers}
+                  allowed={auditData?.blueprint?.allowed}
+                  offline={isBackendOffline}
+                />
+              )}
+            </div>
+          ) : selectedNode ? (
             /* Selected Module Dossier */
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[#1f1f1e]">
@@ -827,15 +850,17 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   </span>
                   <div className="space-y-1.5">
                     {nodeViolations.map((v, i) => (
-                      <div
+                      <button
                         key={i}
-                        className="p-2.5 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 text-xs font-mono space-y-1"
+                        onClick={() => openViolation(v)}
+                        title="Open blueprint vs actual"
+                        className="w-full text-left p-2.5 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 hover:border-[#ff3b30] text-xs font-mono space-y-1 cursor-pointer"
                       >
                         <div className="text-[#ff5c2b] font-bold">
                           {v.source_module} ──▶ {v.target_module}
                         </div>
                         <div className="text-xs text-[#fca5a5]">{v.reason}</div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -959,19 +984,21 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
               {(auditData?.violations || []).length > 0 && (
                 <div>
                   <span className="text-xs font-mono text-[#ff3b30] uppercase block mb-1.5">
-                    VIOLATIONS SUMMARY
+                    VIOLATIONS: CLICK ONE FOR BLUEPRINT VS ACTUAL
                   </span>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
                     {auditData?.violations.map((v, i) => (
-                      <div
+                      <button
                         key={i}
-                        className="p-2 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 font-mono text-xs space-y-0.5"
+                        onClick={() => openViolation(v)}
+                        title="Open blueprint vs actual"
+                        className="w-full text-left p-2 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 hover:border-[#ff3b30] font-mono text-xs space-y-0.5 cursor-pointer"
                       >
                         <div className="text-white font-bold truncate">
                           {v.source_module} ──▶ {v.target_module}
                         </div>
                         <div className="text-xs text-[#fca5a5]">{v.reason}</div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -981,7 +1008,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
           {/* Dossier Footer */}
           <div className="p-4 border-t border-[#1f1f1e] font-mono text-xs text-[#5a5a58]">
-            CLICK A NODE TO OPEN DOSSIER · CLICK AN EDGE TO INSPECT HAZARDS
+            CLICK A NODE FOR ITS DOSSIER · CLICK A VIOLATION FOR BLUEPRINT VS ACTUAL
           </div>
         </aside>
       </div>

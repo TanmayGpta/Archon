@@ -59,7 +59,7 @@ Other dependencies of {source_module}:
 
 def default_provider() -> Optional[str]:
     """First provider with a key in the environment (same order as the CLI)."""
-    for provider, key in (("groq", "GROQ_API_KEY"), ("gemini", "GOOGLE_API_KEY"),
+    for provider, key in (("groq", "GROQ_API_KEY"), ("groq", "GROQ_API_KEY_2"), ("gemini", "GOOGLE_API_KEY"),
                           ("nvidia", "NVIDIA_API_KEY"), ("openai", "OPENAI_API_KEY")):
         if os.getenv(key):
             return provider
@@ -81,7 +81,8 @@ def assess_violation(
         f"- {r['source_layer']} -> {r['target_layer']}"
         for r in ruleset.get("rules", []) if r.get("type") == "allow"
     ) or "- (none)"
-    chain = PROMPT | get_llm(model_choice, nvidia_model=nvidia_model, schema=ViolationAssessment)
+    api_key = (os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY_2")) if model_choice == "groq" else None
+    chain = PROMPT | get_llm(model_choice, nvidia_model=nvidia_model, schema=ViolationAssessment, api_key=api_key)
     return chain.invoke({
         "blueprint_name": blueprint_name,
         "layers_text": layers_text,

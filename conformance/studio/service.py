@@ -351,7 +351,10 @@ class ConformanceService:
             "blueprint": {
                 "id": blueprint.get("id"),
                 "name": blueprint.get("name"),
-                "description": blueprint.get("description", "")
+                "description": blueprint.get("description", ""),
+                # layer order + allowed layer pairs, so the UI can draw the route the blueprint permits
+                "layers": [l["name"] for l in layers_def],
+                "allowed": [[r["source_layer"], r["target_layer"]] for r in ruleset.get("rules", []) if r.get("type") == "allow"]
             },
             "metrics": {
                 "healthScore": round(report.score, 1),

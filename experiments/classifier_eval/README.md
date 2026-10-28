@@ -75,13 +75,19 @@ One server (the L3 checkpoint) serves both modes: **precise** sends source (0.81
 sends signatures only (0.787, same as the L2-trained model, ~¼ the tokens). If the server is down,
 the audit falls back to Groq on names with `GROQ_API_KEY_2` (else `GROQ_API_KEY`).
 
-Serving, from the head node (checkpoints in `~/archon_clf/runs`, copied from `gpu/`):
+**One click (Docker stack):** the `kev-agent` compose service (`copilot_ide/services/kev_agent`, profile
+`gpu`) owns the pod, the model and the ssh tunnel; Conformance Studio's **GPU** button starts / stops it.
+It needs `CLF_HOST=<user>@<head node>`, `KEV_SSH_DIR=<folder with id_ed25519 + known_hosts>` and
+`COMPOSE_PROFILES=gpu` in `copilot_ide/.env`. It syncs `gpu/kev_serve.sh` + `gpu/pod.yaml` to the head node.
+
+By hand, on the head node (checkpoints in `~/archon_clf/runs`, copied from `gpu/`):
 ```bash
-bash ~/archon_clf/kev_serve.sh start L3     # pod + Kev on :8009 (fresh pod downloads the 18 GB base)
+bash ~/archon_clf/kev_serve.sh start L3     # pod + Kev on :8009 + port-forward (fresh pod downloads the 18 GB base)
+bash ~/archon_clf/kev_serve.sh status       # pod=<phase> server=<ready|loading|stopped> forward=<up|down>
 bash ~/archon_clf/kev_serve.sh stop
 python3 ~/archon_clf/kev_classify.py <dir>   # classify a codebase right there
 ```
-On the laptop: `ssh -N -L 8009:127.0.0.1:8009 <head node>`; Archon reads `KEV_URL` (default
+Without the agent: `ssh -N -L 8009:127.0.0.1:8009 <head node>`; Archon reads `KEV_URL` (default
 `http://127.0.0.1:8009`, Docker `http://host.docker.internal:8009`). The pod still expires after 8 h.
 `export_benchmark.py` regenerates the Evaluation dashboard's *Layer classifier* tab data.
 

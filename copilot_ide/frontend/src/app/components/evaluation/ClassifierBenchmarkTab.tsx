@@ -137,7 +137,7 @@ export function ClassifierBenchmarkTab() {
                 <td className="p-3 whitespace-nowrap text-fg-soft">
                   {c.gain !== undefined ? `${signed(c.gain)} [${signed(c.gainCi![0])}, ${signed(c.gainCi![1])}]` : 'baseline'}
                 </td>
-                <td className="p-3">
+                <td className="p-3 whitespace-nowrap">
                   {c.passes === undefined ? <span className="text-fg-subtle">—</span> : c.passes ? (
                     <span className="px-2 py-0.5 rounded-control font-bold bg-success/15 text-success border border-success/30">✓ PASS</span>
                   ) : (
