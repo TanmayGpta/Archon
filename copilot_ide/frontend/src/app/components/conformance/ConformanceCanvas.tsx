@@ -2,15 +2,7 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 
-// The intro plays on the first visit only; later visits open straight on the graph
-const INTRO_SEEN_KEY = 'archon.conformance.introSeen';
-const introSeen = () => {
-  try {
-    return localStorage.getItem(INTRO_SEEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
+// The intro plays every time the studio opens (click or Esc skips it; reduced motion never plays it)
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 import { prefersReducedMotion } from '@/lib/motion';
@@ -352,16 +344,11 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     hoverArmedRef.current = false;
     setIntroActive(false);
     onIntroChangeRef.current?.(false);
-    try {
-      localStorage.setItem(INTRO_SEEN_KEY, '1');
-    } catch {
-      // storage unavailable: the intro plays again next time
-    }
   }, []);
 
-  // Seen before: end the intro before the first paint. Otherwise a click or Esc skips it.
+  // Reduced motion: end the intro before the first paint. Otherwise a click or Esc skips it.
   useLayoutEffect(() => {
-    if (introSeen() || prefersReducedMotion()) finishIntro();
+    if (prefersReducedMotion()) finishIntro();
   }, [finishIntro]);
   useEffect(() => {
     if (!introActive) return;

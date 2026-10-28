@@ -1,7 +1,9 @@
 "use client";
 import React from 'react';
-import Link from 'next/link';
+import { createPortal } from 'react-dom';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
+import { RouteDial } from '../components/RouteDial';
 import { Icons } from '../components/Icons';
 import { ServiceStatus } from './ServiceStatus';
 import { usePaletteShortcut } from './CommandPalette';
@@ -16,6 +18,17 @@ const STUDIOS = [
   { href: '/architect', label: 'Architect', Icon: Icons.Architecture, activeClass: 'bg-selected text-ai border border-[#8b5cf6]/40 shadow-md' },
   { href: '/conformance', label: 'Conformance', Icon: Icons.Conformance, activeClass: 'bg-[#1b1b1a] text-[#e8ff00] border border-[#e8ff00]/50 shadow-md' },
 ];
+
+/* While a tab's navigation is blocked (in dev: the route compiling), cover the page with the loading
+   dial. Portalled because the header's backdrop-blur would trap position:fixed inside it. */
+function NavPending({ label }: { label: string }) {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return createPortal(
+    <RouteDial delayed label={`OPENING ${label.toUpperCase()}`} className="fixed inset-x-0 top-[56px] bottom-0 z-40" />,
+    document.body
+  );
+}
 
 /* ── Top Universal Header & Studio Nav ─────────────────────── */
 export function StudioHeader() {
@@ -53,6 +66,7 @@ export function StudioHeader() {
                 <Icon />
                 {/* Icons only on narrow screens; the label stays for screen readers */}
                 <span className="sr-only md:not-sr-only">{label}</span>
+                <NavPending label={label} />
               </Link>
             );
           })}
