@@ -89,4 +89,8 @@ export interface ConformanceAuditResult {
   cycles: string[][];
   layers: LayerInfo[];
   availableBlueprints: BlueprintInfo[];
+  // Which classifier labelled the modules no blueprint pattern matched (absent in older snapshots)
+  classifier?: { requested: string; used: string; detail: string };
 }
+
+export type ClassifierId = 'heuristic' | 'kev-precise' | 'kev-efficient';

@@ -26,7 +26,8 @@ def resolve_layer_mapping(
     modules: List[str], 
     ruleset: Dict[str, Any], 
     ruleset_path: str,
-    provider: Optional[str] = None
+    provider: Optional[str] = None,
+    root_dir: Optional[str] = None
 ) -> Dict[str, str]:
     """
     Resolves physical module paths to architectural layers using a 3-tier cascade:
@@ -78,9 +79,12 @@ def resolve_layer_mapping(
             ai_result = classify_modules(
                 modules=unresolved,
                 ruleset_path=ruleset_path,
-                model_choice=provider
+                model_choice=provider,
+                root_dir=root_dir
             )
             mapping.update(ai_result.mapping)
+            if provider.startswith("kev"):
+                click.echo(f"   {ai_result.reasoning}")
         except Exception as e:
             click.secho(f"⚠️  AI classification warning: {e}. Defaulting unresolved to 'unclassified'.", fg="yellow")
             for m in unresolved:
@@ -342,9 +346,10 @@ def cli(ctx):
 )
 @click.option(
     "--provider", "-p",
-    type=click.Choice(["groq", "gemini", "nvidia", "openai", "qwen", "none"], case_sensitive=False),
+    type=click.Choice(["kev-precise", "kev-efficient", "groq", "gemini", "nvidia", "openai", "qwen", "none"], case_sensitive=False),
     default="none",
-    help="LLM provider for semantic classification. Default: 'none' (fast offline mode)."
+    help="Classifier for modules no rule matches. kev-precise / kev-efficient = fine-tuned Kev-9B on the "
+         "college GPU (KEV_URL; reads source / signatures), Groq fallback. Default: 'none' (fast offline mode)."
 )
 @click.option(
     "--out", "-o",
@@ -411,7 +416,8 @@ def check_command(target: Optional[str], repo: Optional[str], rules: str, provid
 
     # 4. Resolve layer mapping
     chosen_provider = provider or detect_default_provider()
-    mapping = resolve_layer_mapping(internal_nodes, rules_data, ruleset_path=rules, provider=chosen_provider)
+    mapping = resolve_layer_mapping(internal_nodes, rules_data, ruleset_path=rules_path, provider=chosen_provider,
+                                    root_dir=codebase_path)
 
     # 5. Run deterministic checker
     report = check_architecture(G=G, mapping=mapping, ruleset=rules_data)

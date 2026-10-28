@@ -23,11 +23,44 @@ class AuditRequest(BaseModel):
     blueprint_id: Optional[str] = Field("archon_architecture", description="ID of architecture blueprint to check against")
     include_external: Optional[bool] = Field(True, description="Whether to include stdlib and 3rd-party library nodes")
     custom_ruleset: Optional[Dict[str, Any]] = Field(None, description="Optional custom ruleset JSON")
+    classifier: Optional[str] = Field("heuristic", description="heuristic | kev-precise | kev-efficient (Groq fallback if the GPU is down)")
 
 
 class ClassifyRequest(BaseModel):
     modules: List[str] = Field(..., description="List of module names to classify with AI")
     blueprint_id: Optional[str] = Field("archon_architecture", description="Target blueprint")
+
+
+class AssessRequest(BaseModel):
+    violation: Dict[str, Any] = Field(..., description="A violation object from a previous /audit response")
+    neighbours: List[str] = Field(default_factory=list, description="Other dependencies of the source module, e.g. 'shop.db (Infrastructure)'")
+    target_path: Optional[str] = Field(None, description="Codebase folder the audit ran on")
+    blueprint_id: Optional[str] = Field("archon_architecture", description="Blueprint the audit was judged against")
+    custom_ruleset: Optional[Dict[str, Any]] = Field(None, description="Custom ruleset used by the audit, if any")
+    provider: Optional[str] = Field(None, description="groq | gemini | nvidia | openai; default = first key found")
+
+
+@router.post("/assess")
+def assess_violation(req: AssessRequest):
+    """LLM verdict on one flagged dependency, including what the code does better than the blueprint."""
+    try:
+        return service.assess_violation(
+            violation=req.violation,
+            neighbours=req.neighbours,
+            target_path=req.target_path,
+            blueprint_id=req.blueprint_id,
+            custom_ruleset=req.custom_ruleset,
+            provider=req.provider,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Assessment failed: {str(e)}")
+
+
+@router.get("/classifier-status")
+def classifier_status():
+    """Whether the Kev GPU server answers (else kev-* audits fall back to Groq)."""
+    from conformance.kev_classifier import kev_available, kev_url
+    return {"kevUrl": kev_url(), "kevUp": kev_available()}
 
 
 @router.get("/blueprints")
@@ -47,7 +80,8 @@ def audit_codebase(req: AuditRequest):
             target_path=req.target_path,
             blueprint_id=req.blueprint_id,
             custom_ruleset=req.custom_ruleset,
-            include_external=req.include_external if req.include_external is not None else True
+            include_external=req.include_external if req.include_external is not None else True,
+            classifier=req.classifier or "heuristic"
         )
         return result
     except Exception as e:

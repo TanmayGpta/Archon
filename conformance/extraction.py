@@ -80,6 +80,16 @@ def extract_project_dependencies(
                 
     return dependencies
 
+
+def read_module_source(project_root, module: str) -> str:
+    """Inverse of the naming above: a.b -> a/b.py, or a/b/__init__.py for a package. '' if missing."""
+    base = os.path.join(str(project_root), *module.split("."))
+    for candidate in (base + ".py", os.path.join(base, "__init__.py")):
+        if os.path.isfile(candidate):
+            with open(candidate, "r", encoding="utf-8", errors="replace") as f:
+                return f.read()
+    return ""
+
 if __name__ == "__main__":
     # Test on the root archon directory
     project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

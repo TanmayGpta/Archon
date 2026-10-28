@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Glyph } from '../Icons';
 import { ConformanceCanvas } from './ConformanceCanvas';
+import { ViolationInsight } from './ViolationInsight';
 import { ResizeHandle, usePanelSize } from '../ResizeHandle';
 import { errorDetail } from '@/lib/api';
 import { replaceQuery } from '@/lib/deepLinks';
@@ -14,7 +15,8 @@ import {
   ConformanceEdge,
   LayoutMode,
   BlueprintInfo,
-  ConformanceViolation
+  ConformanceViolation,
+  ClassifierId
 } from './types';
 
 interface ConformanceStudioProps {
@@ -136,6 +138,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   );
   const [selectedBlueprintId, setSelectedBlueprintId] = useState<string>(initialBlueprintId || 'archon_architecture');
   const [includeExternal, setIncludeExternal] = useState<boolean>(true);
+  const [classifier, setClassifier] = useState<ClassifierId>('heuristic');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -150,7 +153,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [introActive, setIntroActive] = useState<boolean>(true);
 
   // Fetch / Run Audit
-  const runAudit = async (blueprintId?: string, customPath?: string) => {
+  const runAudit = async (blueprintId?: string, customPath?: string, classifierId?: ClassifierId) => {
     setLoading(true);
     setError(null);
     const bp = blueprintId || selectedBlueprintId;
@@ -165,7 +168,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         body: JSON.stringify({
           target_path: pathToScan.trim() ? pathToScan.trim() : undefined,
           blueprint_id: bp,
-          include_external: includeExternal
+          include_external: includeExternal,
+          classifier: classifierId || classifier
         })
       });
 
@@ -413,6 +417,30 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             </select>
           </div>
 
+          {/* Layer classifier for modules the blueprint's patterns don't match */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-mono text-[#8b8b86]">Classifier:</span>
+            <select
+              value={classifier}
+              onChange={e => {
+                setClassifier(e.target.value as ClassifierId);
+                runAudit(selectedBlueprintId, targetPath, e.target.value as ClassifierId);
+              }}
+              title="Kev-9B runs on the college GPU; if it is down the audit falls back to Groq"
+              className="bg-[#141413] border border-[#2b2b2a] text-white text-xs font-mono rounded px-2.5 py-1 outline-none focus:border-[#e8ff00]"
+            >
+              <option value="heuristic">Keyword rules (offline)</option>
+              <option value="kev-efficient">Kev-9B: token-efficient (F1 0.79)</option>
+              <option value="kev-precise">Kev-9B: precise (F1 0.82)</option>
+            </select>
+            {auditData?.classifier?.used === 'groq-fallback' && (
+              <span className="text-xs font-mono text-[#f5a524]" title={auditData.classifier.detail}>GPU down: Groq</span>
+            )}
+            {auditData?.classifier?.used?.startsWith('kev') && (
+              <span className="text-xs font-mono text-[#10b981]" title={auditData.classifier.detail}>GPU ✓</span>
+            )}
+          </div>
+
           <button
             onClick={() => setIncludeExternal(!includeExternal)}
             className={`px-2.5 py-1 rounded text-xs font-mono border transition-all ${
@@ -638,7 +666,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
 
           {/* ── FLOATING EDGE INSPECTOR MODAL (#insp) ────────────────── */}
           {selectedEdge && (
-            <div className="absolute top-4 left-4 max-w-md bg-[#0e0e0d]/95 border border-[#343434] rounded-lg p-4 shadow-2xl backdrop-blur-md z-30 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute top-4 left-4 max-w-md max-h-[calc(100%-6rem)] overflow-y-auto bg-[#0e0e0d]/95 border border-[#343434] rounded-lg p-4 shadow-2xl backdrop-blur-md z-30 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#1f1f1e]">
                 <div className="flex items-center gap-2">
                   <span
@@ -682,22 +710,17 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                 </div>
               )}
 
-              {/* XAI Explanation & Remediation */}
+              {/* Module flow graph + AI review (rule-based text until it loads) */}
               {selectedEdge.violation && (
-                <div className="space-y-2 text-xs">
-                  {selectedEdge.violation.explanation && (
-                    <div className="p-2 rounded bg-[#ff3b30]/10 border border-[#ff3b30]/30 text-[#fca5a5]">
-                      <b className="block text-[#ff5c2b] text-xs uppercase mb-0.5">Architectural Hazard:</b>
-                      {selectedEdge.violation.explanation}
-                    </div>
-                  )}
-                  {selectedEdge.violation.remediation && (
-                    <div className="p-2 rounded bg-[#10b981]/10 border border-[#10b981]/30 text-[#6ee7b7]">
-                      <b className="block text-[#10b981] text-xs uppercase mb-0.5">Recommended Remediation:</b>
-                      {selectedEdge.violation.remediation}
-                    </div>
-                  )}
-                </div>
+                <ViolationInsight
+                  edge={selectedEdge}
+                  nodes={auditData?.nodes || []}
+                  edges={auditData?.edges || []}
+                  apiBase={apiBase}
+                  targetPath={auditedPath}
+                  blueprintId={auditData?.blueprint?.id}
+                  offline={isBackendOffline}
+                />
               )}
             </div>
           )}

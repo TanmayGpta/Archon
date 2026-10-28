@@ -15,7 +15,7 @@ ROOT_DIR = Path("/workspace") if Path("/workspace/conformance").exists() else Pa
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from conformance.extraction import extract_project_dependencies
+from conformance.extraction import extract_project_dependencies, read_module_source
 from conformance.graph import build_dependency_graph, find_cycles, STDLIB_MODULES
 from conformance.checker import check_architecture, ArchitecturalViolation, ConformanceReport
 from conformance.studio.blueprints import get_blueprint_by_id, load_available_blueprints
@@ -119,18 +119,59 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
     return direct.resolve()
 
 
+def resolve_blueprint(blueprint_id: Optional[str], custom_ruleset: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Custom ruleset if given, else the named blueprint, else the first available one."""
+    if custom_ruleset:
+        return {"id": "custom", "name": "Custom Architecture", "ruleset": custom_ruleset}
+    blueprint = get_blueprint_by_id(blueprint_id or "archon_architecture")
+    if not blueprint:
+        blueprints = load_available_blueprints()
+        blueprint = blueprints[0] if blueprints else {"id": "default", "ruleset": {"layers": [], "rules": []}}
+    return blueprint
+
+
 class ConformanceService:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or ROOT_DIR).resolve()
+
+    def assess_violation(
+        self,
+        violation: Dict[str, Any],
+        neighbours: List[str],
+        target_path: Optional[str] = None,
+        blueprint_id: Optional[str] = "archon_architecture",
+        custom_ruleset: Optional[Dict[str, Any]] = None,
+        provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """LLM assessment of one flagged edge from a previous audit (see conformance/assessor_agent.py)."""
+        from conformance.assessor_agent import assess_violation, default_provider
+
+        provider = provider or default_provider()
+        if not provider:
+            return {"status": "error", "error": "No LLM key configured (GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY or OPENAI_API_KEY)."}
+        scan_dir = normalize_target_path(target_path, self.workspace_root)
+        blueprint = resolve_blueprint(blueprint_id, custom_ruleset)
+        result = assess_violation(
+            violation=violation,
+            ruleset=blueprint.get("ruleset", {}),
+            source_code=read_module_source(scan_dir, violation["source_module"]),
+            target_code=read_module_source(scan_dir, violation["target_module"]),
+            neighbours=neighbours,
+            blueprint_name=blueprint.get("name", "blueprint"),
+            model_choice=provider,
+        )
+        return {"status": "success", "provider": provider, "assessment": result.model_dump()}
 
     def run_audit(
         self,
         target_path: Optional[str] = None,
         blueprint_id: Optional[str] = "archon_architecture",
         custom_ruleset: Optional[Dict[str, Any]] = None,
-        include_external: bool = True
+        include_external: bool = True,
+        classifier: str = "heuristic"
     ) -> Dict[str, Any]:
-        """Runs an end-to-end architectural conformance audit."""
+        """Runs an end-to-end architectural conformance audit.
+        classifier: "heuristic" (keyword rules), "kev-precise" or "kev-efficient" (conformance/kev_classifier.py)."""
         scan_dir = normalize_target_path(target_path, self.workspace_root)
         if not scan_dir.exists():
             return {
@@ -160,14 +201,7 @@ class ConformanceService:
             }
 
         # 1. Load Blueprint
-        if custom_ruleset:
-            blueprint = {"id": "custom", "name": "Custom Architecture", "ruleset": custom_ruleset}
-        else:
-            blueprint = get_blueprint_by_id(blueprint_id or "archon_architecture")
-            if not blueprint:
-                blueprints = load_available_blueprints()
-                blueprint = blueprints[0] if blueprints else {"id": "default", "ruleset": {"layers": [], "rules": []}}
-
+        blueprint = resolve_blueprint(blueprint_id, custom_ruleset)
         ruleset = blueprint.get("ruleset", {})
         layers_def = ruleset.get("layers", [])
 
@@ -185,8 +219,9 @@ class ConformanceService:
                 cycle_nodes_set.add(c[i])
                 cycle_edges_set.add((c[i], c[(i + 1) % len(c)]))
 
-        # 4. Map modules to architectural layers
+        # 4. Map modules to architectural layers (blueprint patterns first, then classifier)
         mapping: Dict[str, str] = {}
+        unmatched: List[str] = []
         for node in G.nodes():
             node_type = G.nodes[node].get("node_type", "internal")
             if node_type == "stdlib":
@@ -195,7 +230,28 @@ class ConformanceService:
                 mapping[node] = "External"
             else:
                 matched = match_layer_by_patterns(node, layers_def)
-                mapping[node] = matched if matched else heuristic_layer_classify(node)
+                if matched:
+                    mapping[node] = matched
+                else:
+                    unmatched.append(node)
+
+        classifier_info = {"requested": classifier, "used": "heuristic", "detail": ""}
+        if classifier.startswith("kev") and unmatched:
+            from conformance.classifier_agent import classify_modules_with_ruleset
+            try:
+                result = classify_modules_with_ruleset(unmatched, ruleset, classifier, root_dir=str(scan_dir))
+                tag = result.reasoning.split("]", 1)[0].lstrip("[")
+                classifier_info = {"requested": classifier, "used": "groq-fallback" if tag.startswith("groq") else classifier,
+                                   "detail": result.reasoning}
+                layer_names = {l["name"] for l in layers_def}
+                for node in unmatched:
+                    layer = result.mapping.get(node)
+                    if layer in layer_names:
+                        mapping[node] = layer
+            except Exception as e:
+                classifier_info["detail"] = f"{classifier} and its Groq fallback both failed ({e}); used keyword heuristic."
+        for node in unmatched:
+            mapping.setdefault(node, heuristic_layer_classify(node))
 
         # 5. Check architecture violations
         report: ConformanceReport = check_architecture(G, mapping, ruleset)
@@ -308,6 +364,7 @@ class ConformanceService:
                 "cyclesCount": len(cycles),
                 "layerDistribution": layer_dist
             },
+            "classifier": classifier_info,
             "nodes": nodes_out,
             "edges": edges_out,
             "violations": [v.model_dump() for v in report.violations],

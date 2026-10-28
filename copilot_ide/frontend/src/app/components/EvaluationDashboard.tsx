@@ -11,6 +11,7 @@ import { Exercise4Analysis } from './evaluation/Exercise4Analysis';
 import { Exercise5Traces } from './evaluation/Exercise5Traces';
 import { Exercise6MultiHop } from './evaluation/Exercise6MultiHop';
 import { AblationTab } from './evaluation/AblationTab';
+import { ClassifierBenchmarkTab } from './evaluation/ClassifierBenchmarkTab';
 
 export function EvaluationDashboard() {
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -26,6 +27,7 @@ export function EvaluationDashboard() {
     { id: 5, label: 'Traces', sub: 'RAG Pipeline Flow', icon: 'search' as GlyphName },
     { id: 6, label: 'Multi-hop', sub: 'Repository Graph', icon: 'network' as GlyphName },
     { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: 'zap' as GlyphName },
+    { id: 8, label: 'Layer classifier', sub: 'Kev vs Groq vs Laya', icon: 'network' as GlyphName },
   ];
 
   return (
@@ -120,6 +122,7 @@ export function EvaluationDashboard() {
         )}
         {activeTab === 6 && <Exercise6MultiHop />}
         {activeTab === 7 && <AblationTab />}
+        {activeTab === 8 && <ClassifierBenchmarkTab />}
       </main>
 
       {/* Raw JSON Explorer Modal */}

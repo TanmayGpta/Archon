@@ -1,0 +1,900 @@
+{
+ "meta": {
+  "evalFiles": 507,
+  "testRepos": 27,
+  "baseline": "groq-prod-L0",
+  "minGain": 0.03,
+  "layers": [
+   "Domain",
+   "Application",
+   "Presentation",
+   "Infrastructure"
+  ],
+  "support": {
+   "Domain": 132,
+   "Application": 108,
+   "Presentation": 111,
+   "Infrastructure": 156
+  },
+  "trainRepos": 86,
+  "trainFiles": 4695
+ },
+ "candidates": [
+  {
+   "id": "kev-9b-ft-L3",
+   "label": "Kev-9B fine-tuned",
+   "family": "Kev",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": true,
+   "note": "Conformance: 'precise'",
+   "macroF1": 0.817,
+   "ci": [
+    0.761,
+    0.869
+   ],
+   "accuracy": 0.817,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.833,
+     "recall": 0.758,
+     "f1": 0.794,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.763,
+     "recall": 0.833,
+     "f1": 0.796,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.828,
+     "recall": 0.91,
+     "f1": 0.867,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.837,
+     "recall": 0.788,
+     "f1": 0.812,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": 237,
+   "gain": 0.139,
+   "gainCi": [
+    0.09,
+    0.19
+   ],
+   "passes": true
+  },
+  {
+   "id": "kev-9b-ftL3-L2",
+   "label": "Kev-9B fine-tuned (L3 model)",
+   "family": "Kev",
+   "level": "L2",
+   "input": "+ signatures",
+   "fineTuned": true,
+   "note": "Conformance: 'token-efficient'",
+   "macroF1": 0.787,
+   "ci": [
+    0.723,
+    0.847
+   ],
+   "accuracy": 0.787,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.804,
+     "recall": 0.682,
+     "f1": 0.738,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.725,
+     "recall": 0.806,
+     "f1": 0.763,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.806,
+     "recall": 0.901,
+     "f1": 0.851,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.808,
+     "recall": 0.782,
+     "f1": 0.795,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 217,
+   "msPerFile": 115,
+   "gain": 0.108,
+   "gainCi": [
+    0.059,
+    0.159
+   ],
+   "passes": true
+  },
+  {
+   "id": "kev-9b-ft-L2",
+   "label": "Kev-9B fine-tuned",
+   "family": "Kev",
+   "level": "L2",
+   "input": "+ signatures",
+   "fineTuned": true,
+   "note": "",
+   "macroF1": 0.787,
+   "ci": [
+    0.722,
+    0.851
+   ],
+   "accuracy": 0.787,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.741,
+     "recall": 0.758,
+     "f1": 0.749,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.752,
+     "recall": 0.759,
+     "f1": 0.756,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.817,
+     "recall": 0.883,
+     "f1": 0.848,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.832,
+     "recall": 0.763,
+     "f1": 0.796,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 217,
+   "msPerFile": 120,
+   "gain": 0.109,
+   "gainCi": [
+    0.063,
+    0.159
+   ],
+   "passes": true
+  },
+  {
+   "id": "kev-9b-ft-L1",
+   "label": "Kev-9B fine-tuned",
+   "family": "Kev",
+   "level": "L1",
+   "input": "+ imports",
+   "fineTuned": true,
+   "note": "",
+   "macroF1": 0.754,
+   "ci": [
+    0.693,
+    0.81
+   ],
+   "accuracy": 0.751,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.69,
+     "recall": 0.742,
+     "f1": 0.715,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.69,
+     "recall": 0.722,
+     "f1": 0.706,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.842,
+     "recall": 0.865,
+     "f1": 0.853,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.79,
+     "recall": 0.699,
+     "f1": 0.741,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 46,
+   "msPerFile": 90,
+   "gain": 0.076,
+   "gainCi": [
+    0.033,
+    0.12
+   ],
+   "passes": true
+  },
+  {
+   "id": "kev-9b-ft-L0",
+   "label": "Kev-9B fine-tuned",
+   "family": "Kev",
+   "level": "L0",
+   "input": "path",
+   "fineTuned": true,
+   "note": "",
+   "macroF1": 0.671,
+   "ci": [
+    0.595,
+    0.74
+   ],
+   "accuracy": 0.667,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.569,
+     "recall": 0.621,
+     "f1": 0.594,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.624,
+     "recall": 0.722,
+     "f1": 0.67,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.771,
+     "recall": 0.73,
+     "f1": 0.75,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.729,
+     "recall": 0.622,
+     "f1": 0.671,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 13,
+   "msPerFile": 83,
+   "gain": -0.007,
+   "gainCi": [
+    -0.045,
+    0.03
+   ],
+   "passes": false
+  },
+  {
+   "id": "kev-9b-L3",
+   "label": "Kev-9B zero-shot",
+   "family": "Kev",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.762,
+   "ci": [
+    0.707,
+    0.812
+   ],
+   "accuracy": 0.761,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.802,
+     "recall": 0.705,
+     "f1": 0.75,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.669,
+     "recall": 0.731,
+     "f1": 0.699,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.873,
+     "recall": 0.802,
+     "f1": 0.836,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.731,
+     "recall": 0.801,
+     "f1": 0.765,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": 207,
+   "gain": 0.084,
+   "gainCi": [
+    0.018,
+    0.163
+   ],
+   "passes": false
+  },
+  {
+   "id": "kev-9b-L2",
+   "label": "Kev-9B zero-shot",
+   "family": "Kev",
+   "level": "L2",
+   "input": "+ signatures",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.743,
+   "ci": [
+    0.682,
+    0.798
+   ],
+   "accuracy": 0.742,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.788,
+     "recall": 0.674,
+     "f1": 0.727,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.644,
+     "recall": 0.704,
+     "f1": 0.673,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.856,
+     "recall": 0.802,
+     "f1": 0.828,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.709,
+     "recall": 0.782,
+     "f1": 0.744,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 217,
+   "msPerFile": 102,
+   "gain": 0.064,
+   "gainCi": [
+    -0.004,
+    0.143
+   ],
+   "passes": false
+  },
+  {
+   "id": "kev-9b-L1",
+   "label": "Kev-9B zero-shot",
+   "family": "Kev",
+   "level": "L1",
+   "input": "+ imports",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.648,
+   "ci": [
+    0.581,
+    0.713
+   ],
+   "accuracy": 0.653,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.679,
+     "recall": 0.561,
+     "f1": 0.614,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.482,
+     "recall": 0.509,
+     "f1": 0.495,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.769,
+     "recall": 0.811,
+     "f1": 0.789,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.671,
+     "recall": 0.718,
+     "f1": 0.693,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 46,
+   "msPerFile": 77,
+   "gain": -0.03,
+   "gainCi": [
+    -0.101,
+    0.043
+   ],
+   "passes": false
+  },
+  {
+   "id": "kev-9b-L0",
+   "label": "Kev-9B zero-shot",
+   "family": "Kev",
+   "level": "L0",
+   "input": "path",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.547,
+   "ci": [
+    0.479,
+    0.611
+   ],
+   "accuracy": 0.554,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.662,
+     "recall": 0.402,
+     "f1": 0.5,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.362,
+     "recall": 0.463,
+     "f1": 0.407,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.684,
+     "recall": 0.604,
+     "f1": 0.641,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.581,
+     "recall": 0.712,
+     "f1": 0.64,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 13,
+   "msPerFile": 73,
+   "gain": -0.132,
+   "gainCi": [
+    -0.2,
+    -0.059
+   ],
+   "passes": false
+  },
+  {
+   "id": "kev-4b-L3",
+   "label": "Kev-4B zero-shot",
+   "family": "Kev",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.698,
+   "ci": [
+    0.641,
+    0.754
+   ],
+   "accuracy": 0.686,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.768,
+     "recall": 0.727,
+     "f1": 0.747,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.453,
+     "recall": 0.852,
+     "f1": 0.592,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.926,
+     "recall": 0.793,
+     "f1": 0.854,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.857,
+     "recall": 0.462,
+     "f1": 0.6,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": null,
+   "gain": 0.02,
+   "gainCi": [
+    -0.042,
+    0.097
+   ],
+   "passes": false
+  },
+  {
+   "id": "groq-rich-L1",
+   "label": "Groq gpt-oss-120b, test prompt",
+   "family": "Groq",
+   "level": "L1",
+   "input": "+ imports",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.772,
+   "ci": [
+    0.713,
+    0.826
+   ],
+   "accuracy": 0.765,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.775,
+     "recall": 0.705,
+     "f1": 0.738,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.635,
+     "recall": 0.806,
+     "f1": 0.71,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.886,
+     "recall": 0.838,
+     "f1": 0.861,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.827,
+     "recall": 0.737,
+     "f1": 0.78,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 46,
+   "msPerFile": null,
+   "gain": 0.094,
+   "gainCi": [
+    0.039,
+    0.157
+   ],
+   "passes": true
+  },
+  {
+   "id": "groq-prod-L1",
+   "label": "Groq gpt-oss-120b, shipped prompt",
+   "family": "Groq",
+   "level": "L1",
+   "input": "+ imports",
+   "fineTuned": false,
+   "note": "Reverted (missed the gate)",
+   "macroF1": 0.747,
+   "ci": [
+    0.693,
+    0.796
+   ],
+   "accuracy": 0.742,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.76,
+     "recall": 0.697,
+     "f1": 0.727,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.566,
+     "recall": 0.759,
+     "f1": 0.648,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.868,
+     "recall": 0.829,
+     "f1": 0.848,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.833,
+     "recall": 0.705,
+     "f1": 0.764,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 46,
+   "msPerFile": null,
+   "gain": 0.068,
+   "gainCi": [
+    0.006,
+    0.138
+   ],
+   "passes": false
+  },
+  {
+   "id": "groq-prod-L0",
+   "label": "Groq gpt-oss-120b, names only",
+   "family": "Groq",
+   "level": "L0",
+   "input": "path",
+   "fineTuned": false,
+   "note": "Baseline (previous production)",
+   "macroF1": 0.678,
+   "ci": [
+    0.61,
+    0.74
+   ],
+   "accuracy": 0.667,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.67,
+     "recall": 0.583,
+     "f1": 0.623,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.603,
+     "recall": 0.759,
+     "f1": 0.672,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.843,
+     "recall": 0.631,
+     "f1": 0.722,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.694,
+     "recall": 0.699,
+     "f1": 0.696,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 13,
+   "msPerFile": null
+  },
+  {
+   "id": "laya-typed-L3",
+   "label": "Laya typed-decisions",
+   "family": "Laya",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.411,
+   "ci": [
+    0.358,
+    0.463
+   ],
+   "accuracy": 0.44,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.938,
+     "recall": 0.114,
+     "f1": 0.203,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.335,
+     "recall": 0.602,
+     "f1": 0.43,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.373,
+     "recall": 0.559,
+     "f1": 0.448,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.618,
+     "recall": 0.519,
+     "f1": 0.564,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": null,
+   "gain": -0.267,
+   "gainCi": [
+    -0.341,
+    -0.191
+   ],
+   "passes": false
+  },
+  {
+   "id": "laya-L3",
+   "label": "Laya",
+   "family": "Laya",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.324,
+   "ci": [
+    0.27,
+    0.382
+   ],
+   "accuracy": 0.391,
+   "perLayer": {
+    "Domain": {
+     "precision": 1.0,
+     "recall": 0.023,
+     "f1": 0.044,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.338,
+     "recall": 0.407,
+     "f1": 0.37,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.366,
+     "recall": 0.333,
+     "f1": 0.349,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.418,
+     "recall": 0.731,
+     "f1": 0.531,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": null,
+   "gain": -0.355,
+   "gainCi": [
+    -0.423,
+    -0.281
+   ],
+   "passes": false
+  },
+  {
+   "id": "laya-ml8k-L3",
+   "label": "Laya multilingual 8k",
+   "family": "Laya",
+   "level": "L3",
+   "input": "+ source",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.234,
+   "ci": [
+    0.208,
+    0.261
+   ],
+   "accuracy": 0.359,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.334,
+     "recall": 0.856,
+     "f1": 0.481,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.167,
+     "recall": 0.009,
+     "f1": 0.018,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 1.0,
+     "recall": 0.009,
+     "f1": 0.018,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.414,
+     "recall": 0.429,
+     "f1": 0.421,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 830,
+   "msPerFile": null,
+   "gain": -0.444,
+   "gainCi": [
+    -0.503,
+    -0.381
+   ],
+   "passes": false
+  },
+  {
+   "id": "import-rule",
+   "label": "Import-keyword rule",
+   "family": "Floor",
+   "level": "L1",
+   "input": "+ imports",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.392,
+   "ci": [
+    0.336,
+    0.441
+   ],
+   "accuracy": 0.452,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.332,
+     "recall": 0.977,
+     "f1": 0.496,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.4,
+     "recall": 0.019,
+     "f1": 0.035,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.84,
+     "recall": 0.568,
+     "f1": 0.677,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.897,
+     "recall": 0.224,
+     "f1": 0.359,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 0,
+   "msPerFile": null,
+   "gain": -0.286,
+   "gainCi": [
+    -0.362,
+    -0.211
+   ],
+   "passes": false
+  },
+  {
+   "id": "majority",
+   "label": "Majority class",
+   "family": "Floor",
+   "level": "L0",
+   "input": "path",
+   "fineTuned": false,
+   "note": "",
+   "macroF1": 0.103,
+   "ci": [
+    0.091,
+    0.114
+   ],
+   "accuracy": 0.26,
+   "perLayer": {
+    "Domain": {
+     "precision": 0.26,
+     "recall": 1.0,
+     "f1": 0.413,
+     "support": 132
+    },
+    "Application": {
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "support": 108
+    },
+    "Presentation": {
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "support": 111
+    },
+    "Infrastructure": {
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "support": 156
+    }
+   },
+   "tokensPerFile": 0,
+   "msPerFile": null,
+   "gain": -0.575,
+   "gainCi": [
+    -0.638,
+    -0.505
+   ],
+   "passes": false
+  }
+ ]
+}

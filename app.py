@@ -61,7 +61,11 @@ with st.sidebar:
         st.caption("📦 **Demo Active:** `ecommerce_platform.zip`")
 
     st.header("2. AI Settings")
-    provider = st.selectbox("Provider", ["groq", "nvidia", "gemini", "openai", "qwen"])
+    provider = st.selectbox(
+        "Provider", ["kev-precise", "kev-efficient", "groq", "nvidia", "gemini", "openai", "qwen"],
+        format_func=lambda p: {"kev-precise": "Kev-9B: precise (reads source)",
+                               "kev-efficient": "Kev-9B: token-efficient (signatures)"}.get(p, p),
+        help="Kev runs on the college GPU (KEV_URL) and falls back to Groq if it is down.")
 
     if provider == "nvidia":
         nvidia_model = st.selectbox("NVIDIA Model", CURATED_NVIDIA_MODELS)
@@ -153,9 +157,12 @@ if classify_btn:
                     modules=st.session_state['nodes_list'],
                     ruleset_path=ruleset_path,
                     model_choice=provider,
-                    nvidia_model=nvidia_model  # Pass the selected NVIDIA model name through
+                    nvidia_model=nvidia_model,  # Pass the selected NVIDIA model name through
+                    root_dir=st.session_state['target_dir']  # Kev reads each module's source
                 )
                 st.session_state['classification_mapping'] = result.mapping
+                if provider.startswith("kev"):
+                    st.caption(result.reasoning)
                 
                 # RE-RENDER GRAPH WITH AI COLORS
                 html_path = "temp_graph.html"
