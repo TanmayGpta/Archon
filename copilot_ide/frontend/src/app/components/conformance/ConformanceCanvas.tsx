@@ -14,6 +14,8 @@ interface ConformanceCanvasProps {
   selectedNode: ConformanceNode | null;
   selectedEdge: ConformanceEdge | null;
   highlightLayer: string | null;
+  // Spotlight every dependency cycle (dims the rest and frames the cycle members)
+  highlightCycles?: boolean;
   filterLayers: Set<string>;
   onSelectNode: (node: ConformanceNode | null) => void;
   onSelectEdge: (edge: ConformanceEdge | null) => void;
@@ -34,6 +36,8 @@ const INTRO_HOLD = 1650;   // full dial waits here if the layout is still settli
 const INTRO_END = INTRO_BURST + 900 + INTRO_TWEEN + 150;
 const WRAPPER_CLASS = 'overflow-hidden select-none bg-[#080808]';
 const SLOT_WRAPPER_CLASS = 'relative w-full h-full';
+// Dependency cycles (Tarjan SCC edges/members); saturated violet so it stays distinct from the lavender Infrastructure layer
+const CYCLE_COLOR = '#c026ff';
 const INTRO_LAYER_ORDER =['Presentation', 'Application', 'Domain', 'Infrastructure', 'Observability', 'External', 'Stdlib', 'Unclassified'];
 
 interface Particle {
@@ -273,6 +277,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   selectedNode,
   selectedEdge,
   highlightLayer,
+  highlightCycles = false,
   filterLayers,
   onSelectNode,
   onSelectEdge,
@@ -586,9 +591,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           source: e.source,
           target: e.target,
           progress: Math.random(),
-          speed: e.isViolation ? 0.0012 : 0.0006 + (i % 4) * 0.00012,
-          isViolation: e.isViolation,
-          color: e.isViolation ? '#ff3b30' : sNode?.color || '#4f9dff'
+          speed: e.isViolation || e.isCycle ? 0.0012 : 0.0006 + (i % 4) * 0.00012,
+          isViolation: e.isViolation || e.isCycle,
+          color: e.isCycle ? CYCLE_COLOR : e.isViolation ? '#ff3b30' : sNode?.color || '#4f9dff'
         });
       }
       particlesRef.current = newParticles;
@@ -898,7 +903,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           hotNodes.add(selectedEdge.target);
         }
 
-        const hasActiveFocus = activeNode !== null || selectedEdge !== null;
+        if (highlightCycles) {
+          currentEdges.forEach(e => {
+            if (e.isCycle) {
+              hotEdges.add(e.id);
+              hotNodes.add(e.source);
+              hotNodes.add(e.target);
+            }
+          });
+        }
+
+        const hasActiveFocus = activeNode !== null || selectedEdge !== null || highlightCycles;
 
         // ── 3. CANVAS RENDERING ─────────────────────────────────────
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1059,6 +1074,19 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           const mx = (s.x! + t.x!) / 2;
           const my = (s.y! + t.y!) / 2;
 
+          // Cycle edges always bow to the left of their direction, so A→B and B→A split into a
+          // visible loop instead of overlapping, and longer cycles read as a ring
+          if (e.isCycle) {
+            const bow = 0.2;
+            edgeCurves.set(e.id, {
+              isStraight: false,
+              isDashed: e.isViolation,
+              cx: mx - (t.y! - s.y!) * bow * 2,
+              cy: my + (t.x! - s.x!) * bow * 2
+            });
+            return;
+          }
+
           if (mode === 'clusters') {
             const isCrossCluster = s.layer !== t.layer;
             if (isCrossCluster) {
@@ -1106,11 +1134,12 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           const isHot = hotEdges.has(e.id);
           const isSelected = selectedEdge && selectedEdge.id === e.id;
 
-          const lineWidth = (e.isViolation ? 1.4 : (isHot ? 0.85 : (geom.isDashed ? 0.6 : 0.65))) / Math.pow(Math.max(0.05, cam.zoom), 0.7);
+          const isFlagged = e.isViolation || e.isCycle;
+          const lineWidth = (isFlagged ? 1.4 : (isHot ? 0.85 : (geom.isDashed ? 0.6 : 0.65))) / Math.pow(Math.max(0.05, cam.zoom), 0.7);
           let alpha = 0.32;
 
-          if (e.isViolation) {
-            alpha = hasActiveFocus ? (isHot ? 0.95 : 0.40) : 0.90;
+          if (isFlagged) {
+            alpha = hasActiveFocus ? (isHot ? 0.95 : highlightCycles ? 0.12 : 0.40) : 0.90;
           } else if (hasActiveFocus) {
             alpha = isHot ? 0.80 : 0.05;
           } else if (mode === 'violations') {
@@ -1119,7 +1148,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           alpha *= introEdgeK;
           if (alpha < 0.01) return;
 
-          const strokeStyle = e.isViolation ? '#ff3b30' : (isHot ? '#e8ff00' : s.color);
+          // A cycle edge is purple even when it is also a layer violation (still drawn dashed)
+          const strokeStyle = e.isCycle ? CYCLE_COLOR : e.isViolation ? '#ff3b30' : (isHot ? '#e8ff00' : s.color);
 
           ctx.beginPath();
           ctx.moveTo(s.x!, s.y!);
@@ -1132,10 +1162,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           ctx.globalAlpha = alpha;
           ctx.lineWidth = lineWidth;
 
-          if (e.isViolation) {
-            ctx.shadowColor = '#ff3b30';
+          if (isFlagged) {
+            ctx.shadowColor = strokeStyle;
             ctx.shadowBlur = 8;
-            ctx.setLineDash([5, 4]);
+            if (e.isViolation) ctx.setLineDash([5, 4]);
             ctx.stroke();
             ctx.setLineDash([]);
             ctx.shadowBlur = 0;
@@ -1147,12 +1177,33 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.stroke();
           }
 
+          // Arrowhead at the target's rim so the direction of each cycle edge is readable
+          if (e.isCycle && alpha > 0.05) {
+            const dirX = t.x! - (geom.isStraight ? s.x! : geom.cx);
+            const dirY = t.y! - (geom.isStraight ? s.y! : geom.cy);
+            const dLen = Math.hypot(dirX, dirY) || 1;
+            const ux = dirX / dLen, uy = dirY / dLen;
+            const tR = nodeWorldR(t, cam.zoom, t.id === topNodeIdRef.current) * (t.violationsCount > 0 ? 0.75 : 1);
+            const zk = Math.pow(Math.max(0.05, cam.zoom), 0.7);
+            const tipX = t.x! - ux * (tR + 3 / zk);
+            const tipY = t.y! - uy * (tR + 3 / zk);
+            const size = 6 / zk;
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX - ux * size - uy * size * 0.55, tipY - uy * size + ux * size * 0.55);
+            ctx.lineTo(tipX - ux * size + uy * size * 0.55, tipY - uy * size - ux * size * 0.55);
+            ctx.closePath();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = CYCLE_COLOR;
+            ctx.fill();
+          }
+
           // Micro bend-point dot at the curve's midpoint (fills the space between hubs)
           if (!geom.isStraight && alpha > 0.05) {
             const bx = (s.x! + 2 * geom.cx + t.x!) / 4;
             const by = (s.y! + 2 * geom.cy + t.y!) / 4;
             ctx.globalAlpha = Math.min(0.55, alpha * 2);
-            ctx.fillStyle = e.isViolation ? '#ff3b30' : '#c8c8c4';
+            ctx.fillStyle = e.isCycle ? CYCLE_COLOR : e.isViolation ? '#ff3b30' : '#c8c8c4';
             ctx.fillRect(bx - 0.6, by - 0.6, 1.2, 1.2);
           }
         });
@@ -1222,8 +1273,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
           let nodeAlpha = 1.0;
           if (hasActiveFocus) {
-            nodeAlpha = isHot ? 1.0 : 0.45;
-          } else if (mode === 'violations' && n.violationsCount === 0) {
+            nodeAlpha = isHot ? 1.0 : highlightCycles ? 0.15 : 0.45;
+          } else if (mode === 'violations' && n.violationsCount === 0 && !n.isCycle) {
             nodeAlpha = 0.12;
           } else if (highlightLayer && n.layer !== highlightLayer) {
             nodeAlpha = 0.25;
@@ -1310,6 +1361,18 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
           ctx.shadowBlur = 0;
 
+          // Cycle members get a violet ring (on top of the layer/violation fill)
+          if (n.isCycle) {
+            ctx.beginPath();
+            ctx.arc(n.x!, n.y!, (isViolation ? radius * 0.75 : radius) + 2.2 / Math.pow(Math.max(0.05, cam.zoom), 0.8), 0, Math.PI * 2);
+            ctx.strokeStyle = CYCLE_COLOR;
+            ctx.lineWidth = 1.4 / Math.pow(Math.max(0.05, cam.zoom), 0.7);
+            ctx.shadowColor = CYCLE_COLOR;
+            ctx.shadowBlur = 8;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+
           // Decluttered Labels with Compact, Sleek Typography
           const isTopLandmark = n.totalDegree >= 18;
           const shouldShowLabel =
@@ -1317,6 +1380,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             isHovered ||
             (hasActiveFocus && isHot) ||
             n.violationsCount > 0 ||
+            n.isCycle ||
             (cam.zoom >= 2.0) ||
             (cam.zoom >= 1.5 && n.totalDegree >= 10) ||
             (cam.zoom >= 0.85 && isTopLandmark);
@@ -1342,7 +1406,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             ctx.lineWidth = 2.0;
             ctx.strokeStyle = 'rgba(8, 8, 8, 0.90)';
             ctx.strokeText(n.label, n.x!, textY);
-            ctx.fillStyle = isSelected ? '#e8ff00' : n.violationsCount > 0 ? '#ff5c2b' : '#d1d5db';
+            ctx.fillStyle = isSelected ? '#e8ff00' : n.isCycle ? '#d98cff' : n.violationsCount > 0 ? '#ff5c2b' : '#d1d5db';
             ctx.fillText(n.label, n.x!, textY);
           }
         });
@@ -1363,7 +1427,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       isRunning = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [mode, selectedNode, selectedEdge, highlightLayer, finishIntro]);
+  }, [mode, selectedNode, selectedEdge, highlightLayer, highlightCycles, finishIntro]);
 
   // Window resize listener
   // Window resize listener (does not move or reset user camera)
@@ -1430,6 +1494,40 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     return () => { clearTimeout(t); cancelAnimationFrame(raf); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a new focusSeq is the trigger
   }, [focusSeq]);
+
+  // Cycle spotlight switched on: frame all cycle members (in the current, possibly rotated, view)
+  useEffect(() => {
+    if (!highlightCycles) return;
+    let frames = 0;
+    let raf = 0;
+    const aim = () => {
+      const canvas = canvasRef.current;
+      const members = simNodesRef.current.filter(n => n.isCycle && n.x !== undefined && n.y !== undefined);
+      if (!canvas || members.length === 0) {
+        if (frames++ < 30) raf = requestAnimationFrame(aim);
+        return;
+      }
+      const rot = mode === 'network' ? ambientRotationRef.current : 0;
+      const pts = members.map(n => ({
+        x: n.x! * Math.cos(rot) - n.y! * Math.sin(rot),
+        y: n.x! * Math.sin(rot) + n.y! * Math.cos(rot)
+      }));
+      const target = computeFitT(pts, canvas.clientWidth || 1200, canvas.clientHeight || 800, 90);
+      cameraTweenRef.current = {
+        t0: performance.now(),
+        dur: reduceMotionRef.current ? 1 : 650,
+        startX: cameraRef.current.x,
+        startY: cameraRef.current.y,
+        startZoom: cameraRef.current.zoom,
+        targetX: target.x,
+        targetY: target.y,
+        targetZoom: target.zoom
+      };
+    };
+    raf = requestAnimationFrame(aim);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-frame when the spotlight turns on
+  }, [highlightCycles]);
 
   // ── Precision High-DPI Mouse Spatial Raycasting ──
   const screenToWorld = useCallback((clientX: number, clientY: number) => {

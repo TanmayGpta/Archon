@@ -134,6 +134,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [selectedNode, setSelectedNode] = useState<ConformanceNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<ConformanceEdge | null>(null);
   const [highlightLayer, setHighlightLayer] = useState<string | null>(null);
+  const [highlightCycles, setHighlightCycles] = useState<boolean>(false);
   const [filterLayers, setFilterLayers] = useState<Set<string>>(
     () => new Set(fromSnapshot ? archonAuditSnapshot.layers.map(l => l.name) : [])
   );
@@ -657,6 +658,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}
             highlightLayer={highlightLayer}
+            highlightCycles={highlightCycles && (auditData?.metrics.cyclesCount || 0) > 0}
             filterLayers={filterLayers}
             onSelectNode={(node) => {
               setSelectedNode(node);
@@ -743,12 +745,15 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                 <div className="flex items-center gap-2">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      selectedEdge.isViolation ? 'bg-[#ff3b30]' : 'bg-[#10b981]'
+                      selectedEdge.isViolation ? 'bg-[#ff3b30]' : selectedEdge.isCycle ? 'bg-[#c026ff]' : 'bg-[#10b981]'
                     }`}
                   />
                   <b className="text-white">
-                    {selectedEdge.isViolation ? 'ARCHITECTURAL VIOLATION' : 'CONFORMING DEPENDENCY'}
+                    {selectedEdge.isViolation ? 'ARCHITECTURAL VIOLATION' : selectedEdge.isCycle ? 'DEPENDENCY CYCLE' : 'CONFORMING DEPENDENCY'}
                   </b>
+                  {selectedEdge.isViolation && selectedEdge.isCycle && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] text-[#d98cff] border border-[#c026ff]/50">CYCLE</span>
+                  )}
                 </div>
                 <button aria-label="Back to module"
                   onClick={() => setSelectedEdge(null)}
@@ -957,17 +962,46 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                     {auditData?.metrics.totalViolations || 0}
                   </div>
                 </div>
-                <div className="p-2.5 rounded bg-[#141413] border border-[#1f1f1e]">
-                  <div className="text-xs text-[#8b8b86]">CYCLES</div>
+                <button
+                  type="button"
+                  disabled={(auditData?.metrics.cyclesCount || 0) === 0}
+                  aria-pressed={highlightCycles}
+                  title={(auditData?.metrics.cyclesCount || 0) > 0 ? 'Highlight dependency cycles on the graph' : 'No dependency cycles'}
+                  onClick={() => setHighlightCycles(v => !v)}
+                  className={`p-2.5 rounded bg-[#141413] border text-left transition-colors enabled:cursor-pointer enabled:hover:border-[#c026ff]/60 ${
+                    highlightCycles ? 'border-[#c026ff] shadow-[0_0_10px_rgba(192,38,255,0.35)]' : 'border-[#1f1f1e]'
+                  }`}
+                >
+                  <div className="text-xs text-[#8b8b86]">CYCLES{highlightCycles ? ' · SHOWN' : ''}</div>
                   <div
                     className={`text-lg font-bold mt-0.5 ${
-                      (auditData?.metrics.cyclesCount || 0) > 0 ? 'text-[#ff3b30]' : 'text-[#10b981]'
+                      (auditData?.metrics.cyclesCount || 0) > 0 ? 'text-[#c026ff]' : 'text-[#10b981]'
                     }`}
                   >
                     {auditData?.metrics.cyclesCount || 0}
                   </div>
-                </div>
+                </button>
               </div>
+
+              {/* Cycle paths (while the cycle spotlight is on); click one to centre its first module */}
+              {highlightCycles && (auditData?.cycles || []).length > 0 && (
+                <div className="p-2.5 rounded bg-[#141413] border border-[#c026ff]/40 font-mono text-xs space-y-1.5">
+                  <div className="text-[#c026ff] uppercase">Dependency cycles</div>
+                  {(auditData?.cycles || []).slice(0, 12).map((c, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setFocus(f => ({ id: c[0], seq: (f?.seq ?? 0) + 1 }))}
+                      className="block w-full text-left text-[#d98cff] hover:text-white break-all cursor-pointer"
+                    >
+                      {[...c, c[0]].join(' → ')}
+                    </button>
+                  ))}
+                  {(auditData?.cycles || []).length > 12 && (
+                    <div className="text-[#8b8b86]">+{(auditData?.cycles || []).length - 12} more</div>
+                  )}
+                </div>
+              )}
 
               {/* Blueprint Summary */}
               {auditData?.blueprint && (
