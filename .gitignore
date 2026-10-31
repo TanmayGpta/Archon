@@ -60,3 +60,5 @@ targets/
 copilot_ide/targets/
 
 CLAUDE.md
+
+copilot_ide/knowledge_graph.json
