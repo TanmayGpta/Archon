@@ -1,0 +1,18 @@
+# kube-prometheus-stack values for the local lab.
+prometheus:
+  prometheusSpec:
+    # Pick up every ServiceMonitor (including kube-pred's), not only ones labelled with this release.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    scrapeInterval: 15s
+    retention: 2d
+grafana:
+  adminPassword: admin
+# kind control-plane components are not reachable for scraping; silence their alerts.
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false

@@ -1,0 +1,17 @@
+# Expect: cpu_cores and cpu_throttle_ratio anomalies on cartservice.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: cpu-stress-cart
+  namespace: boutique
+spec:
+  mode: one
+  selector:
+    namespaces: [boutique]
+    labelSelectors:
+      app: cartservice
+  stressors:
+    cpu:
+      workers: 2
+      load: 90
+  duration: "5m"

@@ -1,0 +1,54 @@
+# In-cluster kube-pred. Build and load the image first:
+#   docker build -t kube-pred:dev . ; kind load docker-image kube-pred:dev --name kube-pred
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-pred
+  namespace: monitoring
+  labels: {app: kube-pred}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: kube-pred}
+  template:
+    metadata:
+      labels: {app: kube-pred}
+    spec:
+      containers:
+        - name: kube-pred
+          image: kube-pred:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PROM_URL
+              value: http://kube-prom-kube-prometheus-prometheus.monitoring:9090
+          ports:
+            - {name: metrics, containerPort: 9105}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          livenessProbe:
+            httpGet: {path: /metrics, port: metrics}
+            initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-pred
+  namespace: monitoring
+  labels: {app: kube-pred}
+spec:
+  selector: {app: kube-pred}
+  ports:
+    - {name: metrics, port: 9105, targetPort: metrics}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-pred
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels: {app: kube-pred}
+  endpoints:
+    - port: metrics
+      interval: 15s

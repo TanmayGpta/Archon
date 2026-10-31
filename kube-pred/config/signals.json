@@ -1,0 +1,47 @@
+{
+  "window_seconds": 3600,
+  "step_seconds": 15,
+  "baseline_points": 120,
+  "min_baseline_points": 20,
+  "ewma_span": 40,
+  "threshold": 3.5,
+  "detectors": ["mad", "ewma"],
+  "signals": [
+    {
+      "name": "cpu_cores",
+      "query": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"boutique\", container!=\"\"}[1m]))",
+      "aggregate": "sum",
+      "min_scale": 0.005
+    },
+    {
+      "name": "memory_bytes",
+      "query": "sum by (pod) (container_memory_working_set_bytes{namespace=\"boutique\", container!=\"\"})",
+      "aggregate": "sum",
+      "min_scale": 1048576
+    },
+    {
+      "name": "cpu_throttle_ratio",
+      "query": "sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"boutique\", container!=\"\"}[1m])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=\"boutique\", container!=\"\"}[1m]))",
+      "aggregate": "max",
+      "min_scale": 0.02
+    },
+    {
+      "name": "restarts_5m",
+      "query": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=\"boutique\"}[5m]))",
+      "aggregate": "sum",
+      "min_scale": 0.25
+    },
+    {
+      "name": "net_rx_bytes",
+      "query": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"boutique\"}[1m]))",
+      "aggregate": "sum",
+      "min_scale": 1024
+    },
+    {
+      "name": "net_tx_bytes",
+      "query": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"boutique\"}[1m]))",
+      "aggregate": "sum",
+      "min_scale": 1024
+    }
+  ]
+}

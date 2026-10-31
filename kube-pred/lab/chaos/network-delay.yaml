@@ -1,0 +1,17 @@
+# Expect: net_rx/net_tx drop on frontend and its callers. Latency itself needs RED metrics (service mesh, later).
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: delay-currency
+  namespace: boutique
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces: [boutique]
+    labelSelectors:
+      app: currencyservice
+  delay:
+    latency: "300ms"
+    jitter: "50ms"
+  duration: "5m"

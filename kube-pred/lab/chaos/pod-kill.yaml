@@ -1,0 +1,13 @@
+# Expect: memory/cpu dip then recovery on productcatalogservice (Kubernetes reactive healing at work).
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-kill-catalog
+  namespace: boutique
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces: [boutique]
+    labelSelectors:
+      app: productcatalogservice
