@@ -35,20 +35,21 @@ Shared contract: `shared/schema.py` (`Layer`, `DependencyRule`, `ArchitectureRul
 | Streamlit conformance dashboard | `app.py` (`streamlit run app.py`) |
 | CI self-audit (dogfooding) | `.github/workflows/conformance.yml` |
 | Demo codebase for conformance tests | `test_codebases/ecommerce_platform/` (clean-arch layers: presentation / application / domain / infrastructure) |
-| ArcGen LLM clients (OmniKey, Groq, Ollama, fallback chain) | `generation/ArcGen/llm.py` (`get_llm_client`, `ResilientLLMClient`) |
-| ArcGen env keys | `generation/ArcGen/.env.example` (OMNIKEY_*, GROQ_*, Ollama) |
-| SRS -> architecture pipeline entry | `generation/ArcGen/generator.py` (`generate_architecture_from_srs`) |
-| ArcGen CLI | `generation/ArcGen/main.py`; demo `run_demo.py` |
-| Phase A elicitation agent / ASR coverage / terminal UI | `generation/ArcGen/phase_a/{elicitation_agent,asr_tracker,interactive_cli}.py` |
-| Phase B normalize SRS -> ISO 25010 requirements | `generation/ArcGen/phase_b/normalizer.py` |
-| ATAM pattern scoring + tradeoff table | `generation/ArcGen/phase_b/pattern_matcher.py` |
-| Node gen (pass 1) / edge gen (pass 2) / orphan fixing | `generation/ArcGen/phase_b/{node_generator,edge_generator}.py` |
-| Edge + citation validation | `generation/ArcGen/phase_b/edge_validator.py` |
-| Architecture pattern knowledge base (20 patterns) | `generation/ArcGen/knowledge_base/patterns/*.json`; loader `knowledge_base/loader.py` (`PatternCatalog`) |
-| ArcGen Pydantic schemas | `generation/ArcGen/schemas/` (`requirements.py` ISO 25010, `architecture.py` graph, `patterns.py`, `elicitation.py`) |
-| ArcGen design rationale | `generation/ArcGen/why-this-approach.md`, `project-vision-srs-to-architecture.md` |
-| ArcGen tests | `generation/ArcGen/tests/` (pytest) |
-| Sample ArcGen outputs | `generation/ArcGen/*_architecture.{json,mmd,puml}`, `architecture_output.*` |
+| ArcGen microservice (:8004) | `copilot_ide/services/arcgen_service/app/main.py` (FastAPI) + `app/router.py` (`/api/arcgen/*`) |
+| ArcGen LLM clients (OmniKey, Groq, Ollama, fallback chain) | `copilot_ide/services/arcgen_service/app/llm.py` (`get_llm_client`, `ResilientLLMClient`) |
+| ArcGen env keys | `copilot_ide/services/arcgen_service/.env.example` (OMNIKEY_*, GROQ_*, Ollama); loads `.env` from the service dir, `copilot_ide/`, repo root |
+| SRS -> architecture pipeline entry | `copilot_ide/services/arcgen_service/app/generator.py` (`generate_architecture_from_srs`) |
+| ArcGen CLI | `copilot_ide/services/arcgen_service/cli.py`; demos in `examples/` |
+| Phase A elicitation agent / ASR coverage / terminal UI | `copilot_ide/services/arcgen_service/app/phase_a/{elicitation_agent,asr_tracker,interactive_cli}.py` |
+| Phase B normalize SRS -> ISO 25010 requirements | `copilot_ide/services/arcgen_service/app/phase_b/normalizer.py` |
+| ATAM pattern scoring + tradeoff table | `copilot_ide/services/arcgen_service/app/phase_b/pattern_matcher.py` |
+| Node gen (pass 1) / edge gen (pass 2) / orphan fixing | `copilot_ide/services/arcgen_service/app/phase_b/{node_generator,edge_generator}.py` |
+| Edge + citation validation | `copilot_ide/services/arcgen_service/app/phase_b/edge_validator.py` |
+| Architecture pattern knowledge base (20 patterns) | `copilot_ide/services/arcgen_service/app/knowledge_base/patterns/*.json`; loader `knowledge_base/loader.py` (`PatternCatalog`) |
+| ArcGen Pydantic schemas | `copilot_ide/services/arcgen_service/app/schemas/` (`requirements.py` ISO 25010, `architecture.py` graph, `patterns.py`, `elicitation.py`) |
+| ArcGen design rationale | `copilot_ide/services/arcgen_service/docs/` |
+| ArcGen tests | `copilot_ide/services/arcgen_service/tests/` (pytest, run from the service dir with its `.venv`) |
+| Sample ArcGen outputs | `copilot_ide/services/arcgen_service/examples/{fleet,elicited}_architecture.json` (served by `/examples`); scripts write to `output/` (gitignored) |
 | Orchestrator gateway (all frontend calls go here) | `copilot_ide/services/orchestrator_service/app/main.py` |
 | Agent chat logic (code agent, diff edits) | orchestrator `main.py` ~L950 `agent_chat`, ~L1286 `apply_agent_edit` |
 | Web terminal backend | orchestrator `main.py` ~L416 `terminal_exec` |
@@ -58,7 +59,6 @@ Shared contract: `shared/schema.py` (`Layer`, `DependencyRule`, `ArchitectureRul
 | GitHub open/save/fork repo | `copilot_ide/services/orchestrator_service/app/github_workspace.py` + routes in orchestrator `main.py` ~L695 |
 | Suggest context files for agent | `.../orchestrator_service/app/context_suggester.py` |
 | Code flow tracing ("how does X flow") | `.../orchestrator_service/app/flow_tracer.py` |
-| ArcGen HTTP API | `.../orchestrator_service/app/arcgen_router.py` (mounted at `/api/arcgen`) |
 | Conformance HTTP API in IDE | `.../orchestrator_service/app/conformance_router.py` (mounted at `/api/conformance`, wraps `conformance/studio/api.py`) |
 | Hybrid search (BM25 + Chroma dense + cross-encoder rerank) | `copilot_ide/services/rag_service/app/search_engine.py` |
 | Chunk OpenAPI / Postman / Markdown | `copilot_ide/services/ingestion_service/app/chunker.py` |
@@ -119,35 +119,30 @@ Pipeline order: `extraction` -> `graph` -> `classifier_agent` (or heuristic in `
 
 ---
 
-## 6. `generation/ArcGen/` (canonical ArcGen)
+## 6. `copilot_ide/services/arcgen_service/` (ArcGen microservice, the only copy)
+
+Runs on :8004. Native: `cd copilot_ide/services/arcgen_service; .venv\Scripts\python.exe -m uvicorn app.main:app --port 8004`. Tests: `.venv\Scripts\python.exe -m pytest -q`. Frontend reaches it via `ARCGEN_API_BASE` (`NEXT_PUBLIC_ARCGEN_API_URL`).
 
 | Path | Purpose |
 |---|---|
-| `__init__.py` | Re-exports `generate_architecture_from_srs`, LLM clients. |
-| `generator.py` | Phase B pipeline: normalize -> match patterns -> nodes -> edges -> validate. |
-| `llm.py` | `BaseLLMClient`, `OmniKeyClient`, `GroqClient`, `OllamaClient`, `ResilientLLMClient` (tiered fallback), `safe_parse_json`, `get_llm_client`. |
-| `main.py` | CLI entry. |
-| `run_demo.py` | End-to-end demo on benchmark SRS. |
-| `test_prompt_elicitation.py` | Phase A demo script (not a pytest test). |
-| `phase_a/asr_tracker.py` | `ASRTracker`, `CategoryState`, `DEFAULT_ASR_WEIGHTS`; computed stopping rules. |
-| `phase_a/elicitation_agent.py` | `ElicitationAgent` conversational question loop; `normalize_suggested_options`. |
-| `phase_a/interactive_cli.py` | Terminal elicitation UI. |
-| `phase_b/normalizer.py` | `normalize_srs` -> `SRSDocument`. |
-| `phase_b/pattern_matcher.py` | `match_patterns` deterministic ATAM scoring, disqualifications, `format_tradeoff_table`. |
-| `phase_b/node_generator.py` | `generate_nodes` (pass 1). |
-| `phase_b/edge_generator.py` | `generate_edges` (pass 2), `_connect_orphan_nodes`. |
-| `phase_b/edge_validator.py` | `validate_architecture` -> `ValidationReport`. |
-| `schemas/requirements.py` | ISO/IEC 25010 enums, `NormalizedRequirement`, `SRSDocument`. |
-| `schemas/architecture.py` | `NodeType`, `EdgeType`, `ArchNode`, `ArchEdge`, `ArchitectureGraph` (+ Mermaid/PlantUML export). |
-| `schemas/patterns.py` | `PatternProfile`, `PatternImpactProfile`, `TradeoffEvaluation`, etc. |
-| `schemas/elicitation.py` | `QuestionItem`, `ExtractedASR`, `ElicitationTurn`. |
-| `knowledge_base/loader.py` | `PatternCatalog`, `get_catalog`. |
-| `knowledge_base/patterns/*.json` | 20 pattern profiles (microservices, cqrs, hexagonal, saga_*, strangler_fig, ...). |
+| `app/main.py` | FastAPI app, `/health`, mounts `app/router.py` at `/api/arcgen`. |
+| `app/router.py` | `GET /patterns`, `GET /examples`, `POST /elicit/start`, `POST /elicit/answer`, `POST /generate`, `POST /save-to-workspace`. Holds elicitation sessions in memory. |
+| `app/generator.py` | Phase B pipeline: normalize -> match patterns -> nodes -> edges -> validate. |
+| `app/llm.py` | `BaseLLMClient`, `OmniKeyClient`, `GroqClient`, `OllamaClient`, `ResilientLLMClient` (tiered fallback), `safe_parse_json`, `get_llm_client`. |
+| `app/phase_a/asr_tracker.py` | `ASRTracker`, `CategoryState`, `DEFAULT_ASR_WEIGHTS`; computed stopping rules. |
+| `app/phase_a/elicitation_agent.py` | `ElicitationAgent` conversational question loop; `normalize_suggested_options`. |
+| `app/phase_a/interactive_cli.py` | Terminal elicitation UI. |
+| `app/phase_b/normalizer.py` | `normalize_srs` -> `SRSDocument` (cache in `.cache/`, gitignored). |
+| `app/phase_b/pattern_matcher.py` | `match_patterns` deterministic ATAM scoring, disqualifications, `format_tradeoff_table`. |
+| `app/phase_b/node_generator.py` | `generate_nodes` (pass 1). |
+| `app/phase_b/edge_generator.py` | `generate_edges` (pass 2), `_connect_orphan_nodes`. |
+| `app/phase_b/edge_validator.py` | `validate_architecture` -> `ValidationReport`. |
+| `app/schemas/` | ISO/IEC 25010 requirements, `ArchitectureGraph` (+ Mermaid/PlantUML export), pattern and elicitation models. |
+| `app/knowledge_base/` | `PatternCatalog`, `get_catalog`; 20 pattern profiles in `patterns/*.json`. |
+| `cli.py` | CLI entry (interactive elicitation or `--file` SRS). |
+| `examples/` | `C2C.txt` sample SRS, `run_demo.py`, `prompt_elicitation_demo.py`, the two sample architectures served by `/examples`. |
+| `docs/` | `why-this-approach.md`, `project-vision-srs-to-architecture.md`. |
 | `tests/test_*.py` | pytest: asr_tracker, catalog, edge_validator, llm, pattern_matcher, phase_a_flow, schemas. |
-| `.cache/srs_*.json` | Cached LLM SRS normalizations. |
-| `C2C.txt` | Sample SRS input. |
-
-**Duplicate warning:** `copilot_ide/services/arcgen/` is a near-copy of `generation/ArcGen/`. It uses CRLF line endings, and its `llm.py` also reads `DEFAULT_MODEL` / `OLLAMA_URL` env vars. The orchestrator imports `services.arcgen.*` (the copilot copy), not `generation/ArcGen`. Changes to ArcGen logic usually need to land in both copies.
 
 ---
 
@@ -160,6 +155,7 @@ Pipeline order: `extraction` -> `graph` -> `classifier_agent` (or heuristic in `
 | `orchestrator-service` | 8000 | `services/orchestrator_service` | Gateway. Mounts `copilot_ide` as `/workspace`, `../conformance` and `../shared` read-only. Ollama at `host.docker.internal:11434`, model `gemma3:4b`. |
 | `rag-service` | 8001 | `services/rag_service` | Embeddings `BAAI/bge-small-en-v1.5`, reranker `cross-encoder/ms-marco-MiniLM-L-6-v2`. Volume `rag_data`. |
 | `ingestion-service` | 8002 | `services/ingestion_service` | Mounts `./dataset` read-only. |
+| `arcgen-service` | 8004 | `services/arcgen_service` | ArcGen. Frontend `ArcGenStudio` calls it directly (`ARCGEN_API_BASE`). Mounts `copilot_ide` as `/workspace` for save-to-workspace. |
 | `evaluation-service` | 8003 | `services/evaluation_service` | Frontend `AblationTab.tsx` calls it directly at `localhost:8003`. |
 | `ui-service` | 3000 | `frontend` (`Dockerfile.dev`) | `NEXT_PUBLIC_API_URL=http://localhost:8000`. |
 
@@ -167,8 +163,7 @@ Pipeline order: `extraction` -> `graph` -> `classifier_agent` (or heuristic in `
 
 | File | Purpose |
 |---|---|
-| `main.py` (~1460 lines) | Gateway app. Mounts `arcgen_router` at `/api/arcgen` and `conformance_router` at `/api/conformance`. Routes: `/health`; RAG proxy `/api/database`, `/api/search`, `/api/upload`, `/api/generate`; workspace `/api/workspace/{projects,open-project,tree,all-files,file,create,delete,rename,graph,index-codebase}`; `/api/terminal/exec`; agent `/api/agent/{chat,suggest-files,apply-edit}`; GitHub `/api/github/{open-repo,file,save,fork}`; keys `/api/cloud/keys[/clear|/test]`; `/api/models`. |
-| `arcgen_router.py` | `GET /patterns`, `GET /examples`, `POST /elicit/start`, `POST /elicit/answer`, `POST /generate`, `POST /save-to-workspace`. Holds elicitation sessions. |
+| `main.py` (~1460 lines) | Gateway app. Mounts `conformance_router` at `/api/conformance`. Routes: `/health`; RAG proxy `/api/database`, `/api/search`, `/api/upload`, `/api/generate`; workspace `/api/workspace/{projects,open-project,tree,all-files,file,create,delete,rename,graph,index-codebase}`; `/api/terminal/exec`; agent `/api/agent/{chat,suggest-files,apply-edit}`; GitHub `/api/github/{open-repo,file,save,fork}`; keys `/api/cloud/keys[/clear|/test]`; `/api/models`. |
 | `conformance_router.py` | `GET /status`; includes `conformance/studio/api.py` routes. |
 | `context_suggester.py` | `suggest_context_files`, `extract_suggestions`. |
 | `flow_tracer.py` | `FlowTracer`, `is_flow_query`; traces call flows over the knowledge graph. |
@@ -211,7 +206,6 @@ Pipeline order: `extraction` -> `graph` -> `classifier_agent` (or heuristic in `
 | Path | Purpose |
 |---|---|
 | `backend/app/` | Legacy monolith backend (pre-microservices): `main.py`, `chunker.py`, `search_engine.py`. Likely unused by Docker stack. |
-| `services/arcgen/` | ArcGen copy used by orchestrator (see duplicate warning in section 6). |
 | `dataset/` | 21 RAG corpus files: OpenAPI YAML (stripe, twilio, slack, sendgrid, zendesk, payments_v2, order_management, alerting, github_webhooks), Postman JSON, Markdown guides. |
 | `architecture/` | Sample generated architecture (B2B payment gateway) json/mmd/puml. |
 | `scripts/` | `start_all.sh`, `run.sh`, `install_ollama.sh`, `config_ollama.sh`, `b2b_dataset_generator.py`, `dataset_generator.py`, `run_evaluation.py`, `seed_ablation_report.py`, `verify_api.py`, `verify_microservices.py`. |
@@ -277,11 +271,10 @@ Toy clean-architecture app used as the conformance target. Layers: `presentation
 ## 9. Gotchas
 
 - `__pycache__/*.pyc` files are committed under `conformance/` and `shared/`. Ignore them.
-- Two ArcGen copies (section 6). Orchestrator uses `copilot_ide/services/arcgen`.
 - Orchestrator runs in Docker with paths under `/workspace`. Path normalization lives in `normalize_workspace_path` (orchestrator `main.py` ~L294) and `normalize_target_path` (`conformance/studio/service.py`).
 - `README.md` references `docs/`. That folder does not exist.
 - `conformance_router.py` has a hardcoded fallback path `C:/Users/krish/OneDrive/Desktop/Archon`. If `conformance` fails to import, `GET /api/conformance/status` returns the traceback.
-- ArcGen elicitation sessions live in memory (`SESSIONS` dict in `arcgen_router.py`). They are lost on restart.
+- ArcGen elicitation sessions live in memory (`SESSIONS` dict in `arcgen_service/app/router.py`). They are lost on restart.
 
 ## 10. Keeping this map current
 

@@ -114,6 +114,7 @@ services:
       - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_ARCGEN_API_URL=http://localhost:8004
       - PORT=3000
       - HOSTNAME=0.0.0.0
       - WATCHPACK_POLLING=true
@@ -129,10 +130,35 @@ services:
           path: ./frontend/package.json
     depends_on:
       - orchestrator-service
+      - arcgen-service
     networks:
       - apicopilot-net
 
-  # 5. Evaluation Microservice
+  # 5. ArcGen Microservice (SRS / prompt -> architecture)
+  arcgen-service:
+    build:
+      context: ./services/arcgen_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-arcgen
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./services/arcgen_service/app:/app/app
+      - .:/workspace
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - PORT=8004
+      - HOST=0.0.0.0
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - apicopilot-net
+
+  # 5b. Evaluation Microservice
   evaluation-service:
     build:
       context: ./services/evaluation_service

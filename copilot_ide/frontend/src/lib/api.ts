@@ -1,6 +1,6 @@
 /* ── Service base URLs ─────────────────────────────────────────
  * The one place the frontend decides where each backend lives.
- * Set NEXT_PUBLIC_API_URL / NEXT_PUBLIC_EVALUATION_API_URL to override.
+ * Set NEXT_PUBLIC_API_URL / NEXT_PUBLIC_EVALUATION_API_URL / NEXT_PUBLIC_ARCGEN_API_URL to override.
  */
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -24,11 +24,14 @@ function resolveServiceBase(configured: string | undefined, defaultPort: number)
   }
 }
 
-/** Orchestrator gateway: RAG, workspace, agent, ArcGen and conformance routes. */
+/** Orchestrator gateway: RAG, workspace, agent and conformance routes. */
 export const API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_API_URL, 8000);
 
 /** Evaluation service (benchmarks and SCIP ablation runs). */
 export const EVALUATION_API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_EVALUATION_API_URL, 8003);
+
+/** ArcGen service (requirement elicitation and architecture generation). */
+export const ARCGEN_API_BASE = resolveServiceBase(process.env.NEXT_PUBLIC_ARCGEN_API_URL, 8004);
 
 /** The readable part of an error response body: FastAPI's {"detail": "..."} or the raw text. */
 export function errorDetail(body: string): string {

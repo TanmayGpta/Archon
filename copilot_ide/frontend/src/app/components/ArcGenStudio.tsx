@@ -150,7 +150,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
 
   // Notification / Copy state
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  // Presets load from the orchestrator; null = still loading
+  // Presets load from the ArcGen service; null = still loading
   const [presetsState, setPresetsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const srsFileRef = React.useRef<HTMLInputElement>(null);
 
@@ -281,7 +281,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       setStatusMsg(data.should_stop ? "Sufficient requirements detected! Ready to generate." : "Phase A interview active.");
     } catch (err) {
       console.error(err);
-      setStatusMsg(err instanceof TypeError ? `Error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
+      setStatusMsg(err instanceof TypeError ? `Error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
     } finally {
       setIsEliciting(false);
     }
@@ -323,7 +323,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       setStatusMsg(data.should_stop ? `Stopping criterion reached: ${data.stop_reason}` : "Next question formulated.");
     } catch (err) {
       console.error(err);
-      setStatusMsg(err instanceof TypeError ? `Error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
+      setStatusMsg(err instanceof TypeError ? `Error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
     } finally {
       setIsEliciting(false);
       setSelectedOption(null);
@@ -357,7 +357,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       setStatusMsg("Architecture graph generated & validated with zero orphans!");
     } catch (err) {
       console.error(err);
-      setStatusMsg(err instanceof TypeError ? `Generation error: the orchestrator service (${effectiveApiBase}) isn't responding.` : `Generation error: ${errorMessage(err)}`);
+      setStatusMsg(err instanceof TypeError ? `Generation error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Generation error: ${errorMessage(err)}`);
     } finally {
       setIsGenerating(false);
     }
@@ -586,7 +586,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 <ErrorState
                   compact
                   title="Couldn't load presets and patterns"
-                  detail={`The orchestrator service (${effectiveApiBase}) isn't responding. You can still type requirements below.`}
+                  detail={`The ArcGen service (${effectiveApiBase}) isn't responding. You can still type requirements below.`}
                   onRetry={retryLoad}
                 />
               )}

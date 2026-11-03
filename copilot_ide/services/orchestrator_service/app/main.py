@@ -28,9 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .arcgen_router import router as arcgen_router
-app.include_router(arcgen_router, prefix="/api/arcgen", tags=["arcgen"])
-
 from .conformance_router import router as conformance_router
 app.include_router(conformance_router, prefix="/api/conformance", tags=["conformance"])
 
