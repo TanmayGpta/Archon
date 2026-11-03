@@ -32,6 +32,14 @@ interface ArchitectureDiagramViewerProps {
   edges: ArchEdge[];
   plantuml?: string;
   mermaid?: string;
+  // Components a jury regeneration added/removed (by name), highlighted on the canvas
+  changes?: DiagramChanges | null;
+}
+
+export interface DiagramChanges {
+  label: string;
+  added: string[];
+  removed: string[];
 }
 
 // ── PlantUML 64-bit Encoder ───────────────────────────────────────────
@@ -100,7 +108,9 @@ export function ArchitectureDiagramViewer({
   edges,
   plantuml = '',
   mermaid = '',
+  changes = null,
 }: ArchitectureDiagramViewerProps) {
+  const addedNames = useMemo(() => new Set((changes?.added ?? []).map(n => n.trim().toLowerCase())), [changes]);
   // View mode: 'canvas' | 'mermaid' | 'plantuml'
   const [viewMode, setViewMode] = useState<'canvas' | 'mermaid' | 'plantuml'>('canvas');
   // Raw code vs Rendered SVG toggle (for mermaid & plantuml)
@@ -525,6 +535,17 @@ export function ArchitectureDiagramViewer({
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             }}
           >
+            {changes && (changes.added.length > 0 || changes.removed.length > 0) && (
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono bg-surface/80 border border-line-strong rounded-panel px-3 py-2">
+                <span className="text-fg-subtle">Changes {changes.label}:</span>
+                {changes.added.length > 0 && <span className="text-success-fg">+{changes.added.length} new (outlined green)</span>}
+                {changes.removed.map(n => (
+                  <span key={n} className="px-1.5 py-0.5 rounded-control border border-dashed border-line-strong text-fg-subtle line-through opacity-70" title="Removed in this version">
+                    {n}
+                  </span>
+                ))}
+              </div>
+            )}
             {layers.map(layerName => {
               const layerNodes = nodesByLayer[layerName] || [];
               if (layerNodes.length === 0) return null;
@@ -551,6 +572,7 @@ export function ArchitectureDiagramViewer({
                       const isSelected = selectedNodeId === node.node_id;
                       const isConnected = connectedNodeIds.has(node.node_id);
                       const isDimmed = activeSpotlightNodeId && !isConnected;
+                      const isNew = addedNames.has(node.name.trim().toLowerCase());
 
                       return (
                         <div
@@ -568,13 +590,16 @@ export function ArchitectureDiagramViewer({
                               ? 'bg-overlay border-info/80 '
                               : isDimmed
                               ? 'bg-surface/40 border-line-strong/40 opacity-30'
-                              : 'bg-raised border-line-strong hover:border-[#334155]'
+                              : isNew
+                              ? 'bg-success/10 border-success ring-2 ring-success/40'
+                              : 'bg-raised border-line-strong hover:border-line-strong/80'
                           }`}
                         >
                           {/* Node Header */}
                           <div className="flex items-center justify-between gap-1.5 mb-1.5">
                             <span className="font-mono text-xs font-bold text-fg-strong truncate">
                               {node.name}
+                              {isNew && <span className="ml-1.5 px-1 rounded-control bg-success/25 text-success-fg text-[10px] align-middle">NEW</span>}
                             </span>
                             <span
                               className={`px-1.5 py-0.5 rounded-control text-xs font-mono uppercase font-semibold border ${getNodeStereotypeStyle(

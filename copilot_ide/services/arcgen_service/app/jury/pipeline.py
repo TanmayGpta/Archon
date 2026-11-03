@@ -117,8 +117,11 @@ class JuryRun:
         checkpoint = self.rubric.checkpoints[name]
         jurors, excluded = select_panel(self.rubric, generator_models(self.client))
         seats = [(f"Juror {i}", spec, build_case(1000 * attempt + i)) for i, spec in enumerate(jurors, 1)]
+        out = [j for j in self.rubric.jurors if j.family in excluded]
+        spares_in = [j for j in jurors if j in self.rubric.spares]
+        replaced = [{"model": o.model, "family": o.family, "by": s.model} for o, s in zip(out, spares_in)]
         self.emit({
-            "type": "panel", "checkpoint": name, "attempt": attempt, "excluded_families": excluded,
+            "type": "panel", "checkpoint": name, "attempt": attempt, "excluded_families": excluded, "replaced": replaced,
             "jurors": [{"seat": s, "model": j.model, "family": j.family} for s, j, _ in seats],
         })
 

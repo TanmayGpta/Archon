@@ -4,10 +4,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Glyph } from './Icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArchitectureDiagramViewer } from './ArchitectureDiagramViewer';
+import { ArchitectureDiagramViewer, type DiagramChanges } from './ArchitectureDiagramViewer';
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
-import { JuryPanel, juryReducer, initialJuryState, type JuryEvent, type JuryState } from './JuryPanel';
+import { JuryPanel, VerdictBadge, juryReducer, initialJuryState, type IterationRecord, type JuryEvent, type JuryState } from './JuryPanel';
 import { ErrorState, Skeleton } from './StateViews';
 import { errorDetail, errorMessage } from '@/lib/api';
 import { useCommand } from './commandsContext';
@@ -109,6 +109,12 @@ interface ArchitectureGraphData {
   };
 }
 
+/** What a jury regeneration changed, in the shape the diagram canvas highlights. */
+function changesOf(record: IterationRecord): DiagramChanges | null {
+  if (!record.diff) return null;
+  return { label: `v${record.version} vs v${record.version - 1}`, added: record.diff.nodes_added, removed: record.diff.nodes_removed };
+}
+
 export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = false }: ArcGenStudioProps) {
   // Main Studio Mode: 'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'
   const [studioMode, setStudioMode] = useState<'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'>('elicitation');
@@ -144,6 +150,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   // Bias jury: on by default, so every architecture is judged unless deliberately skipped
   const [juryEnabled, setJuryEnabled] = useState<boolean>(true);
   const [jury, setJury] = useState<JuryState | null>(null);
+  // Components added/removed by a jury regeneration, highlighted on the diagram canvas
+  const [diagramChanges, setDiagramChanges] = useState<DiagramChanges | null>(null);
 
   // Pattern Catalog
   const [patterns, setPatterns] = useState<PatternInfo[]>([]);
@@ -370,6 +378,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
           setActiveOutputTab('jury');
         } else if (event.type === 'complete') {
           setGeneratedArch(event.result);
+          // Final version: highlight what the last regeneration changed (nothing for a first-time pass)
+          const versions = event.result?.jury?.iterations ?? [];
+          setDiagramChanges(versions.length > 1 ? changesOf(versions[versions.length - 1]) : null);
           const verdict = event.result?.jury?.verdict;
           setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the bias jury."
             : verdict === 'NO_JURY' ? "Architecture generated, but no juror could deliver a verdict (is Ollama running?)."
@@ -386,7 +397,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   // Generate Architecture (Phase B)
   const handleGenerateArchitecture = async () => {
     setIsGenerating(true);
-    setStatusMsg("Executing Phase B: ATAM Pattern Matcher -> Node Decomposition -> Edge Relational Reasoning -> Zero-Orphan Audit...");
+    setDiagramChanges(null);
+    setStatusMsg("Generating architecture: pattern scoring, components, connections, validation...");
     try {
       const payload: any = {};
       if (studioMode === 'elicitation' && sessionId) {
@@ -422,18 +434,25 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   };
 
   const juryToggle = (
-    <label className="mt-2 flex items-start gap-2 text-xs text-fg-soft cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={juryEnabled}
-        onChange={e => setJuryEnabled(e.target.checked)}
-        disabled={isGenerating}
-        className="mt-0.5 accent-[#059669]"
-      />
-      <span>
-        <span className="font-semibold text-fg-strong">Bias jury</span> — 5 local models from different families judge the requirements and every architecture version (slower: several minutes).
+    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+      <span
+        className="font-mono text-fg-soft"
+        title="5 local models from different families judge the requirements and every architecture version, blind, against a fixed rubric. Slower: about 5 minutes or more."
+      >
+        Bias jury <span className="text-fg-subtle">· ~5 min · ⓘ</span>
       </span>
-    </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={juryEnabled}
+        aria-label="Bias jury"
+        onClick={() => setJuryEnabled(v => !v)}
+        disabled={isGenerating}
+        className={`relative w-9 h-5 rounded-full border transition-colors cursor-pointer disabled:opacity-50 ${juryEnabled ? 'bg-success/80 border-success' : 'bg-raised border-line-strong'}`}
+      >
+        <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all ${juryEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+      </button>
+    </div>
   );
   useCommand('architect.generate', { run: () => { if (!isGenerating) handleGenerateArchitecture(); } });
 
@@ -466,6 +485,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   };
 
   // Filtered patterns
+  // Real validation results (absent for pre-generated samples and while a jury run is mid-way)
+  const report = generatedArch?.validation_report;
+
   const filteredPatterns = useMemo(() => {
     if (patternFilter === 'all') return patterns;
     return patterns.filter(p => p.topology_type.toLowerCase() === patternFilter.toLowerCase() || p.role.toLowerCase() === patternFilter.toLowerCase());
@@ -586,7 +608,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   key={f}
                   onClick={() => setPatternFilter(f)}
                   className={`px-2.5 py-1 rounded-control text-xs capitalize ${
-                    patternFilter === f ? 'bg-selected text-info font-semibold' : 'text-fg-muted hover:text-white'
+                    patternFilter === f ? 'bg-selected text-info font-semibold' : 'text-fg-muted hover:text-fg-strong'
                   }`}
                 >
                   {f}
@@ -696,7 +718,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     <button
                       onClick={handleStartElicitation}
                       disabled={isEliciting || !prompt.trim()}
-                      className="mt-2 w-full py-2.5 px-4 rounded-control bg-gradient-to-r from-info-strong to-accent-strong text-white text-xs font-semibold hover:from-[#0369a1] hover:to-accent-hover transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="mt-2 w-full py-2.5 px-4 rounded-control bg-gradient-to-r from-info-strong to-accent-strong text-white text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {isEliciting ? "Extracting Drivers..." : "Start Interactive ASR Elicitation (Phase A)"}
                     </button>
@@ -735,7 +757,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   <button
                     onClick={handleGenerateArchitecture}
                     disabled={isGenerating || !srsText.trim()}
-                    className="mt-2 w-full py-2.5 px-4 rounded-control bg-gradient-to-r from-[#059669] to-[#047857] text-white text-xs font-semibold hover:from-[#047857] hover:to-[#065f46] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="mt-2 w-full py-2.5 px-4 rounded-control bg-success text-white text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isGenerating ? "Synthesizing Architecture..." : <><Glyph name="zap" /> Generate Architecture Directly (Phase B)</>}
                   </button>
@@ -874,7 +896,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   <button
                     onClick={() => handleAnswerQuestion(false)}
                     disabled={isEliciting || !userAnswer.trim()}
-                    className="px-3.5 py-1.5 rounded-control bg-info-strong hover:bg-[#0369a1] text-white text-xs font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-control bg-info-strong hover:brightness-110 text-white text-xs font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
                   >
                     {isEliciting && !selectedOption && !isSkipping && (
                       <svg className="w-3 h-3 text-white animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -887,7 +909,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   <button
                     onClick={() => handleAnswerQuestion(true)}
                     disabled={isEliciting}
-                    className="px-2.5 py-1.5 rounded-control bg-selected hover:bg-[#334155] text-fg-muted text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                    className="px-2.5 py-1.5 rounded-control bg-selected hover:bg-overlay text-fg-muted text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
                     title="Accept sensible architectural default"
                   >
                     {isSkipping && (
@@ -938,7 +960,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 <button
                   onClick={handleGenerateArchitecture}
                   disabled={isGenerating}
-                  className="w-full py-3 px-4 rounded-control bg-gradient-to-r from-success to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 px-4 rounded-control bg-success hover:brightness-110 text-white text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isGenerating ? "Synthesizing Architecture..." : <><Glyph name="zap" /> Generate Formally Grounded Architecture (Phase B)</>}
                 </button>
@@ -954,6 +976,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     key={sample.id}
                     onClick={() => {
                       setGeneratedArch(sample.data);
+                      setDiagramChanges(null);
                       setActiveOutputTab('diagram');
                     }}
                     className="px-2.5 py-1 rounded-control text-xs bg-overlay border border-line-strong text-fg-muted hover:text-info hover:border-info/40 transition-all font-mono cursor-pointer"
@@ -980,20 +1003,29 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                       <span className="px-2 py-0.5 rounded-control text-xs font-mono bg-info/15 text-info border border-info/30 font-semibold">
                         {generatedArch.style}
                       </span>
+                      {jury && (
+                        <VerdictBadge verdict={jury.trace?.verdict} running={jury.running} onClick={() => setActiveOutputTab('jury')} />
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-fg-subtle font-mono mt-1">
                       <span>Nodes: <strong className="text-fg-strong">{generatedArch.nodes.length}</strong></span>
                       <span>•</span>
                       <span>Edges: <strong className="text-fg-strong">{generatedArch.edges.length}</strong></span>
-                      <span>•</span>
-                      <span>Orphans: <strong className="text-success">0 (Guaranteed)</strong></span>
+                      {report && (
+                        <>
+                          <span>•</span>
+                          <span>Orphans: <strong className={report.orphan_nodes.length ? 'text-warning-fg' : 'text-success-fg'}>{report.orphan_nodes.length}</strong></span>
+                          <span>•</span>
+                          <span>Coverage: <strong className={report.requirement_coverage_pct >= 100 ? 'text-success-fg' : 'text-warning-fg'}>{Math.round(report.requirement_coverage_pct)}%</strong></span>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSaveToWorkspace}
-                      className="px-3 py-1.5 rounded-control bg-selected hover:bg-[#334155] text-xs font-mono text-fg-soft border border-[#334155] transition-all cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-control bg-selected hover:bg-overlay text-xs font-mono text-fg-soft border border-line-strong transition-all cursor-pointer flex items-center gap-1.5"
                     >
                       <span>Save to Workspace</span>
                     </button>
@@ -1013,9 +1045,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   {[
                     { id: 'diagram', label: 'Graph & Diagram' },
                     { id: 'components', label: `Components (${generatedArch.nodes.length})` },
-                    { id: 'couplings', label: `Couplings (${generatedArch.edges.length})` },
+                    { id: 'couplings', label: `Connections (${generatedArch.edges.length})` },
                     { id: 'atam_tradeoffs', label: 'ATAM Tradeoffs' },
-                    { id: 'validation', label: 'Conformance Audit' },
+                    { id: 'validation', label: 'Validation' },
                     ...(jury ? [{ id: 'jury', label: jury.running ? 'Bias Jury (in session)' : `Bias Jury · ${jury.trace?.verdict ?? (jury.error ? 'error' : '…')}` }] : []),
                   ].map(tab => (
                     <button
@@ -1041,6 +1073,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     edges={generatedArch.edges}
                     plantuml={generatedArch.plantuml}
                     mermaid={generatedArch.mermaid}
+                    changes={diagramChanges}
                   />
                 )}
 
@@ -1141,46 +1174,66 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 {activeOutputTab === 'jury' && jury && (
                   <JuryPanel
                     state={jury}
-                    onShowVersion={graph => {
-                      setGeneratedArch(prev => ({ ...(prev ?? {}), ...graph }));
+                    onShowVersion={record => {
+                      setGeneratedArch(prev => ({ ...(prev ?? {}), ...record.graph }));
+                      setDiagramChanges(changesOf(record));
                       setActiveOutputTab('diagram');
                     }}
                   />
                 )}
 
-                {/* TAB 5: CONFORMANCE AUDIT REPORT */}
+                {/* TAB 5: VALIDATION (real numbers from the edge/citation validator) */}
                 {activeOutputTab === 'validation' && (
                   <div className="flex-1 bg-surface border border-line-strong rounded-panel p-5 overflow-y-auto font-mono text-xs">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                      <div className="bg-raised p-3 rounded-panel border border-line-strong">
-                        <span className="text-fg-subtle text-xs block">Total Nodes:</span>
-                        <span className="text-base font-bold text-fg-strong">{generatedArch.nodes.length}</span>
+                    {!report ? (
+                      <div className="text-fg-muted font-sans">
+                        No validation report for this graph (pre-generated samples and in-progress jury versions don&apos;t carry one). Generate an architecture to see real validation results.
                       </div>
-                      <div className="bg-raised p-3 rounded-panel border border-line-strong">
-                        <span className="text-fg-subtle text-xs block">Valid Edges:</span>
-                        <span className="text-base font-bold text-success-fg">{generatedArch.edges.length}</span>
-                      </div>
-                      <div className="bg-raised p-3 rounded-panel border border-line-strong">
-                        <span className="text-fg-subtle text-xs block">Orphan Components:</span>
-                        <span className="text-base font-bold text-success">0</span>
-                      </div>
-                      <div className="bg-raised p-3 rounded-panel border border-line-strong">
-                        <span className="text-fg-subtle text-xs block">Topology Integrity:</span>
-                        <span className="text-base font-bold text-info">100% Certified</span>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                          {[
+                            { label: 'Components', value: String(report.total_nodes), tone: 'text-fg-strong' },
+                            { label: 'Connections kept', value: `${report.valid_edges_count} / ${report.total_edges}`, tone: report.rejected_edges_count ? 'text-warning-fg' : 'text-success-fg' },
+                            { label: 'Orphan components', value: String(report.orphan_nodes.length), tone: report.orphan_nodes.length ? 'text-warning-fg' : 'text-success-fg' },
+                            { label: 'Requirement coverage', value: `${Math.round(report.requirement_coverage_pct)}%`, tone: report.requirement_coverage_pct >= 100 ? 'text-success-fg' : 'text-warning-fg' },
+                          ].map(card => (
+                            <div key={card.label} className="bg-raised p-3 rounded-panel border border-line-strong">
+                              <span className="text-fg-subtle text-xs block">{card.label}</span>
+                              <span className={`text-base font-bold ${card.tone}`}>{card.value}</span>
+                            </div>
+                          ))}
+                        </div>
 
-                    <div className="bg-surface p-4 rounded-panel border border-line-strong">
-                      <h4 className="text-xs font-bold text-fg-strong mb-2">Relational Reasoning Certification</h4>
-                      <p className="text-xs text-fg-muted font-sans leading-relaxed mb-3">
-                        Every architectural node is strictly reachable through validated, typed contracts with zero orphan islands. All edges cite ISO/IEC 25010 patterns and formal requirement IDs, directly solving the R2ABench 0.18 Edge F1 bottleneck.
-                      </p>
-                      <div className="flex items-center gap-2 text-success-fg text-xs">
-                        <span>✓ Zero Orphan Guarantee Passed</span>
-                        <span>•</span>
-                        <span>✓ Bidirectional Citation Traceability Certified</span>
-                      </div>
-                    </div>
+                        <div className={`p-4 rounded-panel border mb-4 ${report.is_valid ? 'border-success/40 bg-success/10' : 'border-warning/40 bg-warning/10'}`}>
+                          <div className={`font-bold mb-1 ${report.is_valid ? 'text-success-fg' : 'text-warning-fg'}`}>
+                            {report.is_valid ? '✓ Graph passed validation' : '✗ Graph has validation problems'}
+                          </div>
+                          <p className="text-fg-muted font-sans leading-relaxed">
+                            Every connection must cite a requirement ID and join two existing components; uncited or dangling connections are rejected. Orphans are components with no connection at all.
+                          </p>
+                        </div>
+
+                        {report.rejected_reasons.length > 0 && (
+                          <div className="mb-4">
+                            <div className="text-fg-subtle uppercase mb-1">Rejected connections ({report.rejected_edges_count})</div>
+                            <ul className="space-y-0.5 text-fg-soft">{report.rejected_reasons.map((r, i) => <li key={i}>• {r}</li>)}</ul>
+                          </div>
+                        )}
+                        {report.orphan_nodes.length > 0 && (
+                          <div className="mb-4">
+                            <div className="text-fg-subtle uppercase mb-1">Orphan components</div>
+                            <div className="flex flex-wrap gap-1">{report.orphan_nodes.map(n => <span key={n} className="px-1.5 py-0.5 rounded-control border border-warning/40 text-warning-fg">{n}</span>)}</div>
+                          </div>
+                        )}
+                        {report.uncovered_requirement_ids.length > 0 && (
+                          <div>
+                            <div className="text-fg-subtle uppercase mb-1">Requirements no component traces</div>
+                            <div className="flex flex-wrap gap-1">{report.uncovered_requirement_ids.map(r => <span key={r} className="px-1.5 py-0.5 rounded-control border border-warning/40 text-warning-fg">{r}</span>)}</div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1204,8 +1257,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   {preGeneratedSamples.map(sample => (
                     <button
                       key={sample.id}
-                      onClick={() => setGeneratedArch(sample.data)}
-                      className="px-3 py-1.5 rounded-control bg-selected hover:bg-[#334155] text-xs font-mono text-fg-soft border border-[#334155] cursor-pointer"
+                      onClick={() => { setGeneratedArch(sample.data); setDiagramChanges(null); }}
+                      className="px-3 py-1.5 rounded-control bg-selected hover:bg-overlay text-xs font-mono text-fg-soft border border-line-strong cursor-pointer"
                     >
                       Load {sample.name}
                     </button>
