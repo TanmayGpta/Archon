@@ -11,7 +11,7 @@ Orchestrates:
 
 import logging
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from app.schemas.requirements import SRSDocument
 from app.schemas.architecture import ArchitectureGraph
 from app.phase_b.normalizer import normalize_srs
@@ -20,9 +20,29 @@ from app.phase_b.node_generator import generate_nodes
 from app.phase_b.edge_generator import generate_edges
 from app.phase_b.edge_validator import validate_architecture, ValidationReport
 from app.knowledge_base.loader import get_catalog
+from app.schemas.patterns import PatternProfile, PatternRole, TradeoffEvaluation
 from app.llm import BaseLLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
+
+
+def rank_macro_patterns(evaluations: List[TradeoffEvaluation], catalog) -> List[PatternProfile]:
+    """Non-disqualified macro styles, best ATAM score first (Modular Monolith if none qualify).
+
+    The jury's pattern step-down walks this list; it never picks a pattern itself.
+    """
+    ranked = [
+        catalog.get(e.pattern_id)
+        for e in evaluations
+        if e.pattern_role == PatternRole.MACRO_STYLE and not e.disqualified and catalog.get(e.pattern_id)
+    ]
+    return ranked or [catalog.get("PAT-MODULAR-MONOLITH")]
+
+
+def select_companions(evaluations: List[TradeoffEvaluation], catalog, k: int = 3) -> List[PatternProfile]:
+    """Top-k non-disqualified companion patterns (e.g. API Gateway, BFF, Database per Service)."""
+    companion_evals = [e for e in evaluations if e.pattern_role == PatternRole.COMPANION and not e.disqualified][:k]
+    return [catalog.get(e.pattern_id) for e in companion_evals if catalog.get(e.pattern_id)]
 
 
 def generate_architecture_from_srs(
@@ -61,17 +81,9 @@ def generate_architecture_from_srs(
     t0 = time.time()
     evaluations = match_patterns(srs, catalog=catalog)
 
-    # Select Rank 1 Macro Style pattern (system skeleton)
-    from app.schemas.patterns import PatternRole
-    macro_evals = [e for e in evaluations if e.pattern_role == PatternRole.MACRO_STYLE and not e.disqualified]
-    if not macro_evals:
-        primary_pattern = catalog.get("PAT-MODULAR-MONOLITH")
-    else:
-        primary_pattern = catalog.get(macro_evals[0].pattern_id)
-
-    # Identify top scored companion patterns (e.g. API Gateway, BFF, Database per Service)
-    companion_evals = [e for e in evaluations if e.pattern_role == PatternRole.COMPANION and not e.disqualified][:3]
-    companion_patterns = [catalog.get(e.pattern_id) for e in companion_evals if catalog.get(e.pattern_id)]
+    # Select Rank 1 Macro Style pattern (system skeleton) and the top companions
+    primary_pattern = rank_macro_patterns(evaluations, catalog)[0]
+    companion_patterns = select_companions(evaluations, catalog)
     print(f"        Selected Macro Style: {primary_pattern.name} ({primary_pattern.pattern_id}) in {time.time() - t0:.2f}s")
     if companion_patterns:
         print(f"        Selected Companions:  {', '.join([c.name for c in companion_patterns])}")

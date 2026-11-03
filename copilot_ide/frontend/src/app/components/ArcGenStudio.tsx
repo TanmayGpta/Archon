@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { ArchitectureDiagramViewer } from './ArchitectureDiagramViewer';
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
+import { JuryPanel, juryReducer, initialJuryState, type JuryEvent, type JuryState } from './JuryPanel';
 import { ErrorState, Skeleton } from './StateViews';
 import { errorDetail, errorMessage } from '@/lib/api';
 import { useCommand } from './commandsContext';
@@ -62,7 +63,7 @@ interface QuestionItem {
   suggested_options: string[];
 }
 
-interface ArchNode {
+export interface ArchNode {
   node_id: string;
   name: string;
   node_type: string;
@@ -73,7 +74,7 @@ interface ArchNode {
   kb_citations: string[];
 }
 
-interface ArchEdge {
+export interface ArchEdge {
   edge_id: string;
   source: string;
   target: string;
@@ -113,7 +114,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   const [studioMode, setStudioMode] = useState<'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'>('elicitation');
 
   // Architecture Output Sub-tab
-  const [activeOutputTab, setActiveOutputTab] = useState<'diagram' | 'components' | 'couplings' | 'atam_tradeoffs' | 'validation'>(
+  const [activeOutputTab, setActiveOutputTab] = useState<'diagram' | 'components' | 'couplings' | 'atam_tradeoffs' | 'validation' | 'jury'>(
     initialView === 'atam' ? 'atam_tradeoffs' : initialView ?? 'diagram',
   );
   useEffect(() => {
@@ -139,6 +140,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
 
   // Generated Architecture Graph
   const [generatedArch, setGeneratedArch] = useState<ArchitectureGraphData | null>(null);
+
+  // Bias jury: on by default, so every architecture is judged unless deliberately skipped
+  const [juryEnabled, setJuryEnabled] = useState<boolean>(true);
+  const [jury, setJury] = useState<JuryState | null>(null);
 
   // Pattern Catalog
   const [patterns, setPatterns] = useState<PatternInfo[]>([]);
@@ -331,6 +336,53 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     }
   };
 
+  // Jury-judged generation: read the SSE stream and fold each event into the jury state
+  const runJudgedGeneration = async (payload: Record<string, unknown>) => {
+    let state = initialJuryState();
+    setJury(state);
+    setGeneratedArch(null);
+    setStatusMsg("Bias jury in session: 5 local models judge the requirements, then each architecture version...");
+    const res = await fetch(`${effectiveApiBase}/api/arcgen/generate/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok || !res.body) throw new Error(errorDetail(await res.text()));
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+    while (!finished) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() ?? '';
+      for (const chunk of chunks) {
+        const line = chunk.split('\n').find(l => l.startsWith('data: '));
+        if (!line) continue;
+        const event = JSON.parse(line.slice(6)) as JuryEvent;
+        state = juryReducer(state, event);
+        setJury(state);
+        if (event.type === 'iteration') {
+          // Show each version as soon as it exists, while the jury deliberates
+          setGeneratedArch(prev => ({ ...(prev ?? {}), ...event.record.graph }));
+          setActiveOutputTab('jury');
+        } else if (event.type === 'complete') {
+          setGeneratedArch(event.result);
+          const verdict = event.result?.jury?.verdict;
+          setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the bias jury."
+            : verdict === 'NO_JURY' ? "Architecture generated, but no juror could deliver a verdict (is Ollama running?)."
+            : "Architecture generated; the bias jury did not approve it within the regeneration limit. See the Bias Jury tab.");
+          finished = true;
+        } else if (event.type === 'error') {
+          throw new Error(event.detail);
+        }
+      }
+    }
+    if (!finished) throw new Error("the jury stream ended before a result arrived");
+  };
+
   // Generate Architecture (Phase B)
   const handleGenerateArchitecture = async () => {
     setIsGenerating(true);
@@ -345,6 +397,11 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
         payload.srs_text = prompt;
       }
 
+      if (juryEnabled) {
+        await runJudgedGeneration(payload);
+        return;
+      }
+      setJury(null);
       const res = await fetch(`${effectiveApiBase}/api/arcgen/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -358,10 +415,26 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     } catch (err) {
       console.error(err);
       setStatusMsg(err instanceof TypeError ? `Generation error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Generation error: ${errorMessage(err)}`);
+      setJury(j => (j && j.running ? { ...j, running: false, error: errorMessage(err) } : j));
     } finally {
       setIsGenerating(false);
     }
   };
+
+  const juryToggle = (
+    <label className="mt-2 flex items-start gap-2 text-xs text-fg-soft cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={juryEnabled}
+        onChange={e => setJuryEnabled(e.target.checked)}
+        disabled={isGenerating}
+        className="mt-0.5 accent-[#059669]"
+      />
+      <span>
+        <span className="font-semibold text-fg-strong">Bias jury</span> — 5 local models from different families judge the requirements and every architecture version (slower: several minutes).
+      </span>
+    </label>
+  );
   useCommand('architect.generate', { run: () => { if (!isGenerating) handleGenerateArchitecture(); } });
 
   // Save to Workspace
@@ -658,6 +731,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     placeholder="Paste full Software Requirements Specification (SRS) text or capability statements..."
                     className="w-full bg-raised border border-line-strong rounded-control p-3 text-xs text-fg-strong placeholder-fg-subtle focus:outline-none focus:border-info/60 font-mono transition-all resize-none"
                   />
+                  {juryToggle}
                   <button
                     onClick={handleGenerateArchitecture}
                     disabled={isGenerating || !srsText.trim()}
@@ -860,6 +934,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 <p className="text-xs text-fg-soft mb-3 leading-relaxed">
                   {stopReason || "Target ASR coverage has reached sufficiency threshold (≥85%). Anti-fatigue stop triggered."}
                 </p>
+                <div className="text-left mb-2">{juryToggle}</div>
                 <button
                   onClick={handleGenerateArchitecture}
                   disabled={isGenerating}
@@ -941,6 +1016,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     { id: 'couplings', label: `Couplings (${generatedArch.edges.length})` },
                     { id: 'atam_tradeoffs', label: 'ATAM Tradeoffs' },
                     { id: 'validation', label: 'Conformance Audit' },
+                    ...(jury ? [{ id: 'jury', label: jury.running ? 'Bias Jury (in session)' : `Bias Jury · ${jury.trace?.verdict ?? (jury.error ? 'error' : '…')}` }] : []),
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1061,6 +1137,17 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 )}
 
 
+                {/* TAB 6: BIAS JURY (votes, findings, iteration timeline) */}
+                {activeOutputTab === 'jury' && jury && (
+                  <JuryPanel
+                    state={jury}
+                    onShowVersion={graph => {
+                      setGeneratedArch(prev => ({ ...(prev ?? {}), ...graph }));
+                      setActiveOutputTab('diagram');
+                    }}
+                  />
+                )}
+
                 {/* TAB 5: CONFORMANCE AUDIT REPORT */}
                 {activeOutputTab === 'validation' && (
                   <div className="flex-1 bg-surface border border-line-strong rounded-panel p-5 overflow-y-auto font-mono text-xs">
@@ -1098,6 +1185,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 )}
 
               </div>
+            ) : jury ? (
+              /* Jury in session before the first architecture version exists (checkpoint 1) */
+              <JuryPanel state={jury} />
             ) : (
               /* Empty state before generation */
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-line-strong rounded-panel">

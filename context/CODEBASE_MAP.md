@@ -126,7 +126,8 @@ Runs on :8004. Native: `cd copilot_ide/services/arcgen_service; .venv\Scripts\py
 | Path | Purpose |
 |---|---|
 | `app/main.py` | FastAPI app, `/health`, mounts `app/router.py` at `/api/arcgen`. |
-| `app/router.py` | `GET /patterns`, `GET /examples`, `POST /elicit/start`, `POST /elicit/answer`, `POST /generate`, `POST /save-to-workspace`. Holds elicitation sessions in memory. |
+| `app/router.py` | `GET /patterns`, `GET /examples`, `POST /elicit/start`, `POST /elicit/answer`, `POST /generate` (no jury), `POST /generate/stream` (jury-judged, SSE), `POST /save-to-workspace`. Holds elicitation sessions in memory. |
+| `app/jury/` | Bias jury (Google ADK). `rubric.json` = contract (jurors, spares, yes/no items with severity + route, max_regenerations, Ollama settings). `panel.py` = `AdkOllamaPanel`: one `LlmAgent` per juror (local Ollama via `LiteLlm`) under a `ParallelAgent`, per-juror instruction provider, errors -> abstain, semaphore `max_concurrent`. `case.py` = blind per-juror shuffled cases + citable ID sets. `aggregate.py` = parse + majority vote in plain Python (a 'no' needs a valid, specific citation). `roster.py` = exclude generator's model family, fill from spares. `pipeline.py` = `JuryRun`: checkpoint 1 (normalized SRS vs raw) -> ATAM ranking -> checkpoint 2 (architecture) with routing (normalize / pattern step-down / nodes / edges), max 2 regenerations, trace saved to `output/jury_traces/`. |
 | `app/generator.py` | Phase B pipeline: normalize -> match patterns -> nodes -> edges -> validate. |
 | `app/llm.py` | `BaseLLMClient`, `OmniKeyClient`, `GroqClient`, `OllamaClient`, `ResilientLLMClient` (tiered fallback), `safe_parse_json`, `get_llm_client`. |
 | `app/phase_a/asr_tracker.py` | `ASRTracker`, `CategoryState`, `DEFAULT_ASR_WEIGHTS`; computed stopping rules. |
@@ -142,7 +143,7 @@ Runs on :8004. Native: `cd copilot_ide/services/arcgen_service; .venv\Scripts\py
 | `cli.py` | CLI entry (interactive elicitation or `--file` SRS). |
 | `examples/` | `C2C.txt` sample SRS, `run_demo.py`, `prompt_elicitation_demo.py`, the two sample architectures served by `/examples`. |
 | `docs/` | `why-this-approach.md`, `project-vision-srs-to-architecture.md`. |
-| `tests/test_*.py` | pytest: asr_tracker, catalog, edge_validator, llm, pattern_matcher, phase_a_flow, schemas. |
+| `tests/test_*.py` | pytest: asr_tracker, catalog, edge_validator, llm, pattern_matcher, phase_a_flow, schemas, jury (offline, fake jurors). |
 
 ---
 
@@ -241,6 +242,7 @@ Components (`src/app/components/`):
 | File | Purpose |
 |---|---|
 | `ArcGenStudio.tsx` | ArcGen UI: elicitation chat + generate + save (calls `/api/arcgen/*`). |
+| `JuryPanel.tsx` | Bias Jury tab in ArcGenStudio: SSE event reducer, juror x rubric vote grid, findings, iteration timeline with graph diffs. Jury toggle (default on) lives in ArcGenStudio. |
 | `ArchitectureDiagramViewer.tsx` | Renders `ArchNode` / `ArchEdge` graph. |
 | `AtamTradeoffMatrixView.tsx` | ATAM tradeoff matrix with score rationales. |
 | `conformance/ConformanceStudio.tsx` | Conformance UI; calls `/api/conformance/audit`. |

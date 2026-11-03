@@ -9,7 +9,7 @@ from typing import List, Optional
 from app.schemas.requirements import SRSDocument
 from app.schemas.architecture import ArchNode, NodeType
 from app.schemas.patterns import PatternProfile
-from app.llm import BaseLLMClient, get_llm_client
+from app.llm import BaseLLMClient, format_feedback, get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +56,12 @@ def generate_nodes(
     primary_pattern: PatternProfile,
     companion_patterns: Optional[List[PatternProfile]] = None,
     client: Optional[BaseLLMClient] = None,
+    feedback: Optional[List[str]] = None,
 ) -> List[ArchNode]:
-    """Generates architectural components (nodes) grounded in SRS requirements and KB patterns."""
+    """Generates architectural components (nodes) grounded in SRS requirements and KB patterns.
+
+    feedback: jury findings from a rejected attempt, added to the prompt so this attempt fixes them.
+    """
     if client is None:
         client = get_llm_client()
 
@@ -85,7 +89,7 @@ CORE DATA OBJECTS: {', '.join(srs.data_objects) or 'None'}
 REQUIREMENTS LIST:
 {req_text}
 
-Decompose this system into architectural components (nodes). Output JSON conforming to the schema."""
+Decompose this system into architectural components (nodes). Output JSON conforming to the schema.{format_feedback(feedback)}"""
 
     data = client.generate_json(
         system_prompt=NODE_GENERATOR_SYSTEM_PROMPT,

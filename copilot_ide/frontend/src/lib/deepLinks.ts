@@ -8,7 +8,7 @@
 export const CONFORMANCE_VIEWS = ['network', 'orbit', 'clusters', 'flow', 'violations'] as const;
 export type ConformanceView = (typeof CONFORMANCE_VIEWS)[number];
 
-export const ARCHITECT_VIEWS = ['diagram', 'components', 'couplings', 'atam', 'validation'] as const;
+export const ARCHITECT_VIEWS = ['diagram', 'components', 'couplings', 'atam', 'validation', 'jury'] as const;
 export type ArchitectView = (typeof ARCHITECT_VIEWS)[number];
 
 export interface ConformanceLink {

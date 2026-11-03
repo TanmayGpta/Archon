@@ -341,9 +341,12 @@ OUTPUT MUST BE A JSON OBJECT:
         return None
 
     def synthesize_srs(
-        self, initial_prompt: str, tracker: ASRTracker
+        self, initial_prompt: str, tracker: ASRTracker, feedback: Optional[List[str]] = None
     ) -> SRSDocument:
-        """Assembles initial prompt and all elicited ASR slots into a complete SRSDocument."""
+        """Assembles initial prompt and all elicited ASR slots into a complete SRSDocument.
+
+        feedback: jury findings from a rejected synthesis, passed to the normalizer.
+        """
         asrs: List[NormalizedRequirement] = []
         asr_idx = 1
 
@@ -365,7 +368,7 @@ OUTPUT MUST BE A JSON OBJECT:
 
         # Use the normalizer on the initial prompt for FRs/actors
         from app.phase_b.normalizer import normalize_srs
-        base_srs = normalize_srs(initial_prompt, client=self.client)
+        base_srs = normalize_srs(initial_prompt, client=self.client, feedback=feedback)
 
         # Merge elicited ASRs
         base_srs.asrs.extend(asrs)

@@ -493,6 +493,8 @@ class ResilientLLMClient(BaseLLMClient):
         self.clients = [c for c in clients if c is not None]
         if not self.clients:
             raise ValueError("ResilientLLMClient requires at least one client.")
+        # Models that actually produced an answer (the jury excludes their families).
+        self.used_models: List[str] = []
 
     @property
     def active_client(self) -> BaseLLMClient:
@@ -517,13 +519,17 @@ class ResilientLLMClient(BaseLLMClient):
         for i, client in enumerate(self.clients):
             client_name = type(client).__name__
             try:
-                return client.generate_json(
+                result = client.generate_json(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     target_schema=target_schema,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
+                used = str(getattr(client, "model", client_name))
+                if used not in self.used_models:
+                    self.used_models.append(used)
+                return result
             except Exception as e:
                 last_error = e
                 logger.warning(f"Tier {i+1} ({client_name}) failed: {e}")
@@ -533,6 +539,14 @@ class ResilientLLMClient(BaseLLMClient):
                     print(f"\n[LLM Failover] {client_name} encountered an issue ({e}). Falling back to Tier {i+2}: {next_name}...")
 
         raise RuntimeError(f"All LLM tiers failed. Last error: {last_error}")
+
+
+def format_feedback(feedback: Optional[List[str]]) -> str:
+    """Renders jury findings as a prompt section the generator must address (empty when none)."""
+    if not feedback:
+        return ""
+    lines = "\n".join(f"- {f}" for f in feedback)
+    return f"\n\nREVIEW FINDINGS FROM THE PREVIOUS ATTEMPT (fix every one of these):\n{lines}"
 
 
 def get_llm_client(

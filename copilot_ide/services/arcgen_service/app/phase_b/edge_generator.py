@@ -10,7 +10,7 @@ from typing import List, Optional, Set, Dict
 from app.schemas.requirements import SRSDocument
 from app.schemas.architecture import ArchNode, ArchEdge, EdgeType, NodeType
 from app.schemas.patterns import PatternProfile
-from app.llm import BaseLLMClient, get_llm_client
+from app.llm import BaseLLMClient, format_feedback, get_llm_client
 
 
 EDGE_GENERATOR_SYSTEM_PROMPT = """You are a Principal Distributed Systems and Integration Architect.
@@ -208,8 +208,12 @@ def generate_edges(
     srs: SRSDocument,
     primary_pattern: PatternProfile,
     client: Optional[BaseLLMClient] = None,
+    feedback: Optional[List[str]] = None,
 ) -> List[ArchEdge]:
-    """Synthesizes directed edges between nodes with requirement and pattern citations."""
+    """Synthesizes directed edges between nodes with requirement and pattern citations.
+
+    feedback: jury findings from a rejected attempt, added to the prompt so this attempt fixes them.
+    """
     if client is None:
         client = get_llm_client()
 
@@ -241,7 +245,7 @@ REQUIREMENTS TO REALIZE:
 Synthesize directed dependency and data-flow channels between these components.
 Consolidate multiple requirements sharing the same communication path onto single multi-cited edges (list all traced requirement IDs).
 Ensure every component in the list above is connected to the architecture without orphans.
-Output JSON conforming to the schema."""
+Output JSON conforming to the schema.{format_feedback(feedback)}"""
 
     data = client.generate_json(
         system_prompt=EDGE_GENERATOR_SYSTEM_PROMPT,

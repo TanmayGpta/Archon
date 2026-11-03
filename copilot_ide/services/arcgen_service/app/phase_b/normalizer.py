@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 from app.schemas.requirements import (
     SRSDocument,
     NormalizedRequirement,
@@ -19,7 +19,7 @@ from app.schemas.requirements import (
     ISO25010Characteristic,
     ISO25010SubCharacteristic,
 )
-from app.llm import BaseLLMClient, get_llm_client
+from app.llm import BaseLLMClient, format_feedback, get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +111,17 @@ def normalize_srs(
     project_name: Optional[str] = None,
     client: Optional[BaseLLMClient] = None,
     use_cache: bool = True,
+    feedback: Optional[List[str]] = None,
 ) -> SRSDocument:
-    """Extracts and normalizes requirements from raw text with caching."""
+    """Extracts and normalizes requirements from raw text with caching.
+
+    feedback: jury findings from a rejected normalization. A corrective run never reads or
+    writes the cache, so the rejected result is not served back.
+    """
     if isinstance(raw_text, SRSDocument):
         return raw_text
+    if feedback:
+        use_cache = False
 
     # Check cache
     cache_key = hashlib.sha256(str(raw_text).strip().encode("utf-8")).hexdigest()[:16]
@@ -139,7 +146,7 @@ RAW REQUIREMENTS TEXT:
 {raw_text}
 \"\"\"
 
-Produce the normalized JSON representation conforming to the rules."""
+Produce the normalized JSON representation conforming to the rules.{format_feedback(feedback)}"""
 
     data = client.generate_json(
         system_prompt=NORMALIZER_SYSTEM_PROMPT,

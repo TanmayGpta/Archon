@@ -1,0 +1,99 @@
+{
+  "_comment": "Bias jury contract. Jurors answer yes/no per item and must cite IDs for every 'no'. Votes are combined in plain Python (app/jury/aggregate.py), never by an LLM.",
+  "max_regenerations": 2,
+  "jurors": [
+    {"model": "qwen3:4b", "family": "qwen", "prompt_suffix": "/no_think"},
+    {"model": "llama3.2:3b", "family": "llama"},
+    {"model": "gemma3:4b", "family": "google"},
+    {"model": "phi4-mini", "family": "phi"},
+    {"model": "granite3.3:2b", "family": "granite"}
+  ],
+  "spares": [
+    {"model": "mistral:7b", "family": "mistral"}
+  ],
+  "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},
+  "checkpoints": {
+    "normalization": {
+      "title": "Normalized requirements vs. the raw SRS",
+      "items": [
+        {
+          "id": "N1",
+          "question": "Is every requirement stated in the RAW SRS represented in the NORMALIZED REQUIREMENTS?",
+          "cite": "raw_lines",
+          "cite_help": "for 'no', cite the raw SRS line numbers (e.g. L4) of each requirement that was dropped",
+          "severity": "critical",
+          "route": "normalize",
+          "fix": "Requirements stated in the raw SRS are missing from the normalized list"
+        },
+        {
+          "id": "N2",
+          "question": "Is every NORMALIZED REQUIREMENT supported by something the RAW SRS actually says (nothing invented or exaggerated)?",
+          "cite": "requirements",
+          "cite_help": "for 'no', cite the requirement IDs (e.g. NFR-002) that the raw SRS does not support",
+          "severity": "critical",
+          "route": "normalize",
+          "fix": "These normalized requirements are not supported by the raw SRS; remove or correct them"
+        },
+        {
+          "id": "N3",
+          "question": "Is every requirement marked ASR backed by an explicit RAW SRS statement about scale, latency, consistency, availability, security, deployment or cost?",
+          "cite": "asrs",
+          "cite_help": "for 'no', cite the ASR IDs that were promoted without such a statement",
+          "severity": "major",
+          "route": "normalize",
+          "fix": "These requirements were promoted to ASR without an explicit architectural driver in the raw SRS"
+        }
+      ]
+    },
+    "architecture": {
+      "title": "Generated architecture vs. the requirements",
+      "items": [
+        {
+          "id": "A1",
+          "question": "Is every ASR actually realized by at least one COMPONENT in the architecture?",
+          "cite": "asrs",
+          "cite_help": "for 'no', cite the ASR IDs that no component realizes",
+          "severity": "critical",
+          "route": "nodes",
+          "fix": "These ASRs are not realized by any component"
+        },
+        {
+          "id": "A2",
+          "question": "Is the chosen ARCHITECTURAL STYLE compatible with every ASR?",
+          "cite": "asrs",
+          "cite_help": "for 'no', cite the ASR IDs the style conflicts with",
+          "severity": "critical",
+          "route": "pattern",
+          "fix": "The architectural style conflicts with these ASRs"
+        },
+        {
+          "id": "A3",
+          "question": "Is every technology component (message broker, cache, queue, gateway, orchestrator, search engine) required by a requirement, rather than added because it is popular?",
+          "cite": "nodes",
+          "cite_help": "for 'no', cite the component IDs (e.g. COMP-004) that no requirement needs",
+          "severity": "major",
+          "route": "nodes",
+          "fix": "These components are not required by any requirement; remove them or justify them with a requirement"
+        },
+        {
+          "id": "A4",
+          "question": "Are the number and granularity of COMPONENTS proportionate to the scale stated in the requirements (no over-engineering)?",
+          "cite": "nodes",
+          "cite_help": "for 'no', cite the component IDs that are unnecessary splits or excess infrastructure",
+          "severity": "major",
+          "route": "nodes",
+          "fix": "These components over-engineer the system for its stated scale; merge or remove them"
+        },
+        {
+          "id": "A5",
+          "question": "Does every CONNECTION represent a real call or data flow that a requirement needs?",
+          "cite": "edges",
+          "cite_help": "for 'no', cite the connection IDs (e.g. EDGE-003) that no requirement needs",
+          "severity": "major",
+          "route": "edges",
+          "fix": "These connections are not needed by any requirement"
+        }
+      ]
+    }
+  }
+}

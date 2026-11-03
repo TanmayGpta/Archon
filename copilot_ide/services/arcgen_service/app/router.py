@@ -10,10 +10,13 @@ Exposes REST endpoints for:
 import os
 import uuid
 import json
+import asyncio
 import logging
+import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any, Tuple
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.schemas.requirements import (
@@ -30,6 +33,8 @@ from app.phase_a.elicitation_agent import ElicitationAgent, QuestionItem
 from app.generator import generate_architecture_from_srs
 from app.phase_b.normalizer import normalize_srs
 from app.llm import get_llm_client
+from app.jury.pipeline import JuryRun
+from app.jury.panel import AdkOllamaPanel
 
 logger = logging.getLogger(__name__)
 
@@ -283,48 +288,102 @@ async def answer_elicitation(req: ElicitAnswerRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _architecture_payload(graph, tradeoff_table, val_report) -> Dict[str, Any]:
+    return {
+        "project_name": graph.project_name,
+        "style": graph.style,
+        "nodes": [n.model_dump() for n in graph.nodes],
+        "edges": [e.model_dump() for e in graph.edges],
+        "plantuml": graph.plantuml or graph.to_plantuml(),
+        "mermaid": graph.to_mermaid(),
+        "tradeoff_table": tradeoff_table,
+        "validation_report": val_report.model_dump(),
+    }
+
+
+def _srs_source(req: GenerateArchitectureRequest, client) -> Tuple[str, Callable[[Optional[List[str]]], SRSDocument]]:
+    """What the jury compares against (raw source text) and how to (re)normalize it with findings."""
+    if req.session_id and req.session_id in SESSIONS:
+        session = SESSIONS[req.session_id]
+        agent: ElicitationAgent = session["agent"]
+        tracker: ASRTracker = session["tracker"]
+        prompt: str = session["prompt"]
+        answers = [f"{dim.value}: {slot.raw_response}" for dim, slot in tracker.slots.items() if slot.filled and slot.raw_response]
+        raw = "\n".join([prompt] + answers)
+        agent.client = client
+        return raw, lambda feedback: agent.synthesize_srs(prompt, tracker, feedback=feedback)
+    if req.srs_text:
+        return req.srs_text, lambda feedback: normalize_srs(req.srs_text, client=client, feedback=feedback)
+    raise HTTPException(
+        status_code=400,
+        detail="Either 'session_id' (from active elicitation) or 'srs_text' must be provided."
+    )
+
+
+def _project_name(req: GenerateArchitectureRequest) -> Optional[str]:
+    return req.project_name if req.project_name and req.project_name != "GeneratedArchitecture" else None
+
+
 @router.post("/generate")
 async def generate_architecture(req: GenerateArchitectureRequest):
-    """Executes Phase B architecture generation from an elicited session or raw SRS text."""
+    """Executes Phase B architecture generation from an elicited session or raw SRS text (no jury)."""
     try:
-        srs: Optional[SRSDocument] = None
-
-        if req.session_id and req.session_id in SESSIONS:
-            session = SESSIONS[req.session_id]
-            agent: ElicitationAgent = session["agent"]
-            tracker: ASRTracker = session["tracker"]
-            prompt: str = session["prompt"]
-            srs = agent.synthesize_srs(prompt, tracker)
-        elif req.srs_text:
-            srs = normalize_srs(req.srs_text)
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Either 'session_id' (from active elicitation) or 'srs_text' must be provided."
-            )
-
+        client = get_llm_client()
+        _, normalize = _srs_source(req, client)
+        srs = normalize(None)
         if not srs:
             raise HTTPException(status_code=500, detail="Failed to synthesize or normalize SRS specification.")
-
-        if req.project_name and req.project_name != "GeneratedArchitecture":
-            srs.project_name = req.project_name
+        if _project_name(req):
+            srs.project_name = _project_name(req)
 
         # Execute Phase B: Pattern Matcher -> Pass 1 Nodes -> Pass 2 Edges -> Validation
-        graph, tradeoff_table, val_report, _ = generate_architecture_from_srs(srs_document=srs)
-
-        return {
-            "project_name": graph.project_name,
-            "style": graph.style,
-            "nodes": [n.model_dump() for n in graph.nodes],
-            "edges": [e.model_dump() for e in graph.edges],
-            "plantuml": graph.plantuml or graph.to_plantuml(),
-            "mermaid": graph.to_mermaid(),
-            "tradeoff_table": tradeoff_table,
-            "validation_report": val_report.model_dump(),
-        }
+        graph, tradeoff_table, val_report, _ = generate_architecture_from_srs(srs_document=srs, client=client)
+        return _architecture_payload(graph, tradeoff_table, val_report)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to generate architecture: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate/stream")
+async def generate_architecture_judged(req: GenerateArchitectureRequest):
+    """Jury-judged generation, streamed as Server-Sent Events.
+
+    Events (each `data:` line is JSON with a "type"): stage, panel, verdict, checkpoint,
+    iteration, complete (architecture payload + "jury" trace), error.
+    """
+    client = get_llm_client()
+    raw_source, normalize = _srs_source(req, client)  # 400 before the stream opens
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def emit(event: dict) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    def work() -> None:
+        try:
+            run = JuryRun(client=client, panel=AdkOllamaPanel(), emit=emit)
+            graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
+            payload = _architecture_payload(graph, table, report)
+            payload["jury"] = trace.model_dump(mode="json")
+            emit({"type": "complete", "result": payload})
+        except Exception as e:  # noqa: BLE001 - surface any pipeline failure to the UI
+            logger.error(f"Judged generation failed: {e}", exc_info=True)
+            emit({"type": "error", "detail": str(e)})
+        finally:
+            emit({"type": "_end"})
+
+    threading.Thread(target=work, name="arcgen-jury", daemon=True).start()
+
+    async def stream():
+        while True:
+            event = await queue.get()
+            if event.get("type") == "_end":
+                break
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/save-to-workspace")
