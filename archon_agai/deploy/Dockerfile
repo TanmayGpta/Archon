@@ -25,5 +25,5 @@ ENV PYTHONPATH=/app \
     AGAI_FS_MCP_PACKAGE=
 
 # SERVICE=gateway | healing ; Cloud Run injects $PORT
-ENV SERVICE=gateway
-CMD ["sh", "-c", "if [ \"$SERVICE\" = healing ]; then uvicorn archon_agai.healing.a2a_server:app --host 0.0.0.0 --port ${PORT:-8101}; else uvicorn archon_agai.gateway:app --host 0.0.0.0 --port ${PORT:-8100}; fi"]
+ENV SERVICE=both
+CMD ["sh", "-c", "if [ \"$SERVICE\" = healing ]; then uvicorn archon_agai.healing.a2a_server:app --host 0.0.0.0 --port ${PORT:-8101}; elif [ \"$SERVICE\" = both ]; then uvicorn archon_agai.healing.a2a_server:app --host 127.0.0.1 --port 8101 & exec uvicorn archon_agai.gateway:app --host 0.0.0.0 --port ${PORT:-8100}; else uvicorn archon_agai.gateway:app --host 0.0.0.0 --port ${PORT:-8100}; fi"]

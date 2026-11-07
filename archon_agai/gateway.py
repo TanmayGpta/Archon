@@ -162,18 +162,22 @@ async def _run(kind: str, sid: str, text: str) -> str:
 async def _audit_job(sid: str, prompt: str) -> None:
     t0 = time.perf_counter()
     try:
-        await _run("audit", sid, prompt)
+        try:
+            await _run("audit", sid, prompt)
+        except Exception as e:
+            events.emit(sid, "gateway", "warning", f"audit agent LLM error ({type(e).__name__}); falling back to deterministic engine: {e}")
         st = await _state(sid)
         if "audit_result" not in st and not st.get("guardrail_blocked"):
-            # The model skipped the tool: fall back to deterministic ground truth, and record it.
+            # The model skipped the tool or encountered an error: fall back to deterministic ground truth, and record it.
             res, _ = engine.audit(st["codebase_path"], st["blueprint_id"])
             await _patch_state(sid, {"audit_result": res.model_dump(), "audit_fallback": True})
-            events.emit(sid, "gateway", "fallback", "agent did not call scan_conformance; used engine directly")
+            events.emit(sid, "gateway", "fallback", "used deterministic conformance engine")
     except Exception as e:
         events.emit(sid, "gateway", "error", f"audit failed: {type(e).__name__}: {e}")
     finally:
         st = await _state(sid)
         await _patch_state(sid, {"timings": {**st.get("timings", {}), "audit_s": round(time.perf_counter() - t0, 2)}})
+        observability.flush()
         events.emit(sid, "gateway", "audit_done", "")
 
 
@@ -217,6 +221,7 @@ async def _heal_job(sid: str, max_attempts: int) -> None:
     finally:
         st = await _state(sid)
         await _patch_state(sid, {"timings": {**st.get("timings", {}), "heal_s": round(time.perf_counter() - t0, 2)}})
+        observability.flush()
         events.emit(sid, "gateway", "heal_done", "")
 
 

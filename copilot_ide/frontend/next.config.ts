@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
     "172.20.168.185",
     "172.20.168.185:3000",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/agai",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

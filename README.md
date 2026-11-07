@@ -1,7 +1,4 @@
-cd copilot_ide
-docker compose up --no-deps orchestrator-service ui-service
 
-.venv\Scripts\python.exe -m archon_agai.healing.a2a_server
 # Archon
 
 Multi-agent system that generates software architecture from requirements and verifies whether a codebase actually conforms to it. Built on LangGraph — no model training or GPU required.

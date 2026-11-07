@@ -90,7 +90,10 @@ LLM_MAX_TOKENS = int(os.getenv("AGAI_LLM_MAX_TOKENS", "8192"))  # patches need r
 LLM_TIMEOUT_S = float(os.getenv("AGAI_LLM_TIMEOUT_S", "180"))
 # CrewAI phones home to its telemetry collector on every kickoff; off unless explicitly enabled.
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
-os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+if not (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")):
+    os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+else:
+    os.environ["OTEL_SDK_DISABLED"] = "false"
 GATEWAY_PORT = int(os.getenv("AGAI_GATEWAY_PORT", "8100"))
 HEALING_PORT = int(os.getenv("AGAI_HEALING_PORT", "8101"))
 

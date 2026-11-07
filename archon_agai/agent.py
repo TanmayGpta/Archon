@@ -23,7 +23,7 @@ from archon_agai.config import (ADK_MODEL, ALLOWED_ROOTS, READONLY_ROOTS, FS_MCP
                                 LLM_API_KEY, LLM_BASE_URL, REPO_ROOT, fs_mcp_args)
 from archon_agai.schemas import AuditNarrative
 
-# FreeLLMAPI is OpenAI-compatible, so ADK reaches it through LiteLLM's "openai/" provider.
+
 llm = LiteLlm(model=f"openai/{ADK_MODEL}", api_base=LLM_BASE_URL, api_key=LLM_API_KEY or "missing")
 
 archon_tools = McpToolset(

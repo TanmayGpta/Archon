@@ -73,3 +73,6 @@ graphify-out/
 # Local launcher scripts
 restart_servers.bat
 *.bat
+
+# AGAI Presentation Readme
+README_agai.md
