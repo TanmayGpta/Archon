@@ -4,7 +4,7 @@ google-genai==2.31.0
 crewai==1.15.28
 a2a-sdk==1.2.2
 mcp==1.28.1
-langfuse==5.0.2
+langfuse==4.15.6
 openinference-instrumentation-google-adk==1.0.4
 openinference-instrumentation-crewai==1.1.21
 fastapi==0.141.1
