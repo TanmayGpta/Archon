@@ -390,6 +390,139 @@ def health():
     return {"ok": True}
 
 
+# --------------------------------------------------------------------------- IDE workspace bridge (cloud standalone IDE)
+
+ACTIVE_WORKSPACE_ROOT: Path = Path(DEFAULT_CODEBASE).resolve()
+RECENT_WORKSPACES: List[str] = [str(DEFAULT_CODEBASE), str(REPO_ROOT / "test_codebases" / "ecommerce_platform")]
+
+
+class OpenProjectReq(BaseModel):
+    path: str
+    create_if_missing: Optional[bool] = False
+
+
+@app.get("/api/workspace/projects")
+def get_workspace_projects():
+    global ACTIVE_WORKSPACE_ROOT, RECENT_WORKSPACES
+    return {
+        "current_project": ACTIVE_WORKSPACE_ROOT.name,
+        "project_path": str(ACTIVE_WORKSPACE_ROOT).replace("\\", "/"),
+        "git_branch": "main",
+        "recent_projects": [p.replace("\\", "/") for p in RECENT_WORKSPACES]
+    }
+
+
+@app.post("/api/workspace/open-project")
+def open_workspace_project(req: OpenProjectReq):
+    global ACTIVE_WORKSPACE_ROOT, RECENT_WORKSPACES
+    target = None
+    try:
+        target = resolve_allowed_path(to_host(req.path) if req.path else DEFAULT_CODEBASE)
+    except Exception:
+        candidate = Path(req.path).resolve()
+        if candidate.exists() and candidate.is_dir():
+            target = candidate
+        else:
+            target = ACTIVE_WORKSPACE_ROOT
+
+    if not target.exists():
+        if req.create_if_missing:
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "README.md").write_text(f"# {target.name}\n\nInitialized with Archon Copilot.\n", encoding="utf-8")
+        else:
+            raise HTTPException(400, f"Directory not found: {req.path}")
+
+    ACTIVE_WORKSPACE_ROOT = target
+    norm_path = str(target).replace("\\", "/")
+    if norm_path not in RECENT_WORKSPACES:
+        RECENT_WORKSPACES.insert(0, norm_path)
+    return {
+        "current_project": target.name,
+        "project_path": norm_path,
+        "git_branch": "main",
+        "recent_projects": [p.replace("\\", "/") for p in RECENT_WORKSPACES]
+    }
+
+
+@app.get("/api/workspace/tree")
+def get_workspace_tree(subpath: str = ""):
+    global ACTIVE_WORKSPACE_ROOT
+    target_dir = (ACTIVE_WORKSPACE_ROOT / subpath).resolve() if subpath else ACTIVE_WORKSPACE_ROOT
+    if not str(target_dir).startswith(str(ACTIVE_WORKSPACE_ROOT)):
+        target_dir = ACTIVE_WORKSPACE_ROOT
+
+    def build_tree(dir_path: Path, current_depth: int = 0, max_depth: int = 6):
+        items = []
+        if current_depth > max_depth or not dir_path.is_dir():
+            return items
+        try:
+            entries = sorted(list(os.scandir(dir_path)), key=lambda e: (not e.is_dir(follow_symlinks=False), e.name.lower()))
+            for entry in entries[:300]:
+                if entry.name in SECRET_PARTS or entry.name.startswith(".") or entry.name == "__pycache__":
+                    continue
+                full_path = Path(entry.path)
+                rel_path = str(full_path.relative_to(ACTIVE_WORKSPACE_ROOT)).replace("\\", "/")
+                if entry.is_dir(follow_symlinks=False):
+                    items.append({
+                        "name": entry.name,
+                        "path": rel_path,
+                        "type": "directory",
+                        "children": build_tree(full_path, current_depth + 1, max_depth) if current_depth < max_depth else []
+                    })
+                else:
+                    ext = full_path.suffix.lower().lstrip(".")
+                    items.append({
+                        "name": entry.name,
+                        "path": rel_path,
+                        "type": "file",
+                        "extension": ext
+                    })
+        except Exception:
+            pass
+        return items
+
+    return {
+        "root": ACTIVE_WORKSPACE_ROOT.name,
+        "root_path": str(ACTIVE_WORKSPACE_ROOT).replace("\\", "/"),
+        "tree": build_tree(target_dir, 0, 6)
+    }
+
+
+class WorkspaceFileReq(BaseModel):
+    path: str
+    content: Optional[str] = ""
+
+
+@app.get("/api/workspace/file")
+def get_workspace_file(path: str):
+    global ACTIVE_WORKSPACE_ROOT
+    target_file = (ACTIVE_WORKSPACE_ROOT / path).resolve()
+    if not target_file.is_file():
+        try:
+            target_file = resolve_allowed_path(path, ACTIVE_WORKSPACE_ROOT)
+        except Exception:
+            pass
+    if not target_file.is_file():
+        raise HTTPException(404, f"File not found: {path}")
+    content = target_file.read_text(encoding="utf-8", errors="replace")
+    return {"path": path, "content": content, "filename": target_file.name}
+
+
+@app.post("/api/workspace/file")
+def save_workspace_file(req: WorkspaceFileReq):
+    global ACTIVE_WORKSPACE_ROOT
+    target_file = (ACTIVE_WORKSPACE_ROOT / req.path).resolve()
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text(req.content or "", encoding="utf-8")
+    return {"status": "success", "path": req.path, "bytes_written": len(req.content or "")}
+
+
+@app.get("/api/models")
+def get_available_models():
+    return {"models": ["auto", "gemma3:4b", "llama-3.3-70b-versatile", "gemini-2.5-flash", "deepseek-r1"]}
+
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=GATEWAY_PORT)

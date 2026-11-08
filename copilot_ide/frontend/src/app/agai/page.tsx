@@ -9,7 +9,7 @@ import { AGAI_API, type FilePatch, useAgaiSession } from './useAgaiSession';
 
 // The full Archon IDE (explorer, tabs, terminal, agent chat, GitHub open) talks to the orchestrator;
 // Archon Guard (audit/heal/apply) talks to the AGAI gateway.
-const IDE_API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const IDE_API = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_AGAI_API_URL || 'http://127.0.0.1:8100';
 
 type Win = 'editor' | 'conformance';
 type Builtin = { label: string; path: string; blueprint_id: string; paths: string[] };
