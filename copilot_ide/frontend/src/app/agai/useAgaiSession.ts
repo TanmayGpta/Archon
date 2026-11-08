@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const AGAI_API = process.env.NEXT_PUBLIC_AGAI_API_URL || 'http://127.0.0.1:8100';
+const getAgaiApi = () => {
+  if (process.env.NEXT_PUBLIC_AGAI_API_URL) return process.env.NEXT_PUBLIC_AGAI_API_URL;
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://127.0.0.1:8100';
+    }
+    return 'https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io';
+  }
+  return 'http://127.0.0.1:8100';
+};
+
+export const AGAI_API = getAgaiApi();
 
 export interface AgentEvent {
   session_id: string;

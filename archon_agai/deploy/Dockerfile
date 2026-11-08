@@ -11,6 +11,7 @@ WORKDIR /app
 COPY archon_agai/requirements.txt archon_agai/requirements.txt
 RUN pip install --no-cache-dir -r archon_agai/requirements.txt
 
+COPY README.md README.md
 COPY conformance/ conformance/
 COPY shared/ shared/
 COPY test_codebases/ test_codebases/
@@ -18,8 +19,8 @@ COPY archon_agai/ archon_agai/
 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
-    AGAI_ALLOWED_ROOTS=/app/test_codebases \
-    AGAI_DEFAULT_CODEBASE=/app/test_codebases/ecommerce_platform \
+    AGAI_ALLOWED_ROOTS=/app/test_codebases:/app \
+    AGAI_DEFAULT_CODEBASE=/app \
     AGAI_RUNS_DIR=/tmp/agai-runs \
     AGAI_FS_MCP_COMMAND=mcp-server-filesystem \
     AGAI_FS_MCP_PACKAGE=

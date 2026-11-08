@@ -58,5 +58,8 @@ jobs:
           file: ./copilot_ide/frontend/Dockerfile
           push: true
           tags: archonregistery-ahhzb5aedsa5fdae.azurecr.io/archon-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_AGAI_API_URL=https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io
+            NEXT_PUBLIC_API_URL=https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io
           cache-from: type=gha
           cache-to: type=gha,mode=max

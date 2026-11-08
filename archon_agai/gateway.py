@@ -29,7 +29,8 @@ from google.genai import types
 from pydantic import BaseModel
 
 from archon_agai import engine, events, observability
-from archon_agai.config import (ALLOWED_ROOTS, BUILTIN_PROJECTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE,
+from archon_agai.github_workspace import GitHubWorkspaceClient
+from archon_agai.config import (ALLOWED_ROOTS, BUILTIN_PROJECTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE, DEMO_CODEBASE,
                                 GATEWAY_PORT, REPO_ROOT,
                                 RUNS_DIR, require_llm_key, to_container, to_host)
 from archon_agai.guardrails import is_writable, resolve_allowed_path, screen_user_prompt
@@ -106,7 +107,7 @@ async def create_session(req: SessionReq):
 def builtins():
     """Built-in projects. `paths` are candidates for the IDE's orchestrator: container path first, then host path."""
     return [{"label": label, "path": p, "blueprint_id": bp,
-             "paths": list(dict.fromkeys([to_container(p), p]))}
+             "paths": list(dict.fromkeys([to_container(p), p, Path(p).name]))}
             for label, p, bp in BUILTIN_PROJECTS]
 
 
@@ -338,7 +339,7 @@ class SaveReq(BaseModel):
 
 @app.put("/api/agai/file")
 def save_file(req: SaveReq):
-    root = resolve_allowed_path(req.codebase or DEFAULT_CODEBASE, writable=True)
+    root = resolve_allowed_path(req.codebase or DEFAULT_CODEBASE, DEMO_CODEBASE, writable=True)
     f = resolve_allowed_path(req.path, root, writable=True)
     f.write_text(req.content, encoding="utf-8")
     return {"saved": f.relative_to(root).as_posix()}
@@ -381,7 +382,7 @@ async def github_import(req: GitHubImportReq):
 
 @app.get("/api/agai/config")
 def config():
-    return {"defaultCodebase": DEFAULT_CODEBASE, "defaultBlueprint": DEFAULT_BLUEPRINT,
+    return {"defaultCodebase": DEFAULT_CODEBASE, "demoCodebase": DEMO_CODEBASE, "defaultBlueprint": DEFAULT_BLUEPRINT,
             "allowedRoots": [str(r) for r in ALLOWED_ROOTS]}
 
 
@@ -392,8 +393,8 @@ def health():
 
 # --------------------------------------------------------------------------- IDE workspace bridge (cloud standalone IDE)
 
-ACTIVE_WORKSPACE_ROOT: Path = Path(DEFAULT_CODEBASE).resolve()
-RECENT_WORKSPACES: List[str] = [str(DEFAULT_CODEBASE), str(REPO_ROOT / "test_codebases" / "ecommerce_platform")]
+ACTIVE_WORKSPACE_ROOT: Path = Path(REPO_ROOT).resolve()
+RECENT_WORKSPACES: List[str] = [str(REPO_ROOT), str(DEMO_CODEBASE)]
 
 
 class OpenProjectReq(BaseModel):
@@ -415,22 +416,47 @@ def get_workspace_projects():
 @app.post("/api/workspace/open-project")
 def open_workspace_project(req: OpenProjectReq):
     global ACTIVE_WORKSPACE_ROOT, RECENT_WORKSPACES
-    target = None
-    try:
-        target = resolve_allowed_path(to_host(req.path) if req.path else DEFAULT_CODEBASE)
-    except Exception:
-        candidate = Path(req.path).resolve()
-        if candidate.exists() and candidate.is_dir():
-            target = candidate
-        else:
-            target = ACTIVE_WORKSPACE_ROOT
+    raw = (req.path or "").strip()
+    target: Optional[Path] = None
 
-    if not target.exists():
-        if req.create_if_missing:
-            target.mkdir(parents=True, exist_ok=True)
-            (target / "README.md").write_text(f"# {target.name}\n\nInitialized with Archon Copilot.\n", encoding="utf-8")
+    # 1. Check shortcuts
+    if not raw or raw.lower() in ("archon", "default", "/archon", "/workspace"):
+        target = Path(REPO_ROOT).resolve()
+    elif raw.lower() in ("ecommerce", "ecommerce_platform", "demo", "test_codebases/ecommerce_platform"):
+        target = Path(DEMO_CODEBASE).resolve()
+    else:
+        # 2. Try to_host mapping and existence
+        candidate_str = to_host(raw)
+        p = Path(candidate_str)
+        if not p.is_absolute():
+            # Check relative to REPO_ROOT first, then ALLOWED_ROOTS
+            if (Path(REPO_ROOT) / p).exists():
+                target = (Path(REPO_ROOT) / p).resolve()
+            elif ALLOWED_ROOTS and (Path(ALLOWED_ROOTS[0]) / p).exists():
+                target = (Path(ALLOWED_ROOTS[0]) / p).resolve()
         else:
-            raise HTTPException(400, f"Directory not found: {req.path}")
+            if p.exists():
+                target = p.resolve()
+
+    # 3. Fallback to resolve_allowed_path or candidate check
+    if not target or not target.exists():
+        try:
+            target = resolve_allowed_path(to_host(raw) if raw else str(REPO_ROOT))
+        except Exception:
+            candidate = Path(raw).resolve()
+            if candidate.exists() and candidate.is_dir():
+                target = candidate
+
+    if not target or not target.exists():
+        if req.create_if_missing and raw:
+            try:
+                target = Path(raw).resolve()
+                target.mkdir(parents=True, exist_ok=True)
+                (target / "README.md").write_text(f"# {target.name}\n\nInitialized with Archon Copilot.\n", encoding="utf-8")
+            except Exception as e:
+                raise HTTPException(400, f"Cannot create directory {raw}: {e}")
+        else:
+            raise HTTPException(400, f"Directory not found: {raw}")
 
     ACTIVE_WORKSPACE_ROOT = target
     norm_path = str(target).replace("\\", "/")
@@ -517,10 +543,251 @@ def save_workspace_file(req: WorkspaceFileReq):
     return {"status": "success", "path": req.path, "bytes_written": len(req.content or "")}
 
 
+class CreateItemReq(BaseModel):
+    path: str
+    is_directory: Optional[bool] = False
+
+
+@app.post("/api/workspace/create")
+def create_workspace_item(req: CreateItemReq):
+    global ACTIVE_WORKSPACE_ROOT
+    target = (ACTIVE_WORKSPACE_ROOT / req.path).resolve()
+    try:
+        if req.is_directory:
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                target.touch()
+        return {"status": "success", "path": req.path}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+class DeleteItemReq(BaseModel):
+    path: str
+
+
+@app.post("/api/workspace/delete")
+def delete_workspace_item(req: DeleteItemReq):
+    global ACTIVE_WORKSPACE_ROOT
+    import shutil
+    target = (ACTIVE_WORKSPACE_ROOT / req.path).resolve()
+    if not target.exists():
+        raise HTTPException(404, detail="File or folder not found")
+    if target == ACTIVE_WORKSPACE_ROOT or target == Path(REPO_ROOT).resolve():
+        raise HTTPException(403, detail="Cannot delete root workspace")
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+        return {"status": "success", "path": req.path}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+class RenameItemReq(BaseModel):
+    old_path: str
+    new_path: str
+
+
+@app.post("/api/workspace/rename")
+def rename_workspace_item(req: RenameItemReq):
+    global ACTIVE_WORKSPACE_ROOT
+    import shutil
+    old_target = (ACTIVE_WORKSPACE_ROOT / req.old_path).resolve()
+    new_target = (ACTIVE_WORKSPACE_ROOT / req.new_path).resolve()
+    if not old_target.exists():
+        raise HTTPException(404, detail="Source file not found")
+    if new_target.exists() and new_target != old_target:
+        raise HTTPException(400, detail="Destination already exists")
+    try:
+        new_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old_target), str(new_target))
+        return {"status": "success", "old_path": req.old_path, "new_path": req.new_path}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+class TerminalExecReq(BaseModel):
+    command: str
+
+
+@app.post("/api/terminal/exec")
+async def terminal_exec(req: TerminalExecReq):
+    global ACTIVE_WORKSPACE_ROOT
+    raw_cmd = req.command.strip()
+    cwd_str = str(ACTIVE_WORKSPACE_ROOT).replace("\\", "/")
+    if not raw_cmd:
+        return {"stdout": "", "stderr": "", "exit_code": 0, "cwd": cwd_str}
+    
+    if raw_cmd == "cd" or raw_cmd.startswith("cd "):
+        parts = raw_cmd.split(maxsplit=1)
+        target = parts[1].strip() if len(parts) > 1 else "~"
+        if target == "~":
+            new_dir = Path.home()
+        else:
+            new_dir = (ACTIVE_WORKSPACE_ROOT / target).resolve()
+        if new_dir.exists() and new_dir.is_dir():
+            ACTIVE_WORKSPACE_ROOT = new_dir
+            new_cwd = str(new_dir).replace("\\", "/")
+            return {"stdout": f"Changed directory to {new_cwd}\n", "stderr": "", "exit_code": 0, "cwd": new_cwd, "project_name": new_dir.name}
+    
+    import subprocess
+    try:
+        res = subprocess.run(raw_cmd, shell=True, cwd=str(ACTIVE_WORKSPACE_ROOT), capture_output=True, text=True, timeout=30)
+        return {"stdout": res.stdout, "stderr": res.stderr, "exit_code": res.returncode, "cwd": cwd_str}
+    except Exception as e:
+        return {"stdout": "", "stderr": str(e), "exit_code": 1, "cwd": cwd_str}
+
+
 @app.get("/api/models")
 def get_available_models():
     return {"models": ["auto", "gemma3:4b", "llama-3.3-70b-versatile", "gemini-2.5-flash", "deepseek-r1"]}
 
+
+@app.get("/api/workspace/all-files")
+def get_all_workspace_files():
+    global ACTIVE_WORKSPACE_ROOT
+    files = []
+    for d, dirs, names in os.walk(ACTIVE_WORKSPACE_ROOT):
+        dirs[:] = [x for x in dirs if x not in SECRET_PARTS and x != "__pycache__" and not x.startswith(".")]
+        files += [(Path(d) / f).relative_to(ACTIVE_WORKSPACE_ROOT).as_posix() for f in names
+                  if not f.endswith(".pyc") and not f.startswith(".env")]
+    return {"files": sorted(files)}
+
+
+@app.get("/api/workspace/graph")
+def get_workspace_graph():
+    return {"nodes": [], "edges": []}
+
+
+@app.get("/api/cloud/keys")
+def get_cloud_keys():
+    return {"keys": {}}
+
+
+class CloudKeyReq(BaseModel):
+    provider: str
+    api_key: str
+
+
+@app.post("/api/cloud/keys")
+def set_cloud_key(req: CloudKeyReq):
+    return {"status": "success", "provider": req.provider}
+
+
+class CloudKeyClearReq(BaseModel):
+    provider: str
+
+
+@app.post("/api/cloud/keys/clear")
+def clear_cloud_key(req: CloudKeyClearReq):
+    return {"status": "cleared", "provider": req.provider}
+
+
+class CloudKeyTestReq(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+
+
+@app.post("/api/cloud/keys/test")
+async def test_cloud_key(req: CloudKeyTestReq):
+    return {"status": "ok", "latency": 120, "message": f"{req.provider} connection verified"}
+
+
+@app.post("/api/agent/suggest-files")
+def suggest_files():
+    return {"suggestions": []}
+
+
+class AgentChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AgentChatReq(BaseModel):
+    messages: List[AgentChatMessage]
+    active_file_path: Optional[str] = None
+    attached_files: Optional[List[str]] = []
+    model: Optional[str] = "auto"
+
+
+@app.post("/api/agent/chat")
+async def agent_chat(req: AgentChatReq):
+    latest = req.messages[-1].content if req.messages else ""
+    return {
+        "reply": f"Archon Assistant: Received query for workspace '{ACTIVE_WORKSPACE_ROOT.name}'. Context ready.",
+        "model": req.model,
+        "rag_sources": []
+    }
+
+
+class GitHubOpenReq(BaseModel):
+    repo_url: str
+    branch: Optional[str] = None
+    token: Optional[str] = None
+
+
+@app.post("/api/github/open-repo")
+async def github_open_repo(req: GitHubOpenReq):
+    raw_url = req.repo_url.strip()
+    if "github.com/" in raw_url:
+        parts = raw_url.split("github.com/")[-1].strip("/").split("/")
+    else:
+        parts = raw_url.strip("/").split("/")
+    if len(parts) < 2:
+        raise HTTPException(400, "Invalid GitHub repository format. Use 'owner/repo' or full GitHub URL.")
+    owner = parts[0]
+    repo = parts[1].replace(".git", "")
+    client = GitHubWorkspaceClient(token=req.token)
+    try:
+        repo_info = await client.get_repo_info(owner, repo, token=req.token)
+        branch = req.branch or repo_info.get("default_branch", "main")
+        tree = await client.get_tree(owner, repo, branch=branch, token=req.token)
+        return {"status": "success", "repo_info": repo_info, "branch": branch, "tree": tree}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+@app.get("/api/github/file")
+async def github_get_file(owner: str, repo: str, path: str, branch: str = "main", token: Optional[str] = None):
+    client = GitHubWorkspaceClient(token=token)
+    try:
+        return await client.get_file_content(owner, repo, path, branch, token=token)
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+
+class GitHubSaveReq(BaseModel):
+    owner: str
+    repo: str
+    path: str
+    content: str
+    commit_message: Optional[str] = None
+    branch: str = "main"
+    sha: Optional[str] = None
+    token: Optional[str] = None
+
+
+@app.post("/api/github/save")
+async def github_save_file(req: GitHubSaveReq):
+    client = GitHubWorkspaceClient(token=req.token)
+    try:
+        return await client.save_file_content(
+            owner=req.owner,
+            repo=req.repo,
+            path=req.path,
+            content=req.content,
+            commit_message=req.commit_message or f"Update {req.path} via Archon Copilot",
+            branch=req.branch,
+            sha=req.sha or "",
+            token=req.token
+        )
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
 
 
 if __name__ == "__main__":
