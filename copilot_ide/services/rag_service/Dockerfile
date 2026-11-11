@@ -6,7 +6,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# CPU-only torch first, so sentence-transformers doesn't pull the ~6 GB CUDA build
+RUN pip install --no-cache-dir --retries 10 --timeout 60 torch --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
 
 COPY app/ ./app/
 

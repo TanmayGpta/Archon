@@ -1,7 +1,6 @@
 """Kev GPU agent: one-click control of the college-GPU Kev server for Conformance Studio.
 
-Runs on the Docker host network (compose profile "gpu") because it needs the user's SSH key and
-must expose the tunnel to the other containers:
+Runs on the compose network (profile "gpu") with the user's SSH key mounted read-only at /keys:
   - keeps an ssh tunnel  AGENT_BIND:8009 -> head node 127.0.0.1:8009 (KEV_URL for the orchestrator)
   - GET  /status   pod / server / tunnel state, refreshed at most every STATUS_TTL seconds
   - POST /start    sync kev_serve.sh + pod.yaml to the head node, then `kev_serve.sh start L3`
@@ -18,7 +17,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = os.environ["CLF_HOST"]                      # user@head-node
-BIND = os.getenv("AGENT_BIND", "172.17.0.1")       # docker bridge: host.docker.internal for containers
+BIND = os.getenv("AGENT_BIND", "0.0.0.0")          # compose network: other containers use kev-agent:8009 / :7338
+PROBE = "127.0.0.1" if BIND == "0.0.0.0" else BIND
 PORT = int(os.getenv("AGENT_PORT", "7338"))
 KEYS = os.getenv("KEYS_DIR", "/keys")
 GPU = os.getenv("GPU_SCRIPTS", "/gpu")             # experiments/classifier_eval/gpu (kev_serve.sh, pod.yaml)
@@ -52,7 +52,7 @@ def remote(cmd: str, timeout: int = 60) -> subprocess.CompletedProcess:
 
 def kev_reachable() -> bool:
     try:
-        with urllib.request.urlopen(f"http://{BIND}:8009/v1/models", timeout=4) as r:
+        with urllib.request.urlopen(f"http://{PROBE}:8009/v1/models", timeout=4) as r:
             return r.status == 200
     except Exception:
         return False
