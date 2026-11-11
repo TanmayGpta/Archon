@@ -13,6 +13,7 @@ import { Exercise6MultiHop } from './evaluation/Exercise6MultiHop';
 import { AblationTab } from './evaluation/AblationTab';
 import { ClassifierBenchmarkTab } from './evaluation/ClassifierBenchmarkTab';
 import { ConformanceEngineTab } from './evaluation/ConformanceEngineTab';
+import { JuryEvaluationTab } from './evaluation/JuryEvaluationTab';
 
 export function EvaluationDashboard() {
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -30,6 +31,7 @@ export function EvaluationDashboard() {
     { id: 7, label: 'SCIP ablation', sub: 'Code Intelligence Δ', icon: 'zap' as GlyphName },
     { id: 8, label: 'Layer classifier', sub: 'Kev vs Groq vs Laya', icon: 'network' as GlyphName },
     { id: 9, label: 'Conformance engine', sub: 'AST → graph → Tarjan → rules', icon: 'search' as GlyphName },
+    { id: 10, label: 'Bias jury', sub: '5 local jurors · majority vote', icon: 'scale' as GlyphName },
   ];
 
   return (
@@ -123,6 +125,7 @@ export function EvaluationDashboard() {
         {activeTab === 7 && <AblationTab />}
         {activeTab === 8 && <ClassifierBenchmarkTab />}
         {activeTab === 9 && <ConformanceEngineTab />}
+        {activeTab === 10 && <JuryEvaluationTab />}
       </main>
 
       {/* Raw JSON Explorer Modal */}

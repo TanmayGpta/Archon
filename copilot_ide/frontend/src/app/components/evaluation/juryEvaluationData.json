@@ -1,0 +1,1140 @@
+{
+  "recorded": {
+    "provenance": "recorded",
+    "label": "Recorded run: MiniShop, 2026-11-04",
+    "source": "services/arcgen_service/output/jury_traces/minishop_20261104_005218.json",
+    "project": "MiniShop",
+    "date": "2026-11-04",
+    "verdict": "PASS",
+    "generatorModels": [
+      "gemini-2.5-flash"
+    ],
+    "maxRegenerations": 2,
+    "regenerations": 0,
+    "patternStepdowns": [],
+    "roster": [
+      {
+        "model": "qwen3:4b",
+        "family": "qwen",
+        "spare": false
+      },
+      {
+        "model": "llama3.2:3b",
+        "family": "llama",
+        "spare": false
+      },
+      {
+        "model": "gemma3:4b",
+        "family": "google",
+        "spare": false
+      },
+      {
+        "model": "phi4-mini",
+        "family": "phi",
+        "spare": false
+      },
+      {
+        "model": "granite3.3:2b",
+        "family": "granite",
+        "spare": false
+      },
+      {
+        "model": "mistral:7b",
+        "family": "mistral",
+        "spare": true
+      }
+    ],
+    "replaced": [
+      {
+        "model": "gemma3:4b",
+        "family": "google",
+        "by": "mistral:7b"
+      }
+    ],
+    "normalization": {
+      "title": "Normalized requirements vs. the raw SRS",
+      "items": [
+        {
+          "id": "N1",
+          "question": "Is every requirement stated in the RAW SRS represented in the NORMALIZED REQUIREMENTS?",
+          "cite": "raw_lines",
+          "severity": "critical",
+          "route": "normalize",
+          "fix": "Requirements stated in the raw SRS are missing from the normalized list"
+        },
+        {
+          "id": "N2",
+          "question": "Is every NORMALIZED REQUIREMENT supported by something the RAW SRS actually says (nothing invented or exaggerated)?",
+          "cite": "requirements",
+          "severity": "critical",
+          "route": "normalize",
+          "fix": "These normalized requirements are not supported by the raw SRS; remove or correct them"
+        },
+        {
+          "id": "N3",
+          "question": "Is every requirement marked ASR backed by an explicit RAW SRS statement about scale, latency, consistency, availability, security, deployment or cost?",
+          "cite": "asrs",
+          "severity": "major",
+          "route": "normalize",
+          "fix": "These requirements were promoted to ASR without an explicit architectural driver in the raw SRS"
+        }
+      ],
+      "requirementIds": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "ASR-001",
+        "ASR-002",
+        "ASR-003",
+        "ASR-004"
+      ],
+      "asrIds": [
+        "ASR-001",
+        "ASR-002",
+        "ASR-003",
+        "ASR-004"
+      ],
+      "result": {
+        "passed": true,
+        "votingJurors": 5,
+        "lowIndependence": false,
+        "excludedFamilies": [
+          "google"
+        ],
+        "jurors": [
+          {
+            "seat": "Juror 1",
+            "model": "qwen3:4b",
+            "family": "qwen",
+            "ok": true,
+            "error": null,
+            "seconds": 60.3,
+            "answers": [
+              {
+                "item": "N1",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All RAW SRS lines mapped to normalized requirements.",
+                "counted": true
+              },
+              {
+                "item": "N2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All normalized requirements explicitly derived from RAW SRS.",
+                "counted": true
+              },
+              {
+                "item": "N3",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All ASR requirements have explicit RAW SRS statements.",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 2",
+            "model": "llama3.2:3b",
+            "family": "llama",
+            "ok": true,
+            "error": null,
+            "seconds": 70.6,
+            "answers": [
+              {
+                "item": "N1",
+                "passed": false,
+                "cited": [
+                  "L4"
+                ],
+                "rejectedCites": [],
+                "reason": "Handling 200 requests per second is not explicitly stated in the RAW SRS.",
+                "counted": true
+              },
+              {
+                "item": "N2",
+                "passed": false,
+                "cited": [
+                  "ASR-001"
+                ],
+                "rejectedCites": [],
+                "reason": "The RAW SRS does not explicitly state that order and payment data must be strongly consistent (ACID).",
+                "counted": true
+              },
+              {
+                "item": "N3",
+                "passed": false,
+                "cited": [
+                  "ASR-002"
+                ],
+                "rejectedCites": [],
+                "reason": "The RAW SRS does not explicitly state that order and payment data must be strongly consistent (ACID).",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 3",
+            "model": "phi4-mini",
+            "family": "phi",
+            "ok": true,
+            "error": null,
+            "seconds": 82.8,
+            "answers": [
+              {
+                "item": "N1",
+                "passed": false,
+                "cited": [
+                  "L4"
+                ],
+                "rejectedCites": [],
+                "reason": "Requirement for handling 200 requests per second at peak is not represented in the normalized requirements.",
+                "counted": true
+              },
+              {
+                "item": "N2",
+                "passed": false,
+                "cited": [],
+                "rejectedCites": [
+                  "NFR-002"
+                ],
+                "reason": "Normalized requirement for order and payment data to be strongly consistent (ACID) is not supported by anything in the raw SRS.",
+                "counted": false
+              },
+              {
+                "item": "N3",
+                "passed": false,
+                "cited": [
+                  "ASR-001",
+                  "ASR-002",
+                  "ASR-003",
+                  "ASR-004"
+                ],
+                "rejectedCites": [
+                  "ASR-005"
+                ],
+                "reason": "No ASR requirements are backed by an explicit RAW SRS statement about scale, latency, consistency, availability, security, deployment, or cost.",
+                "counted": false
+              }
+            ]
+          },
+          {
+            "seat": "Juror 4",
+            "model": "granite3.3:2b",
+            "family": "granite",
+            "ok": true,
+            "error": null,
+            "seconds": 92.5,
+            "answers": [
+              {
+                "item": "N1",
+                "passed": false,
+                "cited": [],
+                "rejectedCites": [
+                  "NFR-001"
+                ],
+                "reason": "NFR-001 (ASR) - Low hosting budget is not explicitly stated in the RAW SRS.",
+                "counted": false
+              },
+              {
+                "item": "N2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All requirements in the NORMALIZED REQUIREMENTS are supported by the RAW SRS.",
+                "counted": true
+              },
+              {
+                "item": "N3",
+                "passed": false,
+                "cited": [
+                  "ASR-002",
+                  "ASR-003"
+                ],
+                "rejectedCites": [],
+                "reason": "ASR-002 (ASR) - Small team of 3 developers and ASR-001 (ASR) - Handle 200 requests per second at peak are not explicitly stated in the RAW SRS.",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 5",
+            "model": "mistral:7b",
+            "family": "mistral",
+            "ok": true,
+            "error": null,
+            "seconds": 114.2,
+            "answers": [
+              {
+                "item": "N1",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All requirements in the RAW SRS are represented in the NORMALIZED REQUIREMENTS.",
+                "counted": true
+              },
+              {
+                "item": "N2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Every NORMALIZED REQUIREMENT is supported by something the RAW SRS actually says.",
+                "counted": true
+              },
+              {
+                "item": "N3",
+                "passed": false,
+                "cited": [
+                  "ASR-001",
+                  "ASR-002",
+                  "ASR-003",
+                  "ASR-004"
+                ],
+                "rejectedCites": [],
+                "reason": "The requirements marked ASR are not explicitly stated to be about scale, latency, consistency, availability, security, deployment or cost in the RAW SRS.",
+                "counted": false
+              }
+            ]
+          }
+        ],
+        "tallies": [
+          {
+            "item": "N1",
+            "yes": 2,
+            "no": 2,
+            "uncitedNo": 1,
+            "abstain": 0,
+            "failed": false,
+            "citedCounts": {
+              "L4": 2
+            }
+          },
+          {
+            "item": "N2",
+            "yes": 3,
+            "no": 1,
+            "uncitedNo": 1,
+            "abstain": 0,
+            "failed": false,
+            "citedCounts": {
+              "ASR-001": 1
+            }
+          },
+          {
+            "item": "N3",
+            "yes": 1,
+            "no": 2,
+            "uncitedNo": 2,
+            "abstain": 0,
+            "failed": false,
+            "citedCounts": {
+              "ASR-002": 2,
+              "ASR-003": 1
+            }
+          }
+        ],
+        "feedback": []
+      }
+    },
+    "architecture": {
+      "title": "Generated architecture vs. the requirements",
+      "items": [
+        {
+          "id": "A1",
+          "question": "Is every ASR actually realized by at least one COMPONENT in the architecture?",
+          "cite": "asrs",
+          "severity": "critical",
+          "route": "nodes",
+          "fix": "These ASRs are not realized by any component"
+        },
+        {
+          "id": "A2",
+          "question": "Is the chosen ARCHITECTURAL STYLE compatible with every ASR?",
+          "cite": "asrs",
+          "severity": "critical",
+          "route": "pattern",
+          "fix": "The architectural style conflicts with these ASRs"
+        },
+        {
+          "id": "A3",
+          "question": "Is every technology component (message broker, cache, queue, gateway, orchestrator, search engine) required by a requirement, rather than added because it is popular?",
+          "cite": "nodes",
+          "severity": "major",
+          "route": "nodes",
+          "fix": "These components are not required by any requirement; remove them or justify them with a requirement"
+        },
+        {
+          "id": "A4",
+          "question": "Are the number and granularity of COMPONENTS proportionate to the scale stated in the requirements (no over-engineering)?",
+          "cite": "nodes",
+          "severity": "major",
+          "route": "nodes",
+          "fix": "These components over-engineer the system for its stated scale; merge or remove them"
+        },
+        {
+          "id": "A5",
+          "question": "Does every CONNECTION represent a real call or data flow that a requirement needs?",
+          "cite": "edges",
+          "severity": "major",
+          "route": "edges",
+          "fix": "These connections are not needed by any requirement"
+        }
+      ],
+      "style": "Modular Monolith Architecture",
+      "nodes": [
+        {
+          "id": "COMP-001",
+          "name": "MiniShop API Gateway",
+          "type": "gateway",
+          "layer": "Presentation",
+          "x": 330,
+          "y": 45
+        },
+        {
+          "id": "COMP-002",
+          "name": "Customer API Module",
+          "type": "module",
+          "layer": "Presentation",
+          "x": 150,
+          "y": 45
+        },
+        {
+          "id": "COMP-003",
+          "name": "Admin API Module",
+          "type": "module",
+          "layer": "Presentation",
+          "x": 510,
+          "y": 45
+        },
+        {
+          "id": "COMP-004",
+          "name": "Order Management Module",
+          "type": "module",
+          "layer": "Application",
+          "x": 100,
+          "y": 145
+        },
+        {
+          "id": "COMP-005",
+          "name": "Product Catalog Module",
+          "type": "module",
+          "layer": "Application",
+          "x": 260,
+          "y": 145
+        },
+        {
+          "id": "COMP-006",
+          "name": "Payment Processing Module",
+          "type": "module",
+          "layer": "Application",
+          "x": 420,
+          "y": 145
+        },
+        {
+          "id": "COMP-007",
+          "name": "Notification Module",
+          "type": "module",
+          "layer": "Application",
+          "x": 580,
+          "y": 145
+        },
+        {
+          "id": "COMP-008",
+          "name": "MiniShop Database",
+          "type": "datastore",
+          "layer": "Infrastructure",
+          "x": 180,
+          "y": 245
+        },
+        {
+          "id": "COMP-009",
+          "name": "Email System",
+          "type": "external",
+          "layer": "External",
+          "x": 580,
+          "y": 245
+        },
+        {
+          "id": "COMP-010",
+          "name": "Payment Gateway",
+          "type": "external",
+          "layer": "External",
+          "x": 420,
+          "y": 245
+        }
+      ],
+      "edges": [
+        {
+          "id": "EDGE-002",
+          "source": "COMP-001",
+          "target": "COMP-002",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-003",
+          "source": "COMP-001",
+          "target": "COMP-003",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-004",
+          "source": "COMP-002",
+          "target": "COMP-005",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-005",
+          "source": "COMP-002",
+          "target": "COMP-004",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-006",
+          "source": "COMP-003",
+          "target": "COMP-005",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-007",
+          "source": "COMP-003",
+          "target": "COMP-004",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-008",
+          "source": "COMP-004",
+          "target": "COMP-005",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-009",
+          "source": "COMP-004",
+          "target": "COMP-006",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-010",
+          "source": "COMP-004",
+          "target": "COMP-007",
+          "type": "direct_call"
+        },
+        {
+          "id": "EDGE-011",
+          "source": "COMP-004",
+          "target": "COMP-008",
+          "type": "db_write"
+        },
+        {
+          "id": "EDGE-012",
+          "source": "COMP-004",
+          "target": "COMP-008",
+          "type": "db_read"
+        },
+        {
+          "id": "EDGE-013",
+          "source": "COMP-005",
+          "target": "COMP-008",
+          "type": "db_read"
+        },
+        {
+          "id": "EDGE-014",
+          "source": "COMP-005",
+          "target": "COMP-008",
+          "type": "db_write"
+        },
+        {
+          "id": "EDGE-015",
+          "source": "COMP-006",
+          "target": "COMP-010",
+          "type": "sync_rest"
+        },
+        {
+          "id": "EDGE-016",
+          "source": "COMP-010",
+          "target": "COMP-006",
+          "type": "sync_rest"
+        },
+        {
+          "id": "EDGE-017",
+          "source": "COMP-006",
+          "target": "COMP-008",
+          "type": "db_write"
+        },
+        {
+          "id": "EDGE-018",
+          "source": "COMP-007",
+          "target": "COMP-009",
+          "type": "sync_rest"
+        }
+      ],
+      "result": {
+        "passed": true,
+        "votingJurors": 4,
+        "lowIndependence": false,
+        "excludedFamilies": [
+          "google"
+        ],
+        "jurors": [
+          {
+            "seat": "Juror 1",
+            "model": "qwen3:4b",
+            "family": "qwen",
+            "ok": true,
+            "error": null,
+            "seconds": 85.5,
+            "answers": [
+              {
+                "item": "A1",
+                "passed": false,
+                "cited": [
+                  "ASR-003",
+                  "ASR-004"
+                ],
+                "rejectedCites": [],
+                "reason": "No component traces include ASR-003 or ASR-004",
+                "counted": true
+              },
+              {
+                "item": "A2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Modular Monolith is compatible with all ASRs",
+                "counted": true
+              },
+              {
+                "item": "A3",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All technology components (gateway) are required by requirements",
+                "counted": true
+              },
+              {
+                "item": "A4",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Component count is proportional to small team and scale",
+                "counted": true
+              },
+              {
+                "item": "A5",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "All connections have at least one requirement trace",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 2",
+            "model": "llama3.2:3b",
+            "family": "llama",
+            "ok": true,
+            "error": null,
+            "seconds": 95.3,
+            "answers": [
+              {
+                "item": "A5",
+                "passed": false,
+                "cited": [
+                  "EDGE-002",
+                  "EDGE-004",
+                  "EDGE-005",
+                  "EDGE-016"
+                ],
+                "rejectedCites": [],
+                "reason": "These connections do not represent a real call or data flow that a requirement needs",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 3",
+            "model": "phi4-mini",
+            "family": "phi",
+            "ok": true,
+            "error": null,
+            "seconds": 105.1,
+            "answers": [
+              {
+                "item": "A1",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Every ASR is realized by at least one COMPONENT.",
+                "counted": true
+              },
+              {
+                "item": "A2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "The chosen ARCHITECTURAL STYLE is compatible with every ASR.",
+                "counted": true
+              },
+              {
+                "item": "A3",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Every technology component required by a requirement is present, not added for popularity.",
+                "counted": true
+              },
+              {
+                "item": "A4",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "The number and granularity of COMPONENTS are proportionate to the scale stated in the requirements.",
+                "counted": true
+              },
+              {
+                "item": "A5",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "Every CONNECTION represents a real call or data flow that a requirement needs.",
+                "counted": true
+              }
+            ]
+          },
+          {
+            "seat": "Juror 4",
+            "model": "granite3.3:2b",
+            "family": "granite",
+            "ok": false,
+            "error": "no usable answers",
+            "seconds": 114.3,
+            "answers": []
+          },
+          {
+            "seat": "Juror 5",
+            "model": "mistral:7b",
+            "family": "mistral",
+            "ok": true,
+            "error": null,
+            "seconds": 131.3,
+            "answers": [
+              {
+                "item": "A1",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "",
+                "counted": true
+              },
+              {
+                "item": "A2",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "",
+                "counted": true
+              },
+              {
+                "item": "A3",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "",
+                "counted": true
+              },
+              {
+                "item": "A4",
+                "passed": false,
+                "cited": [
+                  "COMP-003",
+                  "COMP-005",
+                  "COMP-007"
+                ],
+                "rejectedCites": [],
+                "reason": "",
+                "counted": true
+              },
+              {
+                "item": "A5",
+                "passed": true,
+                "cited": [],
+                "rejectedCites": [],
+                "reason": "",
+                "counted": true
+              }
+            ]
+          }
+        ],
+        "tallies": [
+          {
+            "item": "A1",
+            "yes": 2,
+            "no": 1,
+            "uncitedNo": 0,
+            "abstain": 1,
+            "failed": false,
+            "citedCounts": {
+              "ASR-004": 1,
+              "ASR-003": 1
+            }
+          },
+          {
+            "item": "A2",
+            "yes": 3,
+            "no": 0,
+            "uncitedNo": 0,
+            "abstain": 1,
+            "failed": false,
+            "citedCounts": {}
+          },
+          {
+            "item": "A3",
+            "yes": 3,
+            "no": 0,
+            "uncitedNo": 0,
+            "abstain": 1,
+            "failed": false,
+            "citedCounts": {}
+          },
+          {
+            "item": "A4",
+            "yes": 2,
+            "no": 1,
+            "uncitedNo": 0,
+            "abstain": 1,
+            "failed": false,
+            "citedCounts": {
+              "COMP-003": 1,
+              "COMP-005": 1,
+              "COMP-007": 1
+            }
+          },
+          {
+            "item": "A5",
+            "yes": 3,
+            "no": 1,
+            "uncitedNo": 0,
+            "abstain": 0,
+            "failed": false,
+            "citedCounts": {
+              "EDGE-016": 1,
+              "EDGE-005": 1,
+              "EDGE-004": 1,
+              "EDGE-002": 1
+            }
+          }
+        ],
+        "feedback": []
+      }
+    }
+  },
+  "benchmark": {
+    "provenance": "illustrative",
+    "meta": {
+      "docs": 24,
+      "cases": 120,
+      "clean": 24,
+      "seeded": 96,
+      "hardware": "CPU-only local Ollama, one model at a time (max_concurrent 1)",
+      "generator": "gemini-2.5-flash",
+      "ciMethod": "Wilson 95% for proportions; paired bootstrap (2,000 resamples) for differences and kappa",
+      "note": "Seeded cases are script-edited outputs, not generated by any juror family, so family exclusion only applies to the end-to-end runs."
+    },
+    "defectTypes": [
+      {
+        "id": "dropped",
+        "label": "Dropped requirement",
+        "checkpoint": "normalization",
+        "item": "N1",
+        "n": 20,
+        "majority": 17,
+        "best": 15
+      },
+      {
+        "id": "invented",
+        "label": "Invented requirement",
+        "checkpoint": "normalization",
+        "item": "N2",
+        "n": 20,
+        "majority": 16,
+        "best": 14
+      },
+      {
+        "id": "unjustified_asr",
+        "label": "Unjustified ASR",
+        "checkpoint": "normalization",
+        "item": "N3",
+        "n": 18,
+        "majority": 13,
+        "best": 11
+      },
+      {
+        "id": "unrealized_asr",
+        "label": "Unrealized ASR",
+        "checkpoint": "architecture",
+        "item": "A1",
+        "n": 20,
+        "majority": 16,
+        "best": 16
+      },
+      {
+        "id": "uncited_edge",
+        "label": "Uncited edge",
+        "checkpoint": "architecture",
+        "item": "A5",
+        "n": 18,
+        "majority": 14,
+        "best": 14
+      }
+    ],
+    "checkpoints": [
+      {
+        "id": "normalization",
+        "label": "Checkpoint 1: normalization",
+        "n": 70,
+        "defects": 58,
+        "clean": 12,
+        "caught": 46,
+        "falseRej": 2,
+        "kappa": 0.44,
+        "kappaCi": [
+          0.33,
+          0.54
+        ]
+      },
+      {
+        "id": "architecture",
+        "label": "Checkpoint 2: architecture",
+        "n": 50,
+        "defects": 38,
+        "clean": 12,
+        "caught": 30,
+        "falseRej": 1,
+        "kappa": 0.36,
+        "kappaCi": [
+          0.22,
+          0.49
+        ]
+      }
+    ],
+    "kappa": {
+      "value": 0.41,
+      "ci": [
+        0.32,
+        0.49
+      ]
+    },
+    "diffs": {
+      "vsBest": {
+        "value": 0.05,
+        "ci": [
+          -0.008,
+          0.108
+        ]
+      },
+      "vsMeanSingle": {
+        "value": 0.115,
+        "ci": [
+          0.07,
+          0.16
+        ]
+      }
+    },
+    "jurors": [
+      {
+        "model": "qwen3:4b",
+        "family": "qwen",
+        "caught": 69,
+        "falseRej": 4,
+        "cites": 212,
+        "validCites": 199,
+        "noVotes": 58,
+        "discarded": 6,
+        "note": "Most balanced single juror; terse reasons."
+      },
+      {
+        "model": "llama3.2:3b",
+        "family": "llama",
+        "caught": 65,
+        "falseRej": 10,
+        "cites": 240,
+        "validCites": 209,
+        "noVotes": 87,
+        "discarded": 11,
+        "note": "Over-strict: says \"no\" most often, highest false rejections."
+      },
+      {
+        "model": "gemma3:4b",
+        "family": "google",
+        "caught": 70,
+        "falseRej": 3,
+        "cites": 198,
+        "validCites": 188,
+        "noVotes": 61,
+        "discarded": 4,
+        "note": "Best single juror; excluded whenever the generator is a Gemini model."
+      },
+      {
+        "model": "phi4-mini",
+        "family": "phi",
+        "caught": 64,
+        "falseRej": 5,
+        "cites": 226,
+        "validCites": 197,
+        "noVotes": 66,
+        "discarded": 12,
+        "note": "Often cites a long list of IDs (shotgun answers are discarded)."
+      },
+      {
+        "model": "granite3.3:2b",
+        "family": "granite",
+        "caught": 53,
+        "falseRej": 3,
+        "cites": 205,
+        "validCites": 158,
+        "noVotes": 52,
+        "discarded": 21,
+        "note": "Smallest model: misses defects and invents IDs that get rejected."
+      }
+    ],
+    "panelRows": [
+      {
+        "id": "best",
+        "label": "Best single juror (gemma3:4b)",
+        "voters": 1,
+        "caught": 70,
+        "falseRej": 3
+      },
+      {
+        "id": "maj5",
+        "label": "Majority, 5 jurors (production rule)",
+        "voters": 5,
+        "caught": 76,
+        "falseRej": 3
+      },
+      {
+        "id": "maj4",
+        "label": "Majority, 4 jurors (generator family excluded)",
+        "voters": 4,
+        "caught": 73,
+        "falseRej": 3
+      },
+      {
+        "id": "nocite",
+        "label": "Majority, 5 jurors, mandatory cites switched off",
+        "voters": 5,
+        "caught": 75,
+        "falseRej": 7
+      }
+    ],
+    "e2e": {
+      "runs": 24,
+      "rows": [
+        {
+          "id": "coverage",
+          "label": "Requirement coverage",
+          "unit": "of stated requirements represented",
+          "better": "higher",
+          "without": {
+            "k": 289,
+            "n": 340
+          },
+          "with": {
+            "k": 316,
+            "n": 340
+          }
+        },
+        {
+          "id": "unsupported",
+          "label": "Unsupported-requirement rate",
+          "unit": "of normalized requirements not backed by the SRS",
+          "better": "lower",
+          "without": {
+            "k": 35,
+            "n": 312
+          },
+          "with": {
+            "k": 12,
+            "n": 307
+          }
+        },
+        {
+          "id": "unrealized",
+          "label": "ASRs not realized by any component",
+          "unit": "of ASRs",
+          "better": "lower",
+          "without": {
+            "k": 12,
+            "n": 96
+          },
+          "with": {
+            "k": 4,
+            "n": 96
+          }
+        },
+        {
+          "id": "unneeded_edges",
+          "label": "Connections no requirement needs",
+          "unit": "of connections",
+          "better": "lower",
+          "without": {
+            "k": 41,
+            "n": 405
+          },
+          "with": {
+            "k": 17,
+            "n": 398
+          }
+        }
+      ],
+      "regenDist": [
+        {
+          "regens": 0,
+          "runs": 14
+        },
+        {
+          "regens": 1,
+          "runs": 7
+        },
+        {
+          "regens": 2,
+          "runs": 2
+        },
+        {
+          "regens": 3,
+          "runs": 1
+        }
+      ],
+      "regenByCheckpoint": {
+        "normalization": 6,
+        "architecture": 8
+      },
+      "finalPass": 20,
+      "latency": {
+        "baselineMin": 1.5,
+        "overheadMean": 6.4,
+        "overheadCi": [
+          5.2,
+          7.8
+        ],
+        "overheadP90": 12.8,
+        "sittingSeconds": [
+          114.2,
+          131.3
+        ]
+      }
+    },
+    "limitations": [
+      "Jurors are 2B to 4B parameter models. They make mistakes the majority only partly averages out; 0.81 is not 0.95.",
+      "Fleiss kappa is only moderate (about 0.4). Jurors often disagree, so a single borderline item can flip on one vote.",
+      "Excluding the generator's family leaves 4 voters (a spare replaces it only if one of an unused family exists). A 2-2 split is not a majority, so the item passes.",
+      "Latency: each sitting runs the five models one after another on CPU, so every run pays several extra minutes and each regeneration repeats the sitting.",
+      "The jury checks consistency with the SRS (nothing dropped, invented, unjustified or unrealized). It does not judge whether the architecture is good, and a flawed SRS passes if the architecture matches it.",
+      "A juror that fails to answer abstains (as granite3.3:2b did at checkpoint 2 of the recorded run), which shrinks the panel further.",
+      "After 2 regenerations the output ships with verdict FAIL and its trace, not silently."
+    ]
+  }
+}
