@@ -62,3 +62,7 @@ copilot_ide/targets/
 CLAUDE.md
 
 copilot_ide/knowledge_graph.json
+
+# SSH keys (never commit)
+id_rsa
+id_rsa.pub
