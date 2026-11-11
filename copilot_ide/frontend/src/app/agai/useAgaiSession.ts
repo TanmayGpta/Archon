@@ -147,8 +147,9 @@ export function useAgaiSession() {
     es.onmessage = (m) => {
       const ev: AgentEvent = JSON.parse(m.data);
       setEvents((prev) => [...prev, ev]);
-      if (['audit_done', 'heal_done', 'applied', 'reverted'].includes(ev.kind)) {
+      if (['audit_done', 'heal_done', 'applied', 'reverted', 'error'].includes(ev.kind)) {
         setBusy(null);
+        if (ev.kind === 'error') setError(ev.message);
         refresh(sessionId);
         setCanvasKey((k) => k + 1);
       }

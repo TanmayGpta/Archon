@@ -29,6 +29,14 @@ if ($Sha -notmatch '^[0-9a-f]{40}$') {
     throw "Sha must be the full 40-char commit SHA (that's what CI tags images with). Got: $Sha"
 }
 
+# Ensure az CLI is in PATH even if terminal was opened before installation
+if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+    $cliPath = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin"
+    if (Test-Path $cliPath) {
+        $env:Path = "$cliPath;$env:Path"
+    }
+}
+
 # Ensure logged in + right subscription
 az account show --only-show-errors 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) { az login --only-show-errors 1>$null }

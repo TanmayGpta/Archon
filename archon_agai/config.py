@@ -15,7 +15,7 @@ load_dotenv(REPO_ROOT / ".env")
 # LLMs go through FreeLLMAPI, a local OpenAI-compatible router (override in .env).
 # "auto" lets the router pick a provider; pin a model id (see GET /v1/models) for reproducible evals.
 LLM_BASE_URL = os.getenv("AGAI_LLM_BASE_URL", "http://127.0.0.1:31415/v1")
-LLM_API_KEY = os.getenv("FREELLMAPI_KEY", "")
+LLM_API_KEY = os.getenv("FREELLMAPI_KEY") or os.getenv("OPENROUTER_KEY") or os.getenv("OPENROUTER_API_KEY") or ""
 ADK_MODEL = os.getenv("AGAI_ADK_MODEL", "auto")
 CREW_MODEL = os.getenv("AGAI_CREW_MODEL", "auto")
 

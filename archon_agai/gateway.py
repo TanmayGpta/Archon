@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from archon_agai import engine, events, observability
 from archon_agai.github_workspace import GitHubWorkspaceClient
 from archon_agai.config import (ALLOWED_ROOTS, BUILTIN_PROJECTS, SECRET_PARTS, DEFAULT_BLUEPRINT, DEFAULT_CODEBASE, DEMO_CODEBASE,
-                                GATEWAY_PORT, REPO_ROOT,
+                                GATEWAY_PORT, HEALING_A2A_URL, REPO_ROOT,
                                 RUNS_DIR, require_llm_key, to_container, to_host)
 from archon_agai.guardrails import is_writable, resolve_allowed_path, screen_user_prompt
 from archon_agai.pricing import estimate_cost
@@ -168,7 +168,7 @@ async def _audit_job(sid: str, prompt: str) -> None:
         except Exception as e:
             events.emit(sid, "gateway", "warning", f"audit agent LLM error ({type(e).__name__}); falling back to deterministic engine: {e}")
         st = await _state(sid)
-        if "audit_result" not in st and not st.get("guardrail_blocked"):
+        if not st.get("audit_result") and not st.get("guardrail_blocked"):
             # The model skipped the tool or encountered an error: fall back to deterministic ground truth, and record it.
             res, _ = engine.audit(st["codebase_path"], st["blueprint_id"])
             await _patch_state(sid, {"audit_result": res.model_dump(), "audit_fallback": True})
@@ -211,6 +211,18 @@ async def _heal_job(sid: str, max_attempts: int) -> None:
         st = await _state(sid)
         hreq = HealingRequest(request_id=sid, codebase_path=st["codebase_path"], blueprint_id=st["blueprint_id"],
                               audit=AuditResult.model_validate(st["audit_result"]), max_attempts=max_attempts)
+        
+        # Pre-flight check: ensure healing server is reachable before invoking A2A (avoids 30min timeout freeze)
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(f"{HEALING_A2A_URL}/.well-known/agent-card.json")
+                if res.status_code != 200:
+                    raise RuntimeError(f"Healing server returned status {res.status_code}")
+        except Exception as e:
+            events.emit(sid, "gateway", "error", f"Healing server on {HEALING_A2A_URL} is unreachable: {e}. Start port 8101.")
+            return
+
         events.emit(sid, "a2a", "a2a_send", "ADK -> ArchonHealingCrew (A2A SendMessage)")
         text = await _run("heal", sid, hreq.model_dump_json())
         report = HealingReport.model_validate_json(_extract_json(text))
@@ -612,34 +624,63 @@ def rename_workspace_item(req: RenameItemReq):
 
 class TerminalExecReq(BaseModel):
     command: str
+    cwd: Optional[str] = None
+    terminal_id: Optional[str] = None
 
 
 @app.post("/api/terminal/exec")
 async def terminal_exec(req: TerminalExecReq):
     global ACTIVE_WORKSPACE_ROOT
     raw_cmd = req.command.strip()
-    cwd_str = str(ACTIVE_WORKSPACE_ROOT).replace("\\", "/")
+    
+    # Resolve working directory from request or active workspace
+    base_dir = ACTIVE_WORKSPACE_ROOT
+    if req.cwd:
+        cand = Path(req.cwd).resolve()
+        if cand.exists() and cand.is_dir():
+            base_dir = cand
+    cwd_str = str(base_dir).replace("\\", "/")
+
     if not raw_cmd:
         return {"stdout": "", "stderr": "", "exit_code": 0, "cwd": cwd_str}
     
+    # Handle 'cd' commands internally so it never hangs in a subprocess
     if raw_cmd == "cd" or raw_cmd.startswith("cd "):
         parts = raw_cmd.split(maxsplit=1)
         target = parts[1].strip() if len(parts) > 1 else "~"
         if target == "~":
             new_dir = Path.home()
         else:
-            new_dir = (ACTIVE_WORKSPACE_ROOT / target).resolve()
+            new_dir = (base_dir / target).resolve()
+        
         if new_dir.exists() and new_dir.is_dir():
             ACTIVE_WORKSPACE_ROOT = new_dir
             new_cwd = str(new_dir).replace("\\", "/")
             return {"stdout": f"Changed directory to {new_cwd}\n", "stderr": "", "exit_code": 0, "cwd": new_cwd, "project_name": new_dir.name}
+        else:
+            return {"stdout": "", "stderr": f"cd: {target}: No such file or directory\n", "exit_code": 1, "cwd": cwd_str}
     
+    # Run shell commands non-blocking in a thread with DEVNULL stdin and a 15-second timeout
+    import asyncio
     import subprocess
+    def _run_sub():
+        return subprocess.run(
+            raw_cmd,
+            shell=True,
+            cwd=str(base_dir),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            stdin=subprocess.DEVNULL
+        )
+
     try:
-        res = subprocess.run(raw_cmd, shell=True, cwd=str(ACTIVE_WORKSPACE_ROOT), capture_output=True, text=True, timeout=30)
+        res = await asyncio.to_thread(_run_sub)
         return {"stdout": res.stdout, "stderr": res.stderr, "exit_code": res.returncode, "cwd": cwd_str}
+    except subprocess.TimeoutExpired:
+        return {"stdout": "", "stderr": "Command timed out after 15 seconds\n", "exit_code": 124, "cwd": cwd_str}
     except Exception as e:
-        return {"stdout": "", "stderr": str(e), "exit_code": 1, "cwd": cwd_str}
+        return {"stdout": "", "stderr": str(e) + "\n", "exit_code": 1, "cwd": cwd_str}
 
 
 @app.get("/api/models")
