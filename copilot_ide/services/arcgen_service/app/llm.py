@@ -12,11 +12,12 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 from pydantic import BaseModel
 import requests
 
 from app import llm_settings
+from app.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,33 @@ class BaseLLMClient:
     ) -> Any:
         raise NotImplementedError
 
+    def supports_tools(self) -> bool:
+        """True when run_tools is implemented (native function calling)."""
+        return False
+
+    def run_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        registry: "ToolRegistry",
+        final_tool: str,
+        temperature: float = 0.1,
+        max_steps: int = 6,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> Optional[dict]:
+        """Run a tool-calling loop; return the parsed args of the final tool call, or None."""
+        raise NotImplementedError
+
+
+class _Early:
+    """Wraps a value that short-circuits a retry loop."""
+
+    def __init__(self, value: Any):
+        self.value = value
+
+
+_RETRY = object()
+
 
 class GroqClient(BaseLLMClient):
     """Ultra-fast Groq Cloud API client with structured JSON output."""
@@ -175,37 +203,18 @@ class GroqClient(BaseLLMClient):
         except Exception:
             return False
 
-    def generate_json(
+    def _post_with_retry(
         self,
-        system_prompt: str,
-        user_prompt: str,
-        target_schema: Optional[Type[T]] = None,
-        temperature: float = 0.1,
-        max_tokens: Optional[int] = None,
+        payload: Dict[str, Any],
+        headers: Dict[str, str],
+        max_retries: int = 8,
+        on_400: Optional[Callable[[Any, int], Any]] = None,
     ) -> Any:
-        """Queries Groq API with JSON mode and parses/validates against Pydantic schema."""
-        # Groq json_object mode requires the word 'json' in messages
-        sys_p = system_prompt
-        if "json" not in sys_p.lower():
-            sys_p += "\nYou must format your entire response as a valid JSON object."
+        """POST with 429 handling (retry-after / quota model failover). Returns the 200 response.
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload: Dict[str, Any] = {
-            "model": self.active_model,
-            "messages": [
-                {"role": "system", "content": sys_p},
-                {"role": "user", "content": user_prompt},
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": temperature,
-        }
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-
-        max_retries = 8
+        on_400(response, attempt) may return _Early(value) to short-circuit, _RETRY to retry,
+        or None to fail. Mutates payload["model"] and self.active_model on failover.
+        """
         response = None
         attempt = 0
         while attempt < max_retries:
@@ -250,28 +259,13 @@ class GroqClient(BaseLLMClient):
                 time.sleep(wait_time)
                 attempt += 1
                 continue
-            elif response.status_code == 400 and attempt < max_retries - 1:
-                try:
-                    err_data = response.json().get("error", {})
-                    if err_data.get("code") == "json_validate_failed":
-                        failed_gen = err_data.get("failed_generation", "")
-                        if failed_gen:
-                            try:
-                                parsed = safe_parse_json(failed_gen)
-                                if target_schema is not None:
-                                    return target_schema.model_validate(parsed)
-                                return parsed
-                            except Exception:
-                                pass
-                        current_max = payload.get("max_tokens", 4096)
-                        new_max = current_max + 2048
-                        payload["max_tokens"] = new_max
-                        print(f"\n[Groq Token Headroom] Extended max_tokens to {new_max}, retrying...")
-                        time.sleep(1)
-                        attempt += 1
-                        continue
-                except Exception:
-                    pass
+            elif response.status_code == 400 and on_400 is not None and attempt < max_retries - 1:
+                handled = on_400(response, attempt)
+                if isinstance(handled, _Early):
+                    return handled
+                if handled is _RETRY:
+                    attempt += 1
+                    continue
                 raise RuntimeError(
                     f"Groq API Error (Status {response.status_code}): {response.text}"
                 )
@@ -283,6 +277,189 @@ class GroqClient(BaseLLMClient):
 
         if response is None or response.status_code != 200:
             raise RuntimeError("Groq API failed after retries.")
+        return response
+
+    def supports_tools(self) -> bool:
+        return True
+
+    def run_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        registry: ToolRegistry,
+        final_tool: str,
+        temperature: float = 0.1,
+        max_steps: int = 6,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> Optional[dict]:
+        """OpenAI-format tool loop. Returns the final tool's args, or None (step cap / plain-text answer)."""
+        def emit(ev: Dict[str, Any]) -> None:
+            if on_event is not None:
+                try:
+                    on_event(ev)
+                except Exception:
+                    logger.debug("on_event callback failed", exc_info=True)
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        payload: Dict[str, Any] = {
+            "model": self.active_model,
+            "messages": messages,
+            "tools": registry.openai_schemas(),
+            "tool_choice": "auto",
+            "temperature": temperature,
+        }
+
+        def force_final() -> None:
+            # Offer ONLY the terminal tool and force it. Groq rejects (400 tool_use_failed) a forced
+            # call when the model still emits another tool, so the other tools are removed too.
+            payload["tools"] = [t for t in registry.openai_schemas() if t["function"]["name"] == final_tool]
+            payload["tool_choice"] = {"type": "function", "function": {"name": final_tool}}
+
+        def on_400(response: Any, attempt: int) -> Any:
+            """Groq rejects malformed tool calls with 400 tool_use_failed; hand them to the loop to recover."""
+            try:
+                err = response.json().get("error", {})
+                if err.get("code") != "tool_use_failed":
+                    return None
+                try:
+                    gen = safe_parse_json(err.get("failed_generation", ""))
+                except Exception:
+                    gen = None
+                return _Early({"tool_use_failed": gen if isinstance(gen, dict) else None,
+                               "message": str(err.get("message", ""))[:300]})
+            except Exception:
+                return None
+
+        def run_call(call_id: str, name: str, raw_args: Any) -> Optional[dict]:
+            """Dispatch one call, record it in the conversation; return final args when the loop is done."""
+            try:
+                shown = json.loads(raw_args) if isinstance(raw_args, str) and raw_args.strip() else raw_args
+            except Exception:
+                shown = raw_args
+            emit({"type": "tool_call", "name": name, "args": shown})
+            result = registry.dispatch(name, raw_args)
+            emit({"type": "tool_result", "name": name, "result": result})
+            if name == final_tool and isinstance(shown, dict):
+                try:
+                    failed = "error" in json.loads(result)
+                except Exception:
+                    failed = False
+                if not failed:
+                    return shown
+            messages.append({"role": "tool", "tool_call_id": call_id, "content": result})
+            return None
+
+        nudged = False
+        for step in range(max_steps):
+            if step == max_steps - 1:
+                force_final()  # last step: make the loop end with an answer
+            emit({"type": "step", "n": step + 1, "forced": payload["tool_choice"] != "auto"})
+            response = self._post_with_retry(payload, headers, on_400=on_400)
+            if isinstance(response, _Early):
+                failed = response.value
+                gen = failed["tool_use_failed"]
+                name = gen.get("name") if gen else None
+                emit({"type": "tool_use_failed", "name": name, "message": failed["message"]})
+                if name in registry:
+                    # Recoverable: run the call ourselves and keep the conversation going.
+                    call_id = f"recovered_{step + 1}"
+                    args = gen.get("arguments", {})
+                    raw = args if isinstance(args, str) else json.dumps(args)
+                    messages.append({"role": "assistant", "content": None, "tool_calls": [
+                        {"id": call_id, "type": "function", "function": {"name": name, "arguments": raw}}]})
+                    done = run_call(call_id, name, raw)
+                    if done is not None:
+                        return done
+                else:
+                    messages.append({"role": "user", "content":
+                                     f"Your last tool call was invalid ({failed['message']}). "
+                                     f"Use only the provided tools with their exact parameters."})
+                continue
+            msg = response.json()["choices"][0]["message"]
+            tool_calls = msg.get("tool_calls") or []
+            if not tool_calls:
+                # Plain-text answer: nudge once and force the terminal tool, then give up.
+                if nudged or step == max_steps - 1:
+                    return None
+                nudged = True
+                emit({"type": "nudge", "content": (msg.get("content") or "")[:200]})
+                messages.append({"role": "assistant", "content": msg.get("content") or ""})
+                messages.append({"role": "user", "content": f"Do not answer in text. Call {final_tool} now with the complete result."})
+                force_final()
+                continue
+            # Echo only the fields the API accepts back (drops e.g. reasoning extras).
+            messages.append({"role": "assistant", "content": msg.get("content"), "tool_calls": tool_calls})
+            for call in tool_calls:
+                fn = call.get("function", {})
+                done = run_call(call.get("id", ""), fn.get("name", ""), fn.get("arguments", ""))
+                if done is not None:
+                    return done
+        return None
+
+    def generate_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        target_schema: Optional[Type[T]] = None,
+        temperature: float = 0.1,
+        max_tokens: Optional[int] = None,
+    ) -> Any:
+        """Queries Groq API with JSON mode and parses/validates against Pydantic schema."""
+        # Groq json_object mode requires the word 'json' in messages
+        sys_p = system_prompt
+        if "json" not in sys_p.lower():
+            sys_p += "\nYou must format your entire response as a valid JSON object."
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload: Dict[str, Any] = {
+            "model": self.active_model,
+            "messages": [
+                {"role": "system", "content": sys_p},
+                {"role": "user", "content": user_prompt},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+
+        def on_400(response: Any, attempt: int) -> Any:
+            """json_validate_failed handling (generate_json specific)."""
+            try:
+                err_data = response.json().get("error", {})
+                if err_data.get("code") == "json_validate_failed":
+                    failed_gen = err_data.get("failed_generation", "")
+                    if failed_gen:
+                        try:
+                            parsed = safe_parse_json(failed_gen)
+                            if target_schema is not None:
+                                return _Early(target_schema.model_validate(parsed))
+                            return _Early(parsed)
+                        except Exception:
+                            pass
+                    current_max = payload.get("max_tokens", 4096)
+                    new_max = current_max + 2048
+                    payload["max_tokens"] = new_max
+                    print(f"\n[Groq Token Headroom] Extended max_tokens to {new_max}, retrying...")
+                    time.sleep(1)
+                    return _RETRY
+            except Exception:
+                pass
+            return None
+
+        response = self._post_with_retry(payload, headers, on_400=on_400)
+        if isinstance(response, _Early):
+            return response.value
 
         resp_data = response.json()
         content = resp_data["choices"][0]["message"]["content"].strip()
@@ -541,6 +718,38 @@ class ResilientLLMClient(BaseLLMClient):
                     print(f"\n[LLM Failover] {client_name} encountered an issue ({e}). Falling back to Tier {i+2}: {next_name}...")
 
         raise RuntimeError(f"All LLM tiers failed. Last error: {last_error}")
+
+    def supports_tools(self) -> bool:
+        return any(c.supports_tools() for c in self.clients)
+
+    def run_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        registry: ToolRegistry,
+        final_tool: str,
+        temperature: float = 0.1,
+        max_steps: int = 6,
+        on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> Optional[dict]:
+        """Whole-loop failover across tool-capable clients (never switches provider mid-conversation)."""
+        last_error = None
+        capable = [c for c in self.clients if c.supports_tools()]
+        for i, client in enumerate(capable):
+            client_name = type(client).__name__
+            try:
+                result = client.run_tools(
+                    system_prompt, user_prompt, registry, final_tool,
+                    temperature=temperature, max_steps=max_steps, on_event=on_event,
+                )
+                used = str(getattr(client, "model", client_name))
+                if used not in self.used_models:
+                    self.used_models.append(used)
+                return result
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Tool tier {i+1} ({client_name}) failed: {e}")
+        raise RuntimeError(f"No tool-capable LLM tier succeeded. Last error: {last_error}")
 
 
 def format_feedback(feedback: Optional[List[str]]) -> str:

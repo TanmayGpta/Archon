@@ -5,12 +5,16 @@ Traces concrete interaction scenarios, protocols, data flows, and citations betw
 Guarantees zero orphan nodes through rigorous prompting and deterministic semantic fallback connection.
 """
 
+import logging
+import os
 import re
-from typing import List, Optional, Set, Dict
+from typing import Any, Callable, List, Optional, Set, Dict
 from app.schemas.requirements import SRSDocument
 from app.schemas.architecture import ArchNode, ArchEdge, EdgeType, NodeType
 from app.schemas.patterns import PatternProfile
 from app.llm import BaseLLMClient, format_feedback, get_llm_client
+
+logger = logging.getLogger(__name__)
 
 
 EDGE_GENERATOR_SYSTEM_PROMPT = """You are a Principal Distributed Systems and Integration Architect.
@@ -61,6 +65,24 @@ OUTPUT MUST BE VALID JSON:
   ]
 }
 """
+
+
+TOOL_INSTRUCTIONS = """
+TOOLS (every component and requirement is already listed in the user message; do not look them up):
+1. Draft the complete edge list, then call check_edges ONCE with all of it.
+2. Fix every rejected edge and connect every orphan it reports. Call check_edges again only if you changed edges.
+3. Finish by calling submit_edges exactly once with the complete list of edges. Do not answer in plain text.
+"""
+
+
+def _tools_enabled() -> bool:
+    return os.getenv("ARCGEN_TOOLS", "").strip().lower() in ("1", "true", "yes")
+
+
+def _tool_system_prompt() -> str:
+    """Edge system prompt without the raw-JSON output block, plus tool-use instructions."""
+    base = EDGE_GENERATOR_SYSTEM_PROMPT.split("OUTPUT MUST BE VALID JSON", 1)[0].rstrip()
+    return base + "\n" + TOOL_INSTRUCTIONS
 
 
 def _find_best_matching_service(target_name: str, services: List[ArchNode]) -> Optional[ArchNode]:
@@ -209,6 +231,7 @@ def generate_edges(
     primary_pattern: PatternProfile,
     client: Optional[BaseLLMClient] = None,
     feedback: Optional[List[str]] = None,
+    on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> List[ArchEdge]:
     """Synthesizes directed edges between nodes with requirement and pattern citations.
 
@@ -247,11 +270,36 @@ Consolidate multiple requirements sharing the same communication path onto singl
 Ensure every component in the list above is connected to the architecture without orphans.
 Output JSON conforming to the schema.{format_feedback(feedback)}"""
 
-    data = client.generate_json(
-        system_prompt=EDGE_GENERATOR_SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        temperature=0.1,
-    )
+    data = None
+    if _tools_enabled() and client.supports_tools():
+        try:
+            from app.tools.edge_tools import SUBMIT_EDGES, build_edge_tools
+            from app.tools.registry import ToolRegistry
+
+            registry = ToolRegistry(build_edge_tools(nodes, srs, primary_pattern))
+            data = client.run_tools(
+                system_prompt=_tool_system_prompt(),
+                user_prompt=user_prompt.replace(
+                    "Output JSON conforming to the schema.",
+                    "Submit the final edges by calling the submit_edges tool.",
+                ),
+                registry=registry,
+                final_tool=SUBMIT_EDGES,
+                temperature=0.1,
+                on_event=on_event,
+            )
+            if data is None:
+                logger.warning("Edge tool loop ended without submit_edges; falling back to generate_json.")
+        except Exception as e:
+            logger.warning(f"Edge tool loop failed ({e}); falling back to generate_json.")
+            data = None
+
+    if data is None:
+        data = client.generate_json(
+            system_prompt=EDGE_GENERATOR_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.1,
+        )
 
     if isinstance(data, list):
         edges_data = data

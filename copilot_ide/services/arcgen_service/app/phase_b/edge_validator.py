@@ -4,7 +4,7 @@ Enforces citation discipline, validates graph integrity, detects orphan componen
 and calculates requirement coverage metrics.
 """
 
-from typing import List, Set, Dict, Tuple
+from typing import Iterable, List, Optional, Set, Dict, Tuple
 from pydantic import BaseModel, Field
 from app.schemas.requirements import SRSDocument
 from app.schemas.architecture import ArchNode, ArchEdge, ArchitectureGraph
@@ -25,6 +25,29 @@ class ValidationReport(BaseModel):
     is_valid: bool = True
 
 
+MISSING_REQ_REASON = "Missing valid requirement citation"
+
+
+def edge_rejection_reason(
+    source: str,
+    target: str,
+    traced_requirements: Iterable[str],
+    kb_citations: Iterable[str],
+    valid_node_ids: Set[str],
+    all_req_ids: Set[str],
+) -> Optional[str]:
+    """Pure per-edge rule check. Returns why the edge is rejected, or None when it is acceptable."""
+    if source not in valid_node_ids or target not in valid_node_ids:
+        return f"Invalid endpoint ({source} -> {target})"
+    if source == target:
+        return f"Self-loop detected on {source}"
+    if not [r for r in traced_requirements if r in all_req_ids] and all_req_ids:
+        return MISSING_REQ_REASON
+    if not list(kb_citations):
+        return "Missing knowledge base citation"
+    return None
+
+
 def validate_architecture(
     nodes: List[ArchNode],
     edges: List[ArchEdge],
@@ -39,33 +62,13 @@ def validate_architecture(
 
     # 1. Edge Validation & Citation Check
     for edge in edges:
-        # Check endpoint existence
-        if edge.source not in valid_node_ids or edge.target not in valid_node_ids:
-            rejected_reasons.append(
-                f"Edge {edge.edge_id} rejected: Invalid endpoint ({edge.source} -> {edge.target})"
-            )
-            continue
-
-        # Check self-loops
-        if edge.source == edge.target:
-            rejected_reasons.append(
-                f"Edge {edge.edge_id} rejected: Self-loop detected on {edge.source}"
-            )
-            continue
-
-        # Check requirement citations
-        valid_req_citations = [r for r in edge.traced_requirements if r in all_req_ids]
-        if not valid_req_citations and all_req_ids:
-            rejected_reasons.append(
-                f"Edge {edge.edge_id} ({edge.source} -> {edge.target}) rejected: Missing valid requirement citation"
-            )
-            continue
-
-        # Check KB citations
-        if not edge.kb_citations:
-            rejected_reasons.append(
-                f"Edge {edge.edge_id} rejected: Missing knowledge base citation"
-            )
+        reason = edge_rejection_reason(
+            edge.source, edge.target, edge.traced_requirements, edge.kb_citations,
+            valid_node_ids, all_req_ids,
+        )
+        if reason is not None:
+            via = f" ({edge.source} -> {edge.target})" if reason == MISSING_REQ_REASON else ""
+            rejected_reasons.append(f"Edge {edge.edge_id}{via} rejected: {reason}")
             continue
 
         valid_edges.append(edge)
