@@ -34,6 +34,7 @@ services:
       - "8001:8001"
     volumes:
       - rag_data:/app/data
+      - rag_hf_cache:/root/.cache/huggingface
       - ./services/rag_service/app:/app/app
     environment:
       - PORT=8001
@@ -80,9 +81,9 @@ services:
       - OLLAMA_MODEL=gemma3:4b
       - DEFAULT_WORKSPACE_DIR=/workspace
       - OMNIKEY_API_KEY=${OMNIKEY_API_KEY:-}
-      # Conformance layer classifier: Kev-9B on the college GPU via an ssh -L 8009 tunnel on the host, Groq fallback
-      - KEV_URL=${KEV_URL:-http://host.docker.internal:8009}
-      - KEV_AGENT_URL=${KEV_AGENT_URL:-http://host.docker.internal:7338}
+      # Conformance layer classifier: Kev-9B on the college GPU via the kev-agent's ssh tunnel, Groq fallback
+      - KEV_URL=${KEV_URL:-http://kev-agent:8009}
+      - KEV_AGENT_URL=${KEV_AGENT_URL:-http://kev-agent:7338}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
       - PYTHONUNBUFFERED=1
@@ -153,6 +154,8 @@ services:
       - PORT=8004
       - HOST=0.0.0.0
       - OLLAMA_URL=http://host.docker.internal:11434
+      # LLM choice + API keys saved from the ArcGen UI; on the host mount so they survive rebuilds (gitignored output/)
+      - ARCGEN_SETTINGS_PATH=/workspace/services/arcgen_service/output/llm_settings.json
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -181,25 +184,33 @@ services:
 
 
   # 6. Kev GPU agent (profile "gpu"): one-click start/stop of the Kev-9B server on the college GPU
-  #    and the ssh tunnel to it. Host network so it can expose 172.17.0.1:8009 / :7338 to the containers.
-  #    Needs CLF_HOST (user@head-node) and KEV_SSH_DIR (folder with id_ed25519 + known_hosts) in .env;
-  #    COMPOSE_PROFILES=gpu in .env starts it with a plain `docker compose up`.
+  #    and the ssh tunnel to it. On apicopilot-net, so the orchestrator reaches it as kev-agent:7338
+  #    (control) and kev-agent:8009 (tunnelled Kev server); both also published on the host's loopback
+  #    for native runs (KEV_URL=http://127.0.0.1:8009).
+  #    Start it: COMPOSE_PROFILES=gpu, CLF_HOST (user@head-node) and KEV_SSH_DIR (Windows path, e.g.
+  #    C:/Users/<you>/.ssh, holding id_ed25519 + known_hosts) in copilot_ide/.env, then `docker compose up -d`.
   kev-agent:
     build:
       context: ./services/kev_agent
     container_name: apicopilot-kev-agent
     restart: unless-stopped
     profiles: ["gpu"]
-    network_mode: host
+    ports:
+      - "127.0.0.1:7338:7338"
+      - "127.0.0.1:8009:8009"
+    networks:
+      - apicopilot-net
     environment:
       - CLF_HOST=${CLF_HOST:-}
-      - AGENT_BIND=172.17.0.1
+      - AGENT_BIND=0.0.0.0
     volumes:
       - ${KEV_SSH_DIR:-./.no-ssh}:/keys:ro
       - ../experiments/classifier_eval/gpu:/gpu:ro
 
 volumes:
   rag_data:
+    driver: local
+  rag_hf_cache:
     driver: local
 
 networks:
