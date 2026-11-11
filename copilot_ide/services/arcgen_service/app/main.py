@@ -6,6 +6,7 @@ Run natively:  uvicorn app.main:app --port 8004   (from copilot_ide/services/arc
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.llm_router import router as llm_router
 from app.router import router
 
 app = FastAPI(
@@ -21,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(llm_router, prefix="/api/arcgen/llm", tags=["arcgen-llm"])
 app.include_router(router, prefix="/api/arcgen", tags=["arcgen"])
 
 

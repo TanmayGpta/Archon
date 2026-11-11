@@ -10,7 +10,6 @@ Exposes REST endpoints for:
 import os
 import uuid
 import json
-import asyncio
 import logging
 import threading
 from pathlib import Path
@@ -35,6 +34,7 @@ from app.phase_b.normalizer import normalize_srs
 from app.llm import get_llm_client
 from app.jury.pipeline import JuryRun
 from app.jury.panel import AdkOllamaPanel
+from app import jobs
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ class GenerateArchitectureRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Elicitation session ID to synthesize from")
     srs_text: Optional[str] = Field(None, description="Raw SRS text if generating directly without interview")
     project_name: Optional[str] = Field("GeneratedArchitecture", description="Project name")
+    jury: bool = Field(True, description="Jobs only: run the bias jury (False = plain generation)")
 
 
 class SaveToWorkspaceRequest(BaseModel):
@@ -346,44 +347,75 @@ async def generate_architecture(req: GenerateArchitectureRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/generate/stream")
-async def generate_architecture_judged(req: GenerateArchitectureRequest):
-    """Jury-judged generation, streamed as Server-Sent Events.
-
-    Events (each `data:` line is JSON with a "type"): stage, panel, verdict, checkpoint,
-    iteration, complete (architecture payload + "jury" trace), error.
-    """
+def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
+    """Starts a generation job in a worker thread; raises 400 before anything runs on bad input."""
     client = get_llm_client()
-    raw_source, normalize = _srs_source(req, client)  # 400 before the stream opens
-    loop = asyncio.get_running_loop()
-    queue: asyncio.Queue = asyncio.Queue()
-
-    def emit(event: dict) -> None:
-        loop.call_soon_threadsafe(queue.put_nowait, event)
+    raw_source, normalize = _srs_source(req, client)
+    job = jobs.create("jury" if req.jury else "plain")
 
     def work() -> None:
         try:
-            run = JuryRun(client=client, panel=AdkOllamaPanel(), emit=emit)
-            graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
-            payload = _architecture_payload(graph, table, report)
-            payload["jury"] = trace.model_dump(mode="json")
-            emit({"type": "complete", "result": payload})
+            if req.jury:
+                run = JuryRun(client=client, panel=AdkOllamaPanel(), emit=job.emit)
+                graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
+                payload = _architecture_payload(graph, table, report)
+                payload["jury"] = trace.model_dump(mode="json")
+            else:
+                job.emit({"type": "stage", "message": "Normalizing requirements"})
+                srs = normalize(None)
+                if not srs:
+                    raise RuntimeError("Failed to synthesize or normalize SRS specification.")
+                if _project_name(req):
+                    srs.project_name = _project_name(req)
+                job.emit({"type": "stage", "message": "Pattern scoring, components, connections, validation"})
+                graph, table, report, _ = generate_architecture_from_srs(srs_document=srs, client=client)
+                payload = _architecture_payload(graph, table, report)
+            job.emit({"type": "complete", "result": payload})
         except Exception as e:  # noqa: BLE001 - surface any pipeline failure to the UI
-            logger.error(f"Judged generation failed: {e}", exc_info=True)
-            emit({"type": "error", "detail": str(e)})
-        finally:
-            emit({"type": "_end"})
+            logger.error(f"Generation job {job.id} failed: {e}", exc_info=True)
+            job.emit({"type": "error", "detail": str(e)})
 
-    threading.Thread(target=work, name="arcgen-jury", daemon=True).start()
+    threading.Thread(target=work, name=f"arcgen-job-{job.id}", daemon=True).start()
+    return job
 
-    async def stream():
-        while True:
-            event = await queue.get()
-            if event.get("type") == "_end":
-                break
-            yield f"data: {json.dumps(event, default=str)}\n\n"
 
-    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+def _sse(job: jobs.Job, start: int = 0) -> StreamingResponse:
+    return StreamingResponse(jobs.follow(job, start), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post("/jobs")
+async def start_job(req: GenerateArchitectureRequest):
+    """Starts a generation (jury-judged unless jury=false) that keeps running if the page goes away.
+
+    Follow it with GET /jobs/{job_id}/stream; re-attach any time with ?from_seq=<last seq + 1>.
+    """
+    job = _start_job(req)
+    return job.info()
+
+
+@router.get("/jobs/{job_id}")
+async def job_status(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job (the ArcGen service may have restarted).")
+    return job.info()
+
+
+@router.get("/jobs/{job_id}/stream")
+async def job_stream(job_id: str, from_seq: int = 0):
+    """Server-Sent Events: stage, panel, verdict, checkpoint, iteration, complete | error. Each has "seq"."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job (the ArcGen service may have restarted).")
+    return _sse(job, from_seq)
+
+
+@router.post("/generate/stream")
+async def generate_architecture_judged(req: GenerateArchitectureRequest):
+    """Jury-judged generation streamed as Server-Sent Events (kept for callers that don't use /jobs)."""
+    req.jury = True
+    return _sse(_start_job(req))
 
 
 @router.post("/save-to-workspace")

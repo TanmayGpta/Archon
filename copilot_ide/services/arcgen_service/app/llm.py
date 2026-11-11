@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 from pydantic import BaseModel
 import requests
 
+from app import llm_settings
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
@@ -549,57 +551,60 @@ def format_feedback(feedback: Optional[List[str]]) -> str:
     return f"\n\nREVIEW FINDINGS FROM THE PREVIOUS ATTEMPT (fix every one of these):\n{lines}"
 
 
+def default_model(provider: str) -> str:
+    return {"omnikey": DEFAULT_OMNIKEY_MODEL, "groq": DEFAULT_GROQ_MODEL, "ollama": DEFAULT_OLLAMA_MODEL}[provider]
+
+
+def provider_of(client: BaseLLMClient) -> str:
+    return {OmniKeyClient: "omnikey", GroqClient: "groq", OllamaClient: "ollama"}.get(type(client), type(client).__name__)
+
+
+def build_client(provider: str, model: Optional[str] = None, api_key: Optional[str] = None,
+                 settings: Optional["llm_settings.LLMSettings"] = None) -> BaseLLMClient:
+    """One provider's client. Model: argument > UI setting > env default; key: argument > UI > env."""
+    s = settings or llm_settings.load()
+    p = provider.lower().strip()
+    if p not in llm_settings.PROVIDERS:
+        raise ValueError(f"Unknown LLM provider '{provider}'. Choose 'omnikey', 'groq', or 'ollama'.")
+    m = model or s.models.get(p) or default_model(p)
+    if p == "ollama":
+        return OllamaClient(model=m)
+    key = api_key or llm_settings.api_key(p, s)[0]
+    return OmniKeyClient(api_key=key, model=m) if p == "omnikey" else GroqClient(api_key=key, model=m)
+
+
 def get_llm_client(
     provider: Optional[str] = None,
     model: Optional[str] = None,
 ) -> BaseLLMClient:
-    """Factory creating an LLM client based on environment or explicit preference.
-    
-    Order of preference when provider is None:
-    Builds a ResilientLLMClient cascading:
-    1. OmniKey (if OMNIKEY_API_KEY / omnikey in .env exists)
-    2. Groq (if GROQ_API_KEY / groq in .env exists)
-    3. Ollama (local fallback)
+    """Factory for the generator's LLM client.
+
+    Provider: argument > choice saved in the ArcGen UI (app/llm_settings.py) > LLM_PROVIDER env.
+    With none of those (UI "auto"), builds a ResilientLLMClient cascading
+      1. OmniKey (key from the UI or OMNIKEY_API_KEY / omnikey)
+      2. Groq    (key from the UI or GROQ_API_KEY / groq)
+      3. Ollama  (always, local fallback)
     """
-    selected_provider = provider or os.getenv("LLM_PROVIDER")
+    s = llm_settings.load()
+    ui_provider = s.provider if s.provider != "auto" else None
+    selected_provider = provider or ui_provider or os.getenv("LLM_PROVIDER")
 
     if selected_provider:
-        p = selected_provider.lower().strip()
-        if p == "omnikey":
-            m = model or DEFAULT_OMNIKEY_MODEL
-            logger.info(f"Initialized OmniKey LLM Client (model: {m})")
-            return OmniKeyClient(model=m)
-        elif p == "groq":
-            m = model or DEFAULT_GROQ_MODEL
-            logger.info(f"Initialized Groq LLM Client (model: {m})")
-            return GroqClient(model=m)
-        elif p == "ollama":
-            m = model or DEFAULT_OLLAMA_MODEL
-            logger.info(f"Initialized Ollama LLM Client (model: {m}, host: {DEFAULT_OLLAMA_HOST})")
-            return OllamaClient(model=m)
-        else:
-            raise ValueError(f"Unknown LLM provider '{selected_provider}'. Choose 'omnikey', 'groq', or 'ollama'.")
+        client = build_client(selected_provider, model=model, settings=s)
+        logger.info(f"Initialized {type(client).__name__} (model: {getattr(client, 'model', '?')})")
+        return client
 
-    # Build Multi-Tier Resilient Client
     tier_clients: List[BaseLLMClient] = []
-
-    has_omnikey = bool(os.getenv("OMNIKEY_API_KEY") or os.getenv("omnikey"))
-    if has_omnikey:
-        try:
-            tier_clients.append(OmniKeyClient(model=model or DEFAULT_OMNIKEY_MODEL))
-        except Exception as e:
-            logger.warning(f"Could not initialize OmniKey tier: {e}")
-
-    has_groq = bool(os.getenv("GROQ_API_KEY") or os.getenv("groq"))
-    if has_groq:
-        try:
-            tier_clients.append(GroqClient(model=model or DEFAULT_GROQ_MODEL))
-        except Exception as e:
-            logger.warning(f"Could not initialize Groq tier: {e}")
+    for p in llm_settings.KEY_PROVIDERS:
+        if llm_settings.api_key(p, s)[0]:
+            try:
+                tier_clients.append(build_client(p, model=model, settings=s))
+            except Exception as e:
+                logger.warning(f"Could not initialize {p} tier: {e}")
 
     # Always attach local Ollama as final safety net
     try:
-        tier_clients.append(OllamaClient(model=DEFAULT_OLLAMA_MODEL))
+        tier_clients.append(build_client("ollama", settings=s))
     except Exception as e:
         logger.warning(f"Could not initialize Ollama fallback: {e}")
 

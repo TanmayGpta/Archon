@@ -12,6 +12,7 @@ on bigger hardware raise max_concurrent and they really run side by side.
 """
 
 import asyncio
+import logging
 import os
 import time
 from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
@@ -28,6 +29,7 @@ from app.jury.case import Case
 from app.jury.models import CheckpointName, JurorSpec, JurorVerdict, Rubric, load_rubric
 
 JUROR_ERROR = "JUROR_ERROR:"
+logger = logging.getLogger(__name__)
 
 JUROR_INSTRUCTION = """You are an independent juror reviewing a software architecture generator's work.
 Judge ONLY from the case below. Be strict and literal. Do not assume facts that are not written.
@@ -130,6 +132,8 @@ class AdkOllamaPanel:
                                      error=text[len(JUROR_ERROR):].strip(), seconds=round(time.monotonic() - started, 1))
                 else:
                     v = parse_verdict(text, cp, case, seat, spec, seconds=time.monotonic() - started)
+                if not v.ok:
+                    logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
                 verdicts[name] = v
                 on_verdict(v)
         finally:
@@ -142,6 +146,7 @@ class AdkOllamaPanel:
             else:
                 seat, spec, _ = by_name[a.name]
                 v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False, error="no response")
+                logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: no response")
                 on_verdict(v)
                 out.append(v)
         return out
