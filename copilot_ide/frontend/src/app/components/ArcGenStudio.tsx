@@ -9,9 +9,17 @@ import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
 import { JuryPanel, VerdictBadge, juryReducer, initialJuryState, type IterationRecord, type JuryEvent, type JuryState } from './JuryPanel';
 import { ErrorState, Skeleton } from './StateViews';
+import { ArcGenLlmSettings } from './ArcGenLlmSettings';
+import { LlmSetupModal } from './LlmSetupModal';
 import { errorDetail, errorMessage } from '@/lib/api';
 import { useCommand } from './commandsContext';
 import { replaceQuery, type ArchitectView } from '@/lib/deepLinks';
+import { useSessionState } from '@/lib/sessionState';
+
+/** A generation running on the ArcGen service (see services/arcgen_service/app/jobs.py). */
+interface ActiveJob { id: string; kind: 'jury' | 'plain' }
+class JobGone extends Error {}
+class JobFailed extends Error {}
 
 interface ArcGenStudioProps {
   apiBase: string;
@@ -117,8 +125,10 @@ function changesOf(record: IterationRecord): DiagramChanges | null {
 
 export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = false }: ArcGenStudioProps) {
   // Main Studio Mode: 'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'
-  const [studioMode, setStudioMode] = useState<'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'>('elicitation');
+  const [studioMode, setStudioMode] = useSessionState<'elicitation' | 'direct_srs' | 'patterns_catalog' | 'qualitative_analysis'>('arcgen:mode', 'elicitation');
 
+  // LLM Setup Modal: shown on first visit; can be forced open via ⚙ button
+  const [llmModalOpen, setLlmModalOpen] = useState(false);
   // Architecture Output Sub-tab
   const [activeOutputTab, setActiveOutputTab] = useState<'diagram' | 'components' | 'couplings' | 'atam_tradeoffs' | 'validation' | 'jury'>(
     initialView === 'atam' ? 'atam_tradeoffs' : initialView ?? 'diagram',
@@ -128,30 +138,32 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   }, [syncUrl, activeOutputTab]);
 
   // Elicitation State
-  const [prompt, setPrompt] = useState<string>('');
-  const [sessionId, setSessionId] = useState<string>('');
-  const [asrSummary, setAsrSummary] = useState<ASRSummary | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<QuestionItem | null>(null);
-  const [userAnswer, setUserAnswer] = useState<string>('');
-  const [shouldStop, setShouldStop] = useState<boolean>(false);
-  const [stopReason, setStopReason] = useState<string>('');
+  const [prompt, setPrompt] = useSessionState<string>('arcgen:prompt', '');
+  const [sessionId, setSessionId] = useSessionState<string>('arcgen:session', '');
+  const [asrSummary, setAsrSummary] = useSessionState<ASRSummary | null>('arcgen:asr', null);
+  const [currentQuestion, setCurrentQuestion] = useSessionState<QuestionItem | null>('arcgen:question', null);
+  const [userAnswer, setUserAnswer] = useSessionState<string>('arcgen:answer', '');
+  const [shouldStop, setShouldStop] = useSessionState<boolean>('arcgen:stop', false);
+  const [stopReason, setStopReason] = useSessionState<string>('arcgen:stopReason', '');
   const [isEliciting, setIsEliciting] = useState<boolean>(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSkipping, setIsSkipping] = useState<boolean>(false);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [statusMsg, setStatusMsg] = useState<string>('');
+  // Kept across studio tab switches / reloads: the job keeps running on the service and we re-attach.
+  const [activeJob, setActiveJob] = useSessionState<ActiveJob | null>('arcgen:job', null);
+  const [isGenerating, setIsGenerating] = useState<boolean>(() => activeJob !== null);
+  const [statusMsg, setStatusMsg] = useSessionState<string>('arcgen:status', '');
 
   // Direct SRS Mode
-  const [srsText, setSrsText] = useState<string>('');
+  const [srsText, setSrsText] = useSessionState<string>('arcgen:srs', '');
 
   // Generated Architecture Graph
-  const [generatedArch, setGeneratedArch] = useState<ArchitectureGraphData | null>(null);
+  const [generatedArch, setGeneratedArch] = useSessionState<ArchitectureGraphData | null>('arcgen:arch', null);
 
   // Bias jury: on by default, so every architecture is judged unless deliberately skipped
-  const [juryEnabled, setJuryEnabled] = useState<boolean>(true);
-  const [jury, setJury] = useState<JuryState | null>(null);
+  const [juryEnabled, setJuryEnabled] = useSessionState<boolean>('arcgen:juryOn', true);
+  const [jury, setJury] = useSessionState<JuryState | null>('arcgen:jury', null);
   // Components added/removed by a jury regeneration, highlighted on the diagram canvas
-  const [diagramChanges, setDiagramChanges] = useState<DiagramChanges | null>(null);
+  const [diagramChanges, setDiagramChanges] = useSessionState<DiagramChanges | null>('arcgen:changes', null);
 
   // Pattern Catalog
   const [patterns, setPatterns] = useState<PatternInfo[]>([]);
@@ -243,7 +255,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       console.warn("Failed to fetch examples:", err);
     }
     setPresetsState(prev => (reached ? 'ready' : prev === 'ready' ? prev : 'error'));
-  }, [effectiveApiBase]);
+  }, [effectiveApiBase, setGeneratedArch, setPrompt]);
 
   const retryLoad = () => {
     setPresetsState('loading');
@@ -344,23 +356,18 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     }
   };
 
-  // Jury-judged generation: read the SSE stream and fold each event into the jury state
-  const runJudgedGeneration = async (payload: Record<string, unknown>) => {
-    let state = initialJuryState();
-    setJury(state);
-    setGeneratedArch(null);
-    setStatusMsg("Bias jury in session: 5 local models judge the requirements, then each architecture version...");
-    const res = await fetch(`${effectiveApiBase}/api/arcgen/generate/stream`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  // Follow a job's event stream from the start, rebuilding the derived state. Resolves on 'complete';
+  // throws JobFailed on 'error', JobGone if the service forgot the job, anything else = connection lost.
+  const followJob = async (job: ActiveJob, signal: AbortSignal) => {
+    const res = await fetch(`${effectiveApiBase}/api/arcgen/jobs/${job.id}/stream`, { signal });
+    if (res.status === 404) throw new JobGone();
     if (!res.ok || !res.body) throw new Error(errorDetail(await res.text()));
+    let state = initialJuryState();
+    if (job.kind === 'jury') setJury(state);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let finished = false;
-    while (!finished) {
+    while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -370,6 +377,17 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
         const line = chunk.split('\n').find(l => l.startsWith('data: '));
         if (!line) continue;
         const event = JSON.parse(line.slice(6)) as JuryEvent;
+        if (event.type === 'error') throw new JobFailed(event.detail);
+        if (job.kind === 'plain') {
+          if (event.type === 'stage') setStatusMsg(`Generating architecture: ${event.message}...`);
+          if (event.type === 'complete') {
+            setGeneratedArch(event.result);
+            setActiveOutputTab('diagram');
+            setStatusMsg("Architecture graph generated & validated with zero orphans!");
+            return;
+          }
+          continue;
+        }
         state = juryReducer(state, event);
         setJury(state);
         if (event.type === 'iteration') {
@@ -385,52 +403,83 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
           setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the bias jury."
             : verdict === 'NO_JURY' ? "Architecture generated, but no juror could deliver a verdict (is Ollama running?)."
             : "Architecture generated; the bias jury did not approve it within the regeneration limit. See the Bias Jury tab.");
-          finished = true;
-        } else if (event.type === 'error') {
-          throw new Error(event.detail);
+          return;
         }
       }
     }
-    if (!finished) throw new Error("the jury stream ended before a result arrived");
+    throw new Error("the event stream ended before a result arrived");
   };
 
-  // Generate Architecture (Phase B)
+  // Stay attached to a job until it finishes. A dropped connection (browser put the tab to sleep,
+  // network blip) re-attaches and replays; leaving the page aborts only the stream, not the job.
+  const jobAbort = React.useRef<AbortController | null>(null);
+  const runJob = async (job: ActiveJob) => {
+    jobAbort.current?.abort();
+    const ctrl = new AbortController();
+    jobAbort.current = ctrl;
+    try {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await followJob(job, ctrl.signal);
+          break;
+        } catch (err) {
+          if (ctrl.signal.aborted) return; // page left; the job keeps running on the service
+          if (err instanceof JobGone || err instanceof JobFailed || attempt >= 30) throw err;
+          setStatusMsg(`Connection to the ArcGen service lost; re-attaching to the running generation (try ${attempt})...`);
+          await new Promise(r => setTimeout(r, Math.min(2000 * attempt, 10000)));
+          if (ctrl.signal.aborted) return;
+        }
+      }
+    } catch (err) {
+      setStatusMsg(err instanceof JobGone
+        ? "The running generation was lost because the ArcGen service restarted. Generate again."
+        : `Generation error: ${errorMessage(err)}`);
+      setJury(j => (j && j.running ? { ...j, running: false, error: errorMessage(err) } : j));
+    }
+    setActiveJob(null);
+    setIsGenerating(false);
+  };
+
+  // Re-attach to a generation that was still running when this page was last open.
+  const resumeJob = React.useRef(activeJob);
+  useEffect(() => {
+    if (resumeJob.current) void runJob(resumeJob.current);
+    return () => jobAbort.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Generate Architecture (Phase B): starts a job on the service, then follows it
   const handleGenerateArchitecture = async () => {
+    if (activeJob) return;
     setIsGenerating(true);
     setDiagramChanges(null);
-    setStatusMsg("Generating architecture: pattern scoring, components, connections, validation...");
-    try {
-      const payload: any = {};
-      if (studioMode === 'elicitation' && sessionId) {
-        payload.session_id = sessionId;
-      } else if (srsText.trim()) {
-        payload.srs_text = srsText;
-      } else {
-        payload.srs_text = prompt;
-      }
+    setStatusMsg(juryEnabled
+      ? "Bias jury in session: 5 local models judge the requirements, then each architecture version..."
+      : "Generating architecture: pattern scoring, components, connections, validation...");
+    const payload: Record<string, unknown> = { jury: juryEnabled };
+    if (studioMode === 'elicitation' && sessionId) payload.session_id = sessionId;
+    else payload.srs_text = srsText.trim() ? srsText : prompt;
 
-      if (juryEnabled) {
-        await runJudgedGeneration(payload);
-        return;
-      }
-      setJury(null);
-      const res = await fetch(`${effectiveApiBase}/api/arcgen/generate`, {
+    let job: ActiveJob;
+    try {
+      const res = await fetch(`${effectiveApiBase}/api/arcgen/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(errorDetail(await res.text()));
-      const data = await res.json();
-      setGeneratedArch(data);
-      setActiveOutputTab('diagram');
-      setStatusMsg("Architecture graph generated & validated with zero orphans!");
+      const info = await res.json();
+      job = { id: info.job_id, kind: info.kind };
     } catch (err) {
       console.error(err);
       setStatusMsg(err instanceof TypeError ? `Generation error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Generation error: ${errorMessage(err)}`);
-      setJury(j => (j && j.running ? { ...j, running: false, error: errorMessage(err) } : j));
-    } finally {
       setIsGenerating(false);
+      return;
     }
+    if (job.kind === 'jury') setGeneratedArch(null);
+    else setJury(null);
+    setActiveJob(job);
+    await runJob(job);
   };
 
   const juryToggle = (
@@ -509,7 +558,14 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
 
   return (
     <div className="w-full min-h-[calc(100vh-56px)] bg-canvas text-fg-strong flex flex-col font-sans select-text">
-      
+
+      {/* ── LLM Setup Modal (auto-opens first visit; ⚙ button re-opens) ─ */}
+      <LlmSetupModal
+        apiBase={effectiveApiBase}
+        forceOpen={llmModalOpen}
+        onClose={() => setLlmModalOpen(false)}
+      />
+
       {/* ── TOP HEADER BANNER ────────────────────────────────────────── */}
       <div className="border-b border-line-strong bg-surface px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -577,6 +633,17 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
             Qualitative Analysis
           </button>
         </div>
+
+        {/* ⚙ LLM Settings button */}
+        <button
+          type="button"
+          onClick={() => setLlmModalOpen(true)}
+          title="LLM Settings — switch between local Ollama and cloud API"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-control border border-line-strong text-xs text-fg-soft hover:text-fg-strong hover:border-info/40 cursor-pointer transition-colors"
+        >
+          <span className="text-sm">⚙</span>
+          <span className="hidden sm:inline font-mono">LLM</span>
+        </button>
       </div>
 
       {/* ── STATUS BAR NOTIFICATION ──────────────────────────────────── */}
@@ -668,7 +735,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
           
           {/* ── LEFT COLUMN: INPUT & ELICITATION PANEL (5 COLS) ───────── */}
           <div className="lg:col-span-5 border-r border-line-strong bg-surface p-5 flex flex-col gap-4 overflow-y-auto">
-            
+
+            <ArcGenLlmSettings apiBase={effectiveApiBase} disabled={isGenerating} />
+
             {/* Quick Templates Selection */}
             <div>
               <div className="flex items-center justify-between mb-2">
