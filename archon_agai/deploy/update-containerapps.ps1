@@ -8,7 +8,11 @@
 param(
     [string]$Sha,
     [ValidateSet('both', 'backend', 'frontend')]
-    [string]$Only = 'both'
+    [string]$Only = 'both',
+    [string]$BackendApp = 'archon-backend-new',
+    [string]$FrontendApp = 'archon-frontend-new',
+    [string]$BackendUrl = 'https://archon-backend-new.calmground-bca6d5b8.polandcentral.azurecontainerapps.io',
+    [string]$FrontendUrl = 'https://archon-frontend-new.calmground-bca6d5b8.polandcentral.azurecontainerapps.io/agai'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,9 +20,6 @@ $ErrorActionPreference = 'Stop'
 $Subscription  = '55b383ce-c38c-4f9c-9e91-ff29d0f114a5'
 $ResourceGroup = 'Archon'
 $Registry      = 'archonregistery-ahhzb5aedsa5fdae.azurecr.io'
-$BackendApp    = 'archon-agai-backend'
-$FrontendApp   = 'archon-agai-frontend'
-$BackendUrl    = 'https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io'
 
 if (-not $Sha) {
     git fetch origin agai-dev --quiet
@@ -64,4 +65,4 @@ if ($Only -in 'both', 'backend') {
     }
 }
 
-Write-Host "`nDone. Open: https://archon-agai-frontend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io/agai"
+Write-Host "`nDone. Open: $FrontendUrl"

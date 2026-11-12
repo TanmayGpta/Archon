@@ -12,6 +12,30 @@ if str(REPO_ROOT) not in sys.path:
 
 load_dotenv(REPO_ROOT / ".env")
 
+# Configure LiteLLM globally to strip reasoning_content for Groq / OpenAI compatibility
+try:
+    import litellm
+    from litellm.integrations.custom_logger import CustomLogger
+
+    class CleanReasoningCallback(CustomLogger):
+        async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+            for msg in data.get("messages", []):
+                if isinstance(msg, dict):
+                    msg.pop("reasoning_content", None)
+                    msg.pop("thinking", None)
+            return data
+
+        def log_pre_api_call(self, model, messages, kwargs):
+            for msg in messages:
+                if isinstance(msg, dict):
+                    msg.pop("reasoning_content", None)
+                    msg.pop("thinking", None)
+
+    litellm.callbacks = [CleanReasoningCallback()]
+    litellm.drop_params = True
+except Exception:
+    pass
+
 # LLMs go through FreeLLMAPI, a local OpenAI-compatible router (override in .env).
 # "auto" lets the router pick a provider; pin a model id (see GET /v1/models) for reproducible evals.
 LLM_BASE_URL = os.getenv("AGAI_LLM_BASE_URL", "http://127.0.0.1:31415/v1")
