@@ -60,7 +60,7 @@ def resolve_allowed_path(p: str, base: Optional[Path] = None, writable: bool = F
     path = path.resolve()
     roots = list(ALLOWED_ROOTS) + ([] if writable else list(READONLY_ROOTS))
     if base and (not writable or is_writable(base)):
-        roots.append(base.resolve())
+        roots.append(Path(base).resolve())
     if not _under(path, roots):
         raise ValueError(f"path outside {'writable' if writable else 'allowed'} roots: {path}")
     if any(part in SECRET_PARTS or part.startswith(".env") for part in path.parts):

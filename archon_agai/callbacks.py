@@ -61,6 +61,10 @@ def after_agent(callback_context: CallbackContext) -> Optional[types.Content]:
 # --------------------------------------------------------------------------- model level
 
 def before_model(callback_context: CallbackContext, llm_request: LlmRequest) -> Optional[LlmResponse]:
+    # Strip thought/reasoning parts from history so providers like Groq don't reject reasoning_content in assistant messages
+    for content in (llm_request.contents or []):
+        if getattr(content, "role", None) not in ("user", None):
+            content.parts = [p for p in (content.parts or []) if not getattr(p, "thought", False)]
     emit(_sid(callback_context), "adk", "model_start", f"{len(llm_request.contents or [])} messages",
          agent=callback_context.agent_name, data={"model": llm_request.model})
     return None
