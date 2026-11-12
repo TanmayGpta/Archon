@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { ArchitectureDiagramViewer, type DiagramChanges } from './ArchitectureDiagramViewer';
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
-import { JuryPanel, VerdictBadge, juryReducer, initialJuryState, type IterationRecord, type JuryEvent, type JuryState } from './JuryPanel';
+import { JuryPanel, JuryResultBanner, VerdictBadge, juryReducer, initialJuryState, type IterationRecord, type JuryEvent, type JuryState } from './JuryPanel';
 import { ErrorState, Skeleton } from './StateViews';
 import { ArcGenLlmSettings } from './ArcGenLlmSettings';
 import { LlmSetupModal } from './LlmSetupModal';
@@ -144,6 +144,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   const [currentQuestion, setCurrentQuestion] = useSessionState<QuestionItem | null>('arcgen:question', null);
   const [userAnswer, setUserAnswer] = useSessionState<string>('arcgen:answer', '');
   const [shouldStop, setShouldStop] = useSessionState<boolean>('arcgen:stop', false);
+  // Coverage criterion met: generation unlocked, but the interview continues until 100%.
+  const [readyToGenerate, setReadyToGenerate] = useSessionState<boolean>('arcgen:ready', false);
   const [stopReason, setStopReason] = useSessionState<string>('arcgen:stopReason', '');
   const [isEliciting, setIsEliciting] = useState<boolean>(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -301,9 +303,11 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       setAsrSummary(data.summary);
       setCurrentQuestion(data.first_question);
       setShouldStop(data.should_stop);
+      setReadyToGenerate(data.ready_to_generate ?? data.should_stop);
       setStopReason(data.stop_reason || "");
       setUserAnswer("");
-      setStatusMsg(data.should_stop ? "Sufficient requirements detected! Ready to generate." : "Phase A interview active.");
+      setStatusMsg(data.should_stop ? "All drivers captured. Ready to generate."
+        : data.ready_to_generate ? "Enough to generate. Keep answering to reach 100%." : "Phase A interview active.");
     } catch (err) {
       console.error(err);
       setStatusMsg(err instanceof TypeError ? `Error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
@@ -343,9 +347,11 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       setAsrSummary(data.summary);
       setCurrentQuestion(data.next_question);
       setShouldStop(data.should_stop);
+      setReadyToGenerate(data.ready_to_generate ?? data.should_stop);
       setStopReason(data.stop_reason || "");
       setUserAnswer("");
-      setStatusMsg(data.should_stop ? `Stopping criterion reached: ${data.stop_reason}` : "Next question formulated.");
+      setStatusMsg(data.should_stop ? "All drivers captured. Ready to generate."
+        : data.ready_to_generate ? "Enough to generate. Keep answering to reach 100%." : "Next question formulated.");
     } catch (err) {
       console.error(err);
       setStatusMsg(err instanceof TypeError ? `Error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Error: ${errorMessage(err)}`);
@@ -391,18 +397,21 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
         state = juryReducer(state, event);
         setJury(state);
         if (event.type === 'iteration') {
-          // Show each version as soon as it exists, while the jury deliberates
+          // Show each version as soon as it exists, while the jury deliberates. Open the review once,
+          // on the first draft; later drafts don't pull the user away from where they are.
           setGeneratedArch(prev => ({ ...(prev ?? {}), ...event.record.graph }));
-          setActiveOutputTab('jury');
+          if (event.record.version === 1) setActiveOutputTab('jury');
         } else if (event.type === 'complete') {
           setGeneratedArch(event.result);
           // Final version: highlight what the last regeneration changed (nothing for a first-time pass)
           const versions = event.result?.jury?.iterations ?? [];
           setDiagramChanges(versions.length > 1 ? changesOf(versions[versions.length - 1]) : null);
+          // Done: land on the result. The banner above the diagram summarises the review.
+          setActiveOutputTab('diagram');
           const verdict = event.result?.jury?.verdict;
-          setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the bias jury."
-            : verdict === 'NO_JURY' ? "Architecture generated, but no juror could deliver a verdict (is Ollama running?)."
-            : "Architecture generated; the bias jury did not approve it within the regeneration limit. See the Bias Jury tab.");
+          setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the reviewers."
+            : verdict === 'NO_JURY' ? "Architecture generated, but no reviewer model answered (is Ollama running?)."
+            : "Architecture generated with open review issues. See the banner above the diagram.");
           return;
         }
       }
@@ -766,6 +775,8 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                       setSessionId('');
                       setAsrSummary(null);
                       setCurrentQuestion(null);
+                      setShouldStop(false);
+                      setReadyToGenerate(false);
                     }}
                     className="px-2 py-1 rounded-control text-xs bg-raised border border-line-strong text-fg-soft hover:border-info/50 hover:text-info transition-all cursor-pointer font-mono"
                   >
@@ -840,7 +851,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold font-mono uppercase text-info">ASR Coverage Metric</span>
-                    <span className="text-xs text-fg-subtle font-mono">Turn {asrSummary.turn_count} / 6</span>
+                    <span className="text-xs text-fg-subtle font-mono">Turn {asrSummary.turn_count}</span>
                   </div>
                   <span className={`text-sm font-bold font-mono ${
                     asrSummary.coverage_ratio >= 0.85 ? 'text-success-fg' : 'text-info'
@@ -849,14 +860,20 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                   </span>
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full h-2 rounded-full bg-selected overflow-hidden mb-3">
-                  <div
-                    className={`h-full transition-all duration-500 rounded-full ${
-                      asrSummary.coverage_ratio >= 0.85 ? 'bg-gradient-to-r from-success to-success-fg' : 'bg-gradient-to-r from-info-strong to-info'
-                    }`}
-                    style={{ width: `${Math.min(100, asrSummary.coverage_percentage)}%` }}
-                  />
+                {/* Progress bar; the tick marks where generation unlocks */}
+                <div className="relative mb-4">
+                  <div className="w-full h-2 rounded-full bg-selected overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 rounded-full ${
+                        readyToGenerate || asrSummary.coverage_ratio >= 0.85 ? 'bg-gradient-to-r from-success to-success-fg' : 'bg-gradient-to-r from-info-strong to-info'
+                      }`}
+                      style={{ width: `${Math.min(100, asrSummary.coverage_percentage)}%` }}
+                    />
+                  </div>
+                  <div className="absolute top-[-2px] h-3 w-px bg-fg-muted" style={{ left: '85%' }} aria-hidden="true" />
+                  <span className="absolute top-3 text-[10px] font-mono text-fg-subtle -translate-x-1/2" style={{ left: '85%' }}>
+                    ready
+                  </span>
                 </div>
 
                 {/* 7 Driver Dimension Slot Badges */}
@@ -882,6 +899,29 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Generation unlocked, interview still open */}
+            {readyToGenerate && !shouldStop && (
+              <div className="bg-success/10 border border-success/40 rounded-panel p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-success-fg">✓ Enough to generate</div>
+                    <p className="text-xs text-fg-soft leading-relaxed">
+                      {asrSummary ? `${asrSummary.coverage_percentage.toFixed(0)}% covered. ` : ""}
+                      Generate now, or answer the remaining {asrSummary ? asrSummary.total_slots - asrSummary.filled_count : ""} question(s) below to reach 100%.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerateArchitecture}
+                    disabled={isGenerating || isEliciting}
+                    className="shrink-0 py-2 px-3 rounded-control bg-success hover:brightness-110 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    {isGenerating ? "Synthesizing..." : <><Glyph name="zap" /> Generate now</>}
+                  </button>
+                </div>
+                <div className="mt-1">{juryToggle}</div>
               </div>
             )}
 
@@ -1020,10 +1060,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
             {shouldStop && (
               <div className="bg-success/10 border border-success/40 rounded-panel p-4 text-center">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/20 text-success-fg text-xs font-mono font-semibold mb-2">
-                  ✓ Mathematical Stopping Criterion Reached
+                  ✓ All Drivers Captured
                 </div>
                 <p className="text-xs text-fg-soft mb-3 leading-relaxed">
-                  {stopReason || "Target ASR coverage has reached sufficiency threshold (≥85%). Anti-fatigue stop triggered."}
+                  {stopReason || "Every architectural driver has an answer (100% coverage)."}
                 </p>
                 <div className="text-left mb-2">{juryToggle}</div>
                 <button
@@ -1117,7 +1157,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     { id: 'couplings', label: `Connections (${generatedArch.edges.length})` },
                     { id: 'atam_tradeoffs', label: 'ATAM Tradeoffs' },
                     { id: 'validation', label: 'Validation' },
-                    ...(jury ? [{ id: 'jury', label: jury.running ? 'Bias Jury (in session)' : `Bias Jury · ${jury.trace?.verdict ?? (jury.error ? 'error' : '…')}` }] : []),
+                    ...(jury ? [{ id: 'jury', label: jury.running ? 'Review (in progress)'
+                      : jury.error ? 'Review · error'
+                      : `Review · ${({ PASS: 'approved', FAIL: 'open issues', NO_JURY: 'not reviewed', SKIPPED: 'skipped' } as Record<string, string>)[jury.trace?.verdict ?? ''] ?? '…'}` }] : []),
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1134,6 +1176,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 </div>
 
                 {/* TAB 1: GRAPH & DIAGRAM VIEW */}
+                {activeOutputTab === 'diagram' && jury && !jury.running && (
+                  <JuryResultBanner state={jury} onOpen={() => setActiveOutputTab('jury')} />
+                )}
                 {activeOutputTab === 'diagram' && (
                   <ArchitectureDiagramViewer
                     projectName={generatedArch.project_name}
@@ -1243,6 +1288,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 {activeOutputTab === 'jury' && jury && (
                   <JuryPanel
                     state={jury}
+                    onShowDiagram={() => setActiveOutputTab('diagram')}
                     onShowVersion={record => {
                       setGeneratedArch(prev => ({ ...(prev ?? {}), ...record.graph }));
                       setDiagramChanges(changesOf(record));

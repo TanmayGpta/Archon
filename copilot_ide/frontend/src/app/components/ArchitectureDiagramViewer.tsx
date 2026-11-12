@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArchitectureGraph } from './ArchitectureGraph';
 
 export interface ArchNode {
   node_id: string;
@@ -110,7 +111,6 @@ export function ArchitectureDiagramViewer({
   mermaid = '',
   changes = null,
 }: ArchitectureDiagramViewerProps) {
-  const addedNames = useMemo(() => new Set((changes?.added ?? []).map(n => n.trim().toLowerCase())), [changes]);
   // View mode: 'canvas' | 'mermaid' | 'plantuml'
   const [viewMode, setViewMode] = useState<'canvas' | 'mermaid' | 'plantuml'>('canvas');
   // Raw code vs Rendered SVG toggle (for mermaid & plantuml)
@@ -123,7 +123,6 @@ export function ArchitectureDiagramViewer({
   const [startPan, setStartPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Interactive selection & spotlighting
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string>('');
 
@@ -349,59 +348,8 @@ export function ArchitectureDiagramViewer({
     }
   };
 
-  // Group nodes by Layer for sublime swimlane visualization
-  const layers = ['Presentation', 'Application', 'Domain', 'Infrastructure'];
-  const nodesByLayer: Record<string, ArchNode[]> = {
-    Presentation: [],
-    Application: [],
-    Domain: [],
-    Infrastructure: [],
-  };
-
-  nodes.forEach(n => {
-    const l = n.layer || (n.node_type === 'gateway' ? 'Presentation' : n.node_type === 'datastore' || n.node_type === 'queue' ? 'Infrastructure' : 'Application');
-    if (nodesByLayer[l]) {
-      nodesByLayer[l].push(n);
-    } else {
-      nodesByLayer['Application'].push(n);
-    }
-  });
-
-  // Calculate connected edges for spotlighting
-  const activeSpotlightNodeId = hoveredNodeId || selectedNodeId;
-  const connectedEdgeIds = new Set<string>();
-  const connectedNodeIds = new Set<string>();
-
-  if (activeSpotlightNodeId) {
-    connectedNodeIds.add(activeSpotlightNodeId);
-    edges.forEach(e => {
-      if (e.source === activeSpotlightNodeId || e.target === activeSpotlightNodeId) {
-        connectedEdgeIds.add(e.edge_id);
-        connectedNodeIds.add(e.source);
-        connectedNodeIds.add(e.target);
-      }
-    });
-  }
-
   // Selected node details
   const selectedNode = nodes.find(n => n.node_id === selectedNodeId);
-
-  // Stereotype badge styling
-  const getNodeStereotypeStyle = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'gateway':
-        return 'bg-info-strong/20 text-info border-info-strong/40';
-      case 'datastore':
-        return 'bg-warning/20 text-[#fcd34d] border-warning/40';
-      case 'queue':
-        return 'bg-success/20 text-success-fg border-success/40';
-      case 'module':
-      case 'usecase':
-        return 'bg-[#8b5cf6]/20 text-[#c4b5fd] border-[#8b5cf6]/40';
-      default:
-        return 'bg-[#6366f1]/20 text-[#a5b4fc] border-[#6366f1]/40';
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col bg-canvas border border-line-strong rounded-panel overflow-hidden relative select-none">
@@ -418,7 +366,7 @@ export function ArchitectureDiagramViewer({
               viewMode === 'canvas' ? 'bg-selected text-info font-bold ' : 'text-fg-subtle hover:text-fg-soft'
             }`}
           >
-            Interactive Canvas
+            Interactive
           </button>
           <button
             onClick={() => setViewMode('mermaid')}
@@ -527,118 +475,19 @@ export function ArchitectureDiagramViewer({
           backgroundSize: '24px 24px',
         }}
       >
-        {/* VIEW 1: SUBLIME INTERACTIVE CANVAS */}
+        {/* VIEW 1: INTERACTIVE GRAPH (mermaid layout + hover cards, click to inspect) */}
         {viewMode === 'canvas' && (
-          <div
-            className="w-full h-full p-8 transition-transform duration-75 origin-top-left flex flex-col gap-8 min-w-[900px]"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            }}
-          >
-            {changes && (changes.added.length > 0 || changes.removed.length > 0) && (
-              <div className="flex flex-wrap items-center gap-2 text-xs font-mono bg-surface/80 border border-line-strong rounded-panel px-3 py-2">
-                <span className="text-fg-subtle">Changes {changes.label}:</span>
-                {changes.added.length > 0 && <span className="text-success-fg">+{changes.added.length} new (outlined green)</span>}
-                {changes.removed.map(n => (
-                  <span key={n} className="px-1.5 py-0.5 rounded-control border border-dashed border-line-strong text-fg-subtle line-through opacity-70" title="Removed in this version">
-                    {n}
-                  </span>
-                ))}
-              </div>
-            )}
-            {layers.map(layerName => {
-              const layerNodes = nodesByLayer[layerName] || [];
-              if (layerNodes.length === 0) return null;
-
-              return (
-                <div
-                  key={layerName}
-                  className="bg-surface/70 border border-line-strong rounded-panel p-4 backdrop-blur-sm relative"
-                >
-                  {/* Layer Header Pill */}
-                  <div className="flex items-center justify-between mb-3 border-b border-line-strong/50 pb-2">
-                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-info">
-                      {layerName} Layer
-                    </span>
-                    <span className="text-xs font-mono text-fg-subtle">
-                      {layerNodes.length} {layerNodes.length === 1 ? 'component' : 'components'}
-                    </span>
-                  </div>
-
-                  {/* Components Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {layerNodes.map(node => {
-                      const isHovered = hoveredNodeId === node.node_id;
-                      const isSelected = selectedNodeId === node.node_id;
-                      const isConnected = connectedNodeIds.has(node.node_id);
-                      const isDimmed = activeSpotlightNodeId && !isConnected;
-                      const isNew = addedNames.has(node.name.trim().toLowerCase());
-
-                      return (
-                        <div
-                          key={node.node_id}
-                          onMouseEnter={() => setHoveredNodeId(node.node_id)}
-                          onMouseLeave={() => setHoveredNodeId(null)}
-                          onClick={e => {
-                            e.stopPropagation();
-                            setSelectedNodeId(selectedNodeId === node.node_id ? null : node.node_id);
-                          }}
-                          className={`p-3.5 rounded-panel border transition-all cursor-pointer relative ${
-                            isSelected
-                              ? 'bg-overlay border-info ring-2 ring-info/50 '
-                              : isHovered
-                              ? 'bg-overlay border-info/80 '
-                              : isDimmed
-                              ? 'bg-surface/40 border-line-strong/40 opacity-30'
-                              : isNew
-                              ? 'bg-success/10 border-success ring-2 ring-success/40'
-                              : 'bg-raised border-line-strong hover:border-line-strong/80'
-                          }`}
-                        >
-                          {/* Node Header */}
-                          <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                            <span className="font-mono text-xs font-bold text-fg-strong truncate">
-                              {node.name}
-                              {isNew && <span className="ml-1.5 px-1 rounded-control bg-success/25 text-success-fg text-[10px] align-middle">NEW</span>}
-                            </span>
-                            <span
-                              className={`px-1.5 py-0.5 rounded-control text-xs font-mono uppercase font-semibold border ${getNodeStereotypeStyle(
-                                node.node_type
-                              )}`}
-                            >
-                              {node.node_type}
-                            </span>
-                          </div>
-
-                          {/* Node Description */}
-                          <p className="text-xs text-fg-muted line-clamp-2 leading-relaxed mb-2.5">
-                            {node.description}
-                          </p>
-
-                          {/* Requirements Traceability */}
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {node.traced_requirements.slice(0, 3).map(req => (
-                              <span
-                                key={req}
-                                className="px-1.5 py-0.5 rounded-control text-xs font-mono bg-info-strong/15 text-info border border-info-strong/25"
-                              >
-                                {req}
-                              </span>
-                            ))}
-                            {node.traced_requirements.length > 3 && (
-                              <span className="text-xs font-mono text-fg-subtle">
-                                +{node.traced_requirements.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <ArchitectureGraph
+            nodes={nodes}
+            edges={edges}
+            added={changes?.added}
+            removed={changes?.removed}
+            changesLabel={changes?.label}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            zoom={zoom}
+            pan={pan}
+          />
         )}
 
         {/* VIEW 2: MERMAID LIVE SVG RENDERER */}
