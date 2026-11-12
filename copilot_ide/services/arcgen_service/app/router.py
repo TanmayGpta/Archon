@@ -169,6 +169,21 @@ async def list_examples():
     }
 
 
+def _interview_status(tracker: ASRTracker, criterion_met: bool, reason: str) -> Dict[str, Any]:
+    """Split the tracker's stopping criterion into 'ready' (enough to generate) and 'done' (nothing left).
+
+    The criterion (coverage threshold / plateau / turn cap) only unlocks generation; the interview
+    keeps asking about unfilled drivers so the user can still take coverage to 100%.
+    """
+    done = not tracker.unfilled_categories()
+    ready = criterion_met or done
+    if done:
+        reason = "All architectural drivers captured (100% coverage)."
+    elif ready:
+        reason = f"{reason}. You can generate now, or keep answering to reach 100%."
+    return {"should_stop": done, "ready_to_generate": ready, "stop_reason": reason}
+
+
 @router.post("/elicit/start")
 async def start_elicitation(req: ElicitStartRequest):
     """Initializes an interactive ASR elicitation session from a prompt."""
@@ -181,12 +196,12 @@ async def start_elicitation(req: ElicitStartRequest):
         # 1. Initial assessment of pre-stated drivers in the prompt
         extracted = agent.initial_assessment(req.prompt, tracker)
 
-        # 2. Check if stopping condition is already satisfied (rare for vague prompts)
-        should_stop, stop_reason = tracker.record_round_completion()
+        # 2. Check if the prompt alone already gives enough to generate (rare for vague prompts)
+        status = _interview_status(tracker, *tracker.record_round_completion())
 
-        # 3. Formulate first question if continuing
+        # 3. Keep asking while any driver is unfilled, even once generation is unlocked
         first_q = None
-        if not should_stop:
+        if not status["should_stop"]:
             first_q = agent.generate_question(tracker, req.prompt)
 
         # Save session state
@@ -213,8 +228,7 @@ async def start_elicitation(req: ElicitStartRequest):
                 "why_it_matters": first_q.why_it_matters,
                 "suggested_options": first_q.suggested_options,
             } if first_q else None,
-            "should_stop": should_stop,
-            "stop_reason": stop_reason,
+            **status,
         }
     except Exception as e:
         logger.error(f"Failed to start elicitation: {e}", exc_info=True)
@@ -261,12 +275,11 @@ async def answer_elicitation(req: ElicitAnswerRequest):
                 value="Default",
             )
 
-        # Evaluate stopping criteria
-        should_stop, stop_reason = tracker.record_round_completion()
+        # Evaluate stopping criteria (unlocks generation; questions continue until 100%)
+        status = _interview_status(tracker, *tracker.record_round_completion())
 
-        # Formulate next question if continuing
         next_q = None
-        if not should_stop:
+        if not status["should_stop"]:
             next_q = agent.generate_question(tracker, session.get("prompt", ""))
             session["current_question"] = next_q
             session["round"] += 1
@@ -281,8 +294,7 @@ async def answer_elicitation(req: ElicitAnswerRequest):
                 "why_it_matters": next_q.why_it_matters,
                 "suggested_options": next_q.suggested_options,
             } if next_q else None,
-            "should_stop": should_stop,
-            "stop_reason": stop_reason,
+            **status,
         }
     except Exception as e:
         logger.error(f"Failed to process answer: {e}", exc_info=True)

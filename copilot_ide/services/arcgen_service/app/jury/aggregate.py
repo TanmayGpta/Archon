@@ -65,7 +65,7 @@ def parse_verdict(
         # Tolerate {"N1": {...}, "N2": {...}} or {"N1": "yes", ...}
         rows = [dict(v, item=k) if isinstance(v, dict) else {"item": k, "verdict": v} for k, v in data.items()]
     if not isinstance(rows, list):
-        return JurorVerdict(**base, ok=False, error="no answers list")
+        return JurorVerdict(**base, ok=False, error=f"no answers list in: {raw[:160]!r}")
 
     items = {it.id: it for it in checkpoint.items}
     answers: List[ItemAnswer] = []
@@ -96,7 +96,7 @@ def parse_verdict(
             )
         )
     if not answers:
-        return JurorVerdict(**base, ok=False, error="no usable answers")
+        return JurorVerdict(**base, ok=False, error=f"no usable answers in: {raw[:160]!r}")
     return JurorVerdict(**base, answers=answers)
 
 

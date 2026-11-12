@@ -152,6 +152,18 @@ class FakePanel:
         return out
 
 
+class BatchingPanel(FakePanel):
+    """FakePanel that also offers judge_many and records which checkpoints shared a sitting."""
+
+    def __init__(self, script):
+        super().__init__(script)
+        self.sittings = []
+
+    def judge_many(self, sittings, on_verdict):
+        self.sittings.append([cp for cp, _ in sittings])
+        return {cp: self.judge(cp, seats, lambda v, c=cp: on_verdict(c, v)) for cp, seats in sittings}
+
+
 class FakeClient:
     model = "gemini-2.5-flash"
     used_models = ["gemini-2.5-flash"]
@@ -197,10 +209,31 @@ class TestPipeline(unittest.TestCase):
 
     def test_normalization_failure_renormalizes_with_findings(self):
         bad = [_answers(N1=("no", ["L2"]))] * 5
-        trace, _, _, _, norm = self._run({("normalization", 1): bad}, [("OrderService", "OrderDB")])
+        trace, _, gn, _, norm = self._run({("normalization", 1): bad}, [("OrderService", "OrderDB"), ("OrderService", "OrderDB")])
         self.assertEqual(len(norm), 2)
         self.assertIn("L2", norm[1][0])
         self.assertEqual(trace.verdict, "PASS")
+        self.assertEqual(gn.call_count, 2)  # architecture rebuilt on the re-normalized SRS
+        self.assertIn("re-normalized SRS", trace.iterations[1].reason)
+
+    def test_generation_and_jury_are_batched_per_round(self):
+        """Round 1: one sitting judges both checkpoints; later rounds judge only what changed."""
+        bad = [_answers(A5=("no", ["EDGE-001"]))] * 5
+        panel = BatchingPanel({("architecture", 1): bad})
+        events = []
+        with patch("app.jury.pipeline.generate_nodes", side_effect=lambda **kw: _graph(("OrderService", "OrderDB")).nodes), \
+             patch("app.jury.pipeline.generate_edges", side_effect=lambda nodes, **kw: _graph(("OrderService", "OrderDB")).edges), \
+             patch("app.jury.pipeline.match_patterns", return_value=[]), \
+             patch("app.jury.pipeline.rank_macro_patterns", return_value=[type("P", (), {"name": "Modular Monolith"})()]), \
+             patch("app.jury.pipeline.select_companions", return_value=[]), \
+             patch("app.jury.pipeline.format_tradeoff_table", return_value="table"), \
+             patch("app.jury.pipeline.JuryRun._save"):
+            trace = JuryRun(FakeClient(), panel, events.append).run(RAW, lambda fb: _srs())[4]
+        self.assertEqual(panel.sittings, [["normalization", "architecture"], ["architecture"]])
+        self.assertEqual(trace.verdict, "PASS")
+        # generation of a round finishes before its sitting starts
+        kinds = [e["type"] for e in events]
+        self.assertLess(kinds.index("iteration"), kinds.index("panel"))
 
     def test_style_rejection_steps_down_pattern(self):
         bad = [_answers(A2=("no", ["ASR-001"]))] * 5

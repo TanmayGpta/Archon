@@ -2,7 +2,7 @@
   "_comment": "Bias jury contract. Jurors answer yes/no per item and must cite IDs for every 'no'. Votes are combined in plain Python (app/jury/aggregate.py), never by an LLM.",
   "max_regenerations": 2,
   "jurors": [
-    {"model": "qwen3:4b", "family": "qwen", "prompt_suffix": "/no_think"},
+    {"model": "qwen3:4b", "family": "qwen", "prompt_suffix": "/no_think", "think": false},
     {"model": "llama3.2:3b", "family": "llama"},
     {"model": "gemma3:4b", "family": "google"},
     {"model": "phi4-mini", "family": "phi"},

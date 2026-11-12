@@ -34,6 +34,10 @@ class JurorSpec(BaseModel):
     model: str
     family: str
     prompt_suffix: str = ""
+    # False switches a thinking model's reasoning off at the Ollama API (think: false). A prompt hint
+    # like /no_think is not enough: qwen3 still reasons for thousands of tokens, overflows num_ctx
+    # and returns a truncated answer (the juror then abstains).
+    think: Optional[bool] = None
 
 
 class OllamaSettings(BaseModel):

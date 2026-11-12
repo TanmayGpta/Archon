@@ -1,23 +1,27 @@
-"""The ADK jury: one LlmAgent per juror (local Ollama via LiteLlm) under a ParallelAgent.
+"""The ADK jury: one LlmAgent per (juror, checkpoint) on local Ollama via LiteLlm.
+
+Shape: ParallelAgent[ juror_1: SequentialAgent[cp_a, cp_b], juror_2: ..., ... ]
 
 Independence:
 - every juror gets its own case (shuffled order) through an InstructionProvider, so no juror
   sees another's case or verdict, and no session state is shared between them;
-- include_contents="none": no conversation history leaks in;
+- include_contents="none": no conversation history leaks in, not even between one juror's own
+  checkpoints;
 - a juror that errors or times out abstains (on_model_error_callback) instead of failing the panel.
 
-Ollama on a 6 GB GPU can hold one small model at a time, so model calls pass through a
-semaphore (rubric.ollama.max_concurrent, default 1). The agents still run under ParallelAgent;
-on bigger hardware raise max_concurrent and they really run side by side.
+Model swaps: Ollama on a 6 GB GPU holds one small model at a time, and loading one costs far more
+than a verdict. So each juror judges *every* pending checkpoint back-to-back while its model is
+loaded, and a juror holds a semaphore (rubric.ollama.max_concurrent, default 1) for its whole
+sequence. One sitting therefore loads each juror model once. On bigger hardware raise
+max_concurrent and jurors really run side by side.
 """
 
 import asyncio
 import logging
-import os
 import time
 from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
-from google.adk.agents import LlmAgent, ParallelAgent
+from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner
@@ -27,6 +31,7 @@ from pydantic import PrivateAttr
 from app.jury.aggregate import parse_verdict
 from app.jury.case import Case
 from app.jury.models import CheckpointName, JurorSpec, JurorVerdict, Rubric, load_rubric
+from app.llm import DEFAULT_OLLAMA_HOST
 
 JUROR_ERROR = "JUROR_ERROR:"
 logger = logging.getLogger(__name__)
@@ -46,19 +51,23 @@ Reply with JSON only, no other text:
 """
 
 
-class _ThrottledLiteLlm(LiteLlm):
-    """LiteLlm whose calls wait on a shared semaphore (set per jury sitting)."""
+Seat = Tuple[str, JurorSpec, Case]
+Sitting = Tuple[CheckpointName, List[Seat]]
+
+
+class _GatedJuror(SequentialAgent):
+    """One juror's checkpoints in order, holding the shared gate throughout so its model stays loaded."""
 
     _gate: Optional[asyncio.Semaphore] = PrivateAttr(default=None)
 
-    async def generate_content_async(self, llm_request, stream: bool = False) -> AsyncGenerator[LlmResponse, None]:
+    async def _run_async_impl(self, ctx) -> AsyncGenerator:
         if self._gate is None:
-            async for r in super().generate_content_async(llm_request, stream=stream):
-                yield r
+            async for e in super()._run_async_impl(ctx):
+                yield e
             return
         async with self._gate:
-            async for r in super().generate_content_async(llm_request, stream=stream):
-                yield r
+            async for e in super()._run_async_impl(ctx):
+                yield e
 
 
 def _on_model_error(callback_context, llm_request, error) -> LlmResponse:
@@ -70,34 +79,43 @@ def _on_model_error(callback_context, llm_request, error) -> LlmResponse:
 class AdkOllamaPanel:
     def __init__(self, rubric: Optional[Rubric] = None, ollama_host: Optional[str] = None):
         self.rubric = rubric or load_rubric()
-        self.host = ollama_host or os.getenv("OLLAMA_HOST") or os.getenv("OLLAMA_URL") or "http://localhost:11434"
+        self.host = ollama_host or DEFAULT_OLLAMA_HOST
 
     def judge(
         self,
         checkpoint: CheckpointName,
-        seats: List[Tuple[str, JurorSpec, Case]],
+        seats: List[Seat],
         on_verdict: Callable[[JurorVerdict], None],
     ) -> List[JurorVerdict]:
-        # Called from the pipeline's worker thread, which has no running event loop.
-        return asyncio.run(self._judge(checkpoint, seats, on_verdict))
+        return self.judge_many([(checkpoint, seats)], lambda _cp, v: on_verdict(v))[checkpoint]
 
-    def _agent(self, checkpoint: CheckpointName, idx: int, spec: JurorSpec, case: Case, gate: asyncio.Semaphore) -> LlmAgent:
+    def judge_many(
+        self,
+        sittings: List[Sitting],
+        on_verdict: Callable[[CheckpointName, JurorVerdict], None],
+    ) -> Dict[CheckpointName, List[JurorVerdict]]:
+        """Judge several checkpoints in one sitting, grouped by juror model (one load per model)."""
+        # Called from the pipeline's worker thread, which has no running event loop.
+        return asyncio.run(self._judge_many(sittings, on_verdict))
+
+    def _agent(self, checkpoint: CheckpointName, idx: int, spec: JurorSpec, case: Case) -> LlmAgent:
         ids = ", ".join(it.id for it in self.rubric.checkpoints[checkpoint].items)
         prompt = (
             JUROR_INSTRUCTION + case.text
             + f"\n\nAnswer EVERY question ({ids}), one entry each, in the JSON format above."
             + (f"\n{spec.prompt_suffix}" if spec.prompt_suffix else "")
         )
-        model = _ThrottledLiteLlm(
+        extra = {"reasoning_effort": "none"} if spec.think is False else {}  # LiteLLM -> Ollama think: false
+        model = LiteLlm(
             model=f"ollama_chat/{spec.model}",
             api_base=self.host,
             timeout=self.rubric.ollama.timeout_s,
             num_ctx=self.rubric.ollama.num_ctx,
             format="json",
+            **extra,
         )
-        model._gate = gate
         return LlmAgent(
-            name=f"juror_{idx}",
+            name=f"juror_{idx}_{checkpoint}",
             model=model,
             instruction=lambda _ctx, p=prompt: p,  # provider => no state templating, no sharing
             include_contents="none",
@@ -105,17 +123,32 @@ class AdkOllamaPanel:
             on_model_error_callback=_on_model_error,
         )
 
-    async def _judge(self, checkpoint, seats, on_verdict) -> List[JurorVerdict]:
-        cp = self.rubric.checkpoints[checkpoint]
+    async def _judge_many(self, sittings: List[Sitting], on_verdict) -> Dict[CheckpointName, List[JurorVerdict]]:
         gate = asyncio.Semaphore(max(1, self.rubric.ollama.max_concurrent))
-        agents = [self._agent(checkpoint, i, spec, case, gate) for i, (_, spec, case) in enumerate(seats, 1)]
-        by_name: Dict[str, Tuple[str, JurorSpec, Case]] = {a.name: s for a, s in zip(agents, seats)}
+        # agent name -> (checkpoint, seat); jurors keyed by model so a model is loaded once
+        by_name: Dict[str, Tuple[CheckpointName, Seat]] = {}
+        per_model: Dict[str, List[LlmAgent]] = {}
+        order: Dict[CheckpointName, List[str]] = {}
+        for checkpoint, seats in sittings:
+            order[checkpoint] = []
+            for i, seat in enumerate(seats, 1):
+                _, spec, case = seat
+                agent = self._agent(checkpoint, i, spec, case)
+                by_name[agent.name] = (checkpoint, seat)
+                per_model.setdefault(spec.model, []).append(agent)
+                order[checkpoint].append(agent.name)
 
-        jury = ParallelAgent(name=f"jury_{checkpoint}", sub_agents=agents)
+        jurors = []
+        for n, (model, agents) in enumerate(per_model.items(), 1):
+            juror = _GatedJuror(name=f"juror_{n}", sub_agents=agents)
+            juror._gate = gate
+            jurors.append(juror)
+
+        jury = ParallelAgent(name="jury", sub_agents=jurors)
         runner = InMemoryRunner(agent=jury, app_name="arcgen_jury")
         session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
-        started = time.monotonic()
         verdicts: Dict[str, JurorVerdict] = {}
+        last = time.monotonic()  # with one juror at a time, the gap between verdicts is that call's time (load included)
 
         message = types.Content(role="user", parts=[types.Part(text="Deliver your verdict as JSON.")])
         try:
@@ -123,30 +156,35 @@ class AdkOllamaPanel:
                 name = event.author
                 if name not in by_name or name in verdicts or not event.is_final_response():
                     continue
+                checkpoint, (seat, spec, case) = by_name[name]
+                cp = self.rubric.checkpoints[checkpoint]
+                now = time.monotonic()
+                seconds, last = now - last, now
                 # Skip reasoning ("thought") parts from thinking models such as qwen3; keep the answer.
                 parts = event.content.parts if event.content and event.content.parts else []
                 text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
-                seat, spec, case = by_name[name]
                 if text.startswith(JUROR_ERROR):
                     v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
-                                     error=text[len(JUROR_ERROR):].strip(), seconds=round(time.monotonic() - started, 1))
+                                     error=text[len(JUROR_ERROR):].strip(), seconds=round(seconds, 1))
                 else:
-                    v = parse_verdict(text, cp, case, seat, spec, seconds=time.monotonic() - started)
+                    v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
                 if not v.ok:
                     logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
                 verdicts[name] = v
-                on_verdict(v)
+                on_verdict(checkpoint, v)
         finally:
             await runner.close()
 
-        out = []
-        for a in agents:  # jurors that never answered abstain
-            if a.name in verdicts:
-                out.append(verdicts[a.name])
-            else:
-                seat, spec, _ = by_name[a.name]
+        out: Dict[CheckpointName, List[JurorVerdict]] = {}
+        for checkpoint, names in order.items():  # jurors that never answered abstain
+            out[checkpoint] = []
+            for name in names:
+                if name in verdicts:
+                    out[checkpoint].append(verdicts[name])
+                    continue
+                _, (seat, spec, _) = by_name[name]
                 v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False, error="no response")
                 logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: no response")
-                on_verdict(v)
-                out.append(v)
+                on_verdict(checkpoint, v)
+                out[checkpoint].append(v)
         return out

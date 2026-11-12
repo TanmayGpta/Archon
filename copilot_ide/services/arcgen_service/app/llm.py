@@ -64,8 +64,44 @@ FALLBACK_OMNIKEY_MODELS = [
 DEFAULT_OMNIKEY_BASE = os.getenv("OMNIKEY_BASE_URL", "https://omnikey-ai-unified-key-manager.onrender.com/v1beta")
 DEFAULT_GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 FALLBACK_GROQ_MODELS = ["qwen/qwen3.8-27b"]
-DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("DEFAULT_MODEL", "qwen2.5-coder:32b"))
-DEFAULT_OLLAMA_HOST = os.getenv("OLLAMA_HOST", os.getenv("OLLAMA_URL", "http://localhost:11434"))
+_OLLAMA_MODEL_ENV = os.getenv("OLLAMA_MODEL") or os.getenv("DEFAULT_MODEL")
+DEFAULT_OLLAMA_MODEL = _OLLAMA_MODEL_ENV or "qwen2.5-coder:32b"
+def _normalize_ollama_host(raw: str) -> str:
+    """OLLAMA_HOST is often a server bind address ("0.0.0.0", "0.0.0.0:11434"); make it a client URL."""
+    host = raw.strip() or "http://localhost:11434"
+    if "://" not in host:
+        host = "http://" + host
+    host = host.replace("://0.0.0.0", "://localhost")
+    if host.count(":") == 1:  # scheme only, no port
+        host += ":11434"
+    return host
+
+
+DEFAULT_OLLAMA_HOST = _normalize_ollama_host(os.getenv("OLLAMA_HOST", os.getenv("OLLAMA_URL", "http://localhost:11434")))
+_ollama_default_cache: Dict[str, Any] = {"at": 0.0, "model": None}
+
+
+def ollama_default_model() -> str:
+    """Ollama model to use when none is chosen in the UI.
+
+    An explicit OLLAMA_MODEL / DEFAULT_MODEL env always wins. Otherwise the built-in default is used
+    only if it is installed; if not, the first locally installed model is picked so a missing
+    default never blocks Ollama. Cached briefly; falls back to the built-in name if Ollama is down.
+    """
+    if _OLLAMA_MODEL_ENV:
+        return _OLLAMA_MODEL_ENV
+    now = time.monotonic()
+    if _ollama_default_cache["model"] and now - _ollama_default_cache["at"] < 30:
+        return _ollama_default_cache["model"]
+    try:
+        r = requests.get(f"{DEFAULT_OLLAMA_HOST.rstrip('/')}/api/tags", timeout=2)
+        r.raise_for_status()
+        installed = sorted(m["name"] for m in r.json().get("models", []))
+    except Exception:
+        return DEFAULT_OLLAMA_MODEL
+    model = DEFAULT_OLLAMA_MODEL if (DEFAULT_OLLAMA_MODEL in installed or not installed) else installed[0]
+    _ollama_default_cache.update(at=now, model=model)
+    return model
 
 
 def safe_parse_json(content: str) -> Any:
@@ -475,9 +511,9 @@ class GroqClient(BaseLLMClient):
 class OllamaClient(BaseLLMClient):
     """Local or self-hosted Ollama client with structured JSON schema support."""
 
-    def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, host: str = DEFAULT_OLLAMA_HOST):
+    def __init__(self, model: Optional[str] = None, host: str = DEFAULT_OLLAMA_HOST):
         import ollama
-        self.model = model
+        self.model = model or ollama_default_model()
         self.host = host
         self.client = ollama.Client(host=self.host)
 
@@ -761,7 +797,9 @@ def format_feedback(feedback: Optional[List[str]]) -> str:
 
 
 def default_model(provider: str) -> str:
-    return {"omnikey": DEFAULT_OMNIKEY_MODEL, "groq": DEFAULT_GROQ_MODEL, "ollama": DEFAULT_OLLAMA_MODEL}[provider]
+    if provider == "ollama":
+        return ollama_default_model()
+    return {"omnikey": DEFAULT_OMNIKEY_MODEL, "groq": DEFAULT_GROQ_MODEL}[provider]
 
 
 def provider_of(client: BaseLLMClient) -> str:
