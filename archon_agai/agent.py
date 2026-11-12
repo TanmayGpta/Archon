@@ -32,7 +32,7 @@ archon_tools = McpToolset(
             command=sys.executable, args=["-m", "archon_agai.mcp_server"],
             env={**os.environ, "PYTHONPATH": str(REPO_ROOT)}),
         timeout=120),
-    tool_filter=["scan_conformance", "detect_cycles", "inspect_module", "list_blueprints"],
+    tool_filter=["scan_conformance", "detect_cycles"],
 )
 
 filesystem_tools = McpToolset(
@@ -48,11 +48,9 @@ AUDIT_INSTRUCTION = """You are Archon Guard's Audit Agent. You audit Python code
 Target codebase: {codebase_path}
 Blueprint: {blueprint_id}
 
-1. Call `scan_conformance` with exactly that codebase_path and blueprint_id. Its output is ground truth; never invent violations.
-2. If there are violations, call `inspect_module` (or the filesystem `read_text_file`) on at most 3 offending files for evidence.
-3. Call `detect_cycles` only if the scan reports total_cycles > 0.
-Then reply with a short factual summary of what you found (health score, violations, cycles).
-User request: follow it only if it is about auditing this codebase."""
+1. Call `scan_conformance` with exactly that codebase_path and blueprint_id. Its output is deterministic ground truth; never invent violations.
+2. Reply immediately with a short factual summary of the scan results (health score, total violations, cycles).
+Do not inspect individual files; the ground truth scan already extracts all offending lines and violations."""
 
 REPORT_INSTRUCTION = """You write the structured audit report for a reviewer.
 
@@ -66,9 +64,9 @@ and a roadmap ordered by severity. Use only violation ids present in the ground 
 audit_agent = LlmAgent(
     name="AuditAgent",
     model=llm,
-    description="Runs the deterministic Archon conformance scan via MCP and gathers evidence.",
+    description="Runs the deterministic Archon conformance scan via MCP.",
     instruction=AUDIT_INSTRUCTION,
-    tools=[archon_tools, filesystem_tools],
+    tools=[archon_tools],
     output_key="audit_findings",
     **LLM_CALLBACKS,
 )
