@@ -10,14 +10,18 @@ import { AGAI_API, type FilePatch, useAgaiSession } from './useAgaiSession';
 // The full Archon IDE (explorer, tabs, terminal, agent chat, GitHub open) talks to the orchestrator;
 // Archon Guard (audit/heal/apply) talks to the AGAI gateway.
 const getApiBase = () => {
-  if (process.env.NEXT_PUBLIC_AGAI_API_URL) return process.env.NEXT_PUBLIC_AGAI_API_URL;
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== 'undefined') {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://127.0.0.1:8100';
     }
-    return 'https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io';
+    // Dynamic Azure Container Apps resolution: archon-*-frontend-* -> archon-*-backend-* in any region
+    if (window.location.hostname.includes('.azurecontainerapps.io')) {
+      const backendHost = window.location.hostname.replace('frontend', 'backend');
+      return `${window.location.protocol}//${backendHost}`;
+    }
   }
+  if (process.env.NEXT_PUBLIC_AGAI_API_URL) return process.env.NEXT_PUBLIC_AGAI_API_URL;
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
   return 'http://127.0.0.1:8100';
 };
 const IDE_API = getApiBase();

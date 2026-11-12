@@ -93,14 +93,39 @@ export function GuardPanel({ s, onOpenFile, onPreviewPatch }: {
       <div className="flex-1 overflow-auto p-3 text-[12px] space-y-2">
         {panel === 'violations' && (audit ? audit.violations.map((v) => {
           const why = s.state?.audit_narrative?.rationales.find((r) => r.violation_id === v.id);
+          const hazard = v.explanation || why?.why_it_matters || v.reason;
+          const remediation = v.remediation || why?.prescribed_fix;
           return (
-            <button key={v.id} onClick={() => v.file_path && onOpenFile(v.file_path, v.line_number)}
-              className="block w-full text-left p-2 rounded border border-[#1a1e26] hover:border-rose-800 bg-rose-950/10">
-              <div className="text-rose-300 font-mono text-[11px]">{v.source_layer} → {v.target_layer} · {v.severity}</div>
-              <div className="text-zinc-300 font-mono text-[11px] truncate">{v.file_path}:{v.line_number}</div>
-              <div className="text-zinc-500 truncate">{v.code_snippet}</div>
-              {why && <div className="text-zinc-400 mt-1">{why.prescribed_fix}</div>}
-            </button>
+            <div key={v.id} className="block w-full text-left p-2.5 rounded border border-[#1a1e26] hover:border-rose-800 bg-rose-950/10 space-y-1.5 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-rose-300 font-mono text-[11px] font-semibold">{v.source_layer} → {v.target_layer}</span>
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-rose-900/40 text-rose-300 border border-rose-800/50">{v.severity}</span>
+              </div>
+              <button 
+                onClick={() => v.file_path && onOpenFile(v.file_path, v.line_number)}
+                className="text-zinc-300 hover:text-sky-300 font-mono text-[11px] truncate block w-full text-left"
+                title="Click to open file in editor"
+              >
+                {v.file_path}:{v.line_number} ↗
+              </button>
+              {v.code_snippet && (
+                <div className="font-mono text-[10px] text-zinc-400 bg-black/40 px-2 py-1 rounded border border-[#222834] truncate">
+                  {v.code_snippet}
+                </div>
+              )}
+              {hazard && (
+                <div className="text-[11px] text-rose-300/90 bg-rose-950/30 p-2 rounded border border-rose-900/40 leading-relaxed">
+                  <span className="font-semibold text-rose-200 block text-[10px] uppercase tracking-wide mb-0.5">🧠 Architectural Hazard (XAI):</span>
+                  {hazard}
+                </div>
+              )}
+              {remediation && (
+                <div className="text-[11px] text-emerald-300/90 bg-emerald-950/20 p-2 rounded border border-emerald-900/30 leading-relaxed">
+                  <span className="font-semibold text-emerald-200 block text-[10px] uppercase tracking-wide mb-0.5">💡 Remediation:</span>
+                  {remediation}
+                </div>
+              )}
+            </div>
           );
         }) : <Empty text="Run an audit to list violations." />)}
 

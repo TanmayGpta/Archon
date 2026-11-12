@@ -11,8 +11,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_AGAI_API_URL="https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io"
-ARG NEXT_PUBLIC_API_URL="https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io"
+ARG NEXT_PUBLIC_AGAI_API_URL=""
+ARG NEXT_PUBLIC_API_URL=""
 ENV NEXT_PUBLIC_AGAI_API_URL=$NEXT_PUBLIC_AGAI_API_URL \
     NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_TELEMETRY_DISABLED=1
@@ -26,7 +26,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    BACKEND_INTERNAL_URL="https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io"
+    BACKEND_INTERNAL_URL=""
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./

@@ -21,15 +21,11 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const defaultBackend =
-      process.env.NODE_ENV === "development"
-        ? "http://127.0.0.1:8100"
-        : "https://archon-agai-backend.wittymeadow-d0c20aa4.eastasia.azurecontainerapps.io";
     const backend =
       process.env.AGAI_BACKEND_URL ||
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_AGAI_API_URL ||
-      defaultBackend;
+      "http://127.0.0.1:8100";
     return [
       {
         source: "/api/:path*",
