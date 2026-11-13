@@ -35,7 +35,7 @@ from archon_agai.config import (ALLOWED_ROOTS, BUILTIN_PROJECTS, SECRET_PARTS, D
                                 RUNS_DIR, require_llm_key, to_container, to_host)
 from archon_agai.guardrails import is_writable, resolve_allowed_path, screen_user_prompt
 from archon_agai.pricing import estimate_cost
-from archon_agai.schemas import AuditResult, HealingReport, HealingRequest
+from archon_agai.schemas import AgentEvent, AuditResult, HealingReport, HealingRequest
 from conformance.studio.api import router as conformance_router
 
 observability.setup("archon-guard-gateway")
@@ -228,8 +228,15 @@ async def _heal_job(sid: str, max_attempts: int) -> None:
             events.emit(sid, "gateway", "error", f"Healing server on {HEALING_A2A_URL} is unreachable: {e}. Start port 8101.")
             return
 
+        relay = _CrewEventRelay(sid)
+        await relay.baseline()
         events.emit(sid, "a2a", "a2a_send", "ADK -> ArchonHealingCrew (A2A SendMessage)")
-        text = await _run("heal", sid, hreq.model_dump_json())
+        relay_task = asyncio.create_task(relay.run(t0))
+        try:
+            text = await _run("heal", sid, hreq.model_dump_json())
+        finally:
+            relay_task.cancel()
+            await relay.poll()  # final drain so flow_end/verification land before a2a_result
         report = HealingReport.model_validate_json(_extract_json(text))
         await _patch_state(sid, {"healing_report": report.model_dump()})
         events.emit(sid, "a2a", "a2a_result", f"status={report.status} attempts={report.attempts}",
@@ -241,6 +248,62 @@ async def _heal_job(sid: str, max_attempts: int) -> None:
         await _patch_state(sid, {"timings": {**st.get("timings", {}), "heal_s": round(time.perf_counter() - t0, 2)}})
         observability.flush()
         events.emit(sid, "gateway", "heal_done", "")
+
+
+class _CrewEventRelay:
+    """Mirrors the healing server's events into this process's SSE stream while a heal runs.
+
+    The event bus is per-process and the crew runs behind A2A in another process (or host), so without this
+    the UI goes silent after `a2a_send` until the whole heal returns. Polls GET {HEALING_A2A_URL}/events/{sid}.
+    """
+    POLL_S = 2.0
+    HEARTBEAT_S = 30.0
+
+    def __init__(self, sid: str):
+        self.sid, self.n, self.enabled, self.last_new = sid, 0, True, time.perf_counter()
+
+    async def _fetch(self, after: int) -> Optional[list]:
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(f"{HEALING_A2A_URL}/events/{self.sid}", params={"after": after})
+            if res.status_code == 404:  # older healing server without the route: stay quiet, heal still works
+                self.enabled = False
+                return None
+            res.raise_for_status()
+            return res.json()
+        except Exception:
+            return None  # transient; the next poll retries
+
+    async def baseline(self) -> None:
+        """Skip events from earlier heals of this session."""
+        evs = await self._fetch(0)
+        self.n = len(evs) if evs else 0
+
+    async def poll(self) -> None:
+        if not self.enabled:
+            return
+        evs = await self._fetch(self.n) or []
+        for raw in evs:
+            try:
+                ev = AgentEvent.model_validate(raw)
+            except Exception:
+                continue
+            if ev.kind == "error":  # crew-internal errors are recoverable; 'error' would end the UI's busy state
+                ev.kind = "warning"
+            events.relay(ev)
+        if evs:
+            self.n += len(evs)
+            self.last_new = time.perf_counter()
+
+    async def run(self, t0: float) -> None:
+        while True:
+            await asyncio.sleep(self.POLL_S)
+            await self.poll()
+            if time.perf_counter() - self.last_new >= self.HEARTBEAT_S:
+                self.last_new = time.perf_counter()
+                events.emit(self.sid, "gateway", "heartbeat",
+                            f"Healing crew still working ({int(time.perf_counter() - t0)}s elapsed)")
 
 
 def _extract_json(text: str) -> str:

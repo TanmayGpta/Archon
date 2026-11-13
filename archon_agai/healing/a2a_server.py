@@ -2,6 +2,7 @@
 
     GET  /.well-known/agent-card.json   agent card (capabilities, skill, endpoint)
     POST /                              JSON-RPC: SendMessage with a HealingRequest JSON text part
+    GET  /events/{sid}?after=N          crew progress events (polled by the gateway for the live UI feed)
 
 Run:  python -m archon_agai.healing.a2a_server
 """
@@ -17,8 +18,11 @@ from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
-from archon_agai import observability
+from archon_agai import events, observability
 from archon_agai.config import HEALING_A2A_URL, HEALING_PORT
 from archon_agai.events import emit
 from archon_agai.healing.crew import run_healing
@@ -69,13 +73,22 @@ class HealingExecutor(AgentExecutor):
         raise NotImplementedError("cancel not supported")
 
 
+async def session_events(request: Request) -> JSONResponse:
+    """Events this process emitted for a session, from index `after`. The gateway polls it during a heal so the
+    crew's progress reaches the UI (the event bus is per-process)."""
+    after = max(int(request.query_params.get("after", "0") or 0), 0)
+    evs = events.history(request.path_params["sid"])[after:]
+    return JSONResponse([e.model_dump(mode="json") for e in evs])
+
+
 def build_app() -> Starlette:
     observability.setup("archon-healing-crew")
     handler = DefaultRequestHandler(agent_executor=HealingExecutor(), task_store=InMemoryTaskStore(),
                                     agent_card=AGENT_CARD)
     app = Starlette()
     app.routes.extend([*create_agent_card_routes(AGENT_CARD),
-                       *create_jsonrpc_routes(handler, rpc_url="/", enable_v0_3_compat=True)])
+                       *create_jsonrpc_routes(handler, rpc_url="/", enable_v0_3_compat=True),
+                       Route("/events/{sid}", session_events, methods=["GET"])])
     return app
 
 

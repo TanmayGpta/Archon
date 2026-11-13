@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
@@ -23,8 +24,8 @@ from crewai.mcp import MCPServerStdio, create_static_tool_filter
 from pydantic import BaseModel
 
 from archon_agai import engine
-from archon_agai.config import (CREW_MODEL, DEMO_CODEBASE, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, LLM_TIMEOUT_S,
-                                OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, FS_MCP_COMMAND, fs_mcp_args)
+from archon_agai.config import (CREW_MODEL, DEMO_CODEBASE, HEAL_BUDGET_S, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_RETRIES,
+                                LLM_MAX_TOKENS, LLM_TIMEOUT_S, OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, FS_MCP_COMMAND, fs_mcp_args)
 from archon_agai.events import emit
 from archon_agai.guardrails import check_patch_file
 from archon_agai.schemas import (FilePatch, HealingPlan, HealingReport, HealingRequest, PatchSet,
@@ -43,6 +44,10 @@ class HealState(BaseModel):
     usage: dict = {}
     cache_key: Optional[str] = None  # set only for the bundled demo codebase
     from_cache: bool = False
+    started_at: float = 0.0
+    # Best rejected attempt so far (fewest remaining violations): returned instead of the last one on give-up.
+    best_patches: List[FilePatch] = []
+    best_verification: Optional[VerificationResult] = None
 
 
 # --------------------------------------------------------------------------- tools (MCP)
@@ -172,7 +177,8 @@ class HealingFlow(Flow[HealState]):
         super().__init__(**kw)
         self.session_id = session_id
         self.llm = LLM(model=f"openai/{CREW_MODEL}", base_url=LLM_BASE_URL, api_key=LLM_API_KEY or "missing",
-                       temperature=0.1, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT_S)
+                       temperature=0.1, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT_S,
+                       max_retries=LLM_MAX_RETRIES)
         self.step_cb, self.task_cb = _callbacks(session_id)
         # Debate & Arbiter heads: Purist and Pragmatist argue, the Arbiter rules with a HealingPlan.
         self.purist_agent = Agent(
@@ -191,7 +197,9 @@ class HealingFlow(Flow[HealState]):
             role="Arbiter-ChiefArchitect",
             goal="Weigh arguments from Purist and Pragmatist agents to synthesize an authoritative, minimal Dependency Inversion plan",
             backstory="Head Architect with binding decision authority who balances purity with practical system stability.",
-            llm=self.llm, mcps=[archon_mcp()], allow_delegation=False, max_iter=2,
+            # No MCP tools: violations and sources are already in the prompt, and tool discovery cost extra
+            # LLM round-trips. The Refactoring Specialist keeps both MCP servers.
+            llm=self.llm, allow_delegation=False, max_iter=2,
         )
 
     def _kickoff(self, agent: Agent, task: Task, inputs: dict):
@@ -228,6 +236,7 @@ class HealingFlow(Flow[HealState]):
     @start()
     def plan(self):
         req = self.state.request
+        self.state.started_at = time.monotonic()
         emit(self.session_id, "crewai", "flow_step", "Debate & Arbiter: designing DIP ports", agent="Arbiter-ChiefArchitect")
         files = sorted({v.file_path for v in req.audit.violations if v.file_path})
         self.state.sources = "\n\n".join(
@@ -242,15 +251,19 @@ class HealingFlow(Flow[HealState]):
             self.state.patches = [FilePatch.model_validate(p) for p in cached["patches"]]
             self.state.from_cache = True
             return
+        # The debaters argue from the violation list (which carries the offending line); only the Arbiter, who
+        # designs the ports, needs the full source. Keeps the two debate prompts small and fast.
+        brief = ("Layer violations (deterministic audit):\n{violations}\n\n"
+                 "main.py is the composition root: it may import every layer to wire adapters into ports.")
         context = ("Layer violations (deterministic audit):\n{violations}\n\nSource of offending files:\n{sources}\n\n"
                    "main.py is the composition root: it may import every layer to wire adapters into ports.")
         purist_task = Task(
-            description=context + "\n\nArgue, in under 120 words, for the strictest Dependency Inversion fix of these violations.",
+            description=brief + "\n\nArgue, in under 120 words, for the strictest Dependency Inversion fix of these violations.",
             expected_output="A short position statement", agent=self.purist_agent,
         )
         pragmatist_task = Task(
-            description=context + "\n\nRebut the Purist in under 120 words: which abstractions are unnecessary, and how "
-                                  "should main.py stay the composition root?",
+            description=brief + "\n\nRebut the Purist in under 120 words: which abstractions are unnecessary, and how "
+                                "should main.py stay the composition root?",
             expected_output="A short position statement", agent=self.pragmatist_agent, context=[purist_task],
         )
         task = Task(
@@ -287,7 +300,8 @@ class HealingFlow(Flow[HealState]):
             role="Refactoring Specialist",
             goal="Write surgical search/replace patches that implement the architect's ports exactly",
             backstory="Senior Python engineer. Makes the smallest correct change; never deletes behaviour.",
-            llm=self.llm, mcps=[archon_mcp(), filesystem_mcp(req.codebase_path)], allow_delegation=False, max_iter=6,
+            # Sources are already in the prompt, so a few tool rounds suffice; each extra iteration is an LLM call.
+            llm=self.llm, mcps=[archon_mcp(), filesystem_mcp(req.codebase_path)], allow_delegation=False, max_iter=3,
         )
         task = Task(
             description=(
@@ -298,7 +312,7 @@ class HealingFlow(Flow[HealState]):
                 "never touch tests or JSON files."),
             expected_output="PatchSet JSON",
             agent=specialist, output_pydantic=PatchSet,
-            guardrail=patch_guardrail(req.codebase_path), guardrail_max_retries=2,
+            guardrail=patch_guardrail(req.codebase_path), guardrail_max_retries=1,
         )
         out = self._kickoff(specialist, task, {
             "codebase": req.codebase_path,
@@ -328,7 +342,18 @@ class HealingFlow(Flow[HealState]):
 
         if result.passed:
             return "done"
-        if self.state.attempt >= req.max_attempts:
+        best = self.state.best_verification
+        if best is None or (result.violations_after, len(result.new_violation_ids)) < \
+                (best.violations_after, len(best.new_violation_ids)):
+            self.state.best_verification, self.state.best_patches = result, list(self.state.patches)
+        elapsed = time.monotonic() - self.state.started_at
+        if self.state.attempt >= req.max_attempts or elapsed > HEAL_BUDGET_S:
+            if elapsed > HEAL_BUDGET_S and self.state.attempt < req.max_attempts:
+                emit(self.session_id, "crewai", "flow_step",
+                     f"Time budget reached ({int(elapsed)}s > {int(HEAL_BUDGET_S)}s): stopping retries")
+            # Report the best attempt, not merely the last one (a later retry can regress).
+            self.state.verification, self.state.patches = self.state.best_verification, self.state.best_patches
+            self.state.summary_markdown = _review_markdown(self.state.verification, self.state.patches)
             return "give_up"
         self.state.feedback = "\n".join(
             (["No patches reached the verifier; return a valid PatchSet JSON."] if not self.state.patches else [])

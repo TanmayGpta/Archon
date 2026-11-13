@@ -55,6 +55,11 @@ def _resolve_llm_base_url() -> str:
     return "http://127.0.0.1:31415/v1"
 
 LLM_BASE_URL = _resolve_llm_base_url()
+# Local FreeLLMAPI router: rotates across many free providers, some of which stall. Fail fast there so the
+# retry is re-routed to another provider. Hosted (Groq etc.) keeps the original, more patient settings.
+IS_FREELLMAPI = ":31415" in LLM_BASE_URL
+
+
 def _resolve_model(env_var: str, default: str) -> str:
     val = os.getenv(env_var, "").strip()
     if not val:
@@ -139,7 +144,11 @@ HEALING_A2A_URL = os.getenv("AGAI_HEALING_A2A_URL", "http://127.0.0.1:8101")
 HEALING_TIMEOUT_S = float(os.getenv("AGAI_HEALING_TIMEOUT_S", "1800"))  # free providers can be slow
 LLM_MAX_TOKENS = int(os.getenv("AGAI_LLM_MAX_TOKENS", "8192"))  # patches need room; some routes cap at 2048
 # Per-request cap: a stalled free provider otherwise hangs a heal step indefinitely.
-LLM_TIMEOUT_S = float(os.getenv("AGAI_LLM_TIMEOUT_S", "180"))
+LLM_TIMEOUT_S = float(os.getenv("AGAI_LLM_TIMEOUT_S") or ("90" if IS_FREELLMAPI else "180"))
+# Client-side retries per LLM call (OpenAI SDK default is 2, i.e. a stalled call costs 3x the timeout).
+LLM_MAX_RETRIES = int(os.getenv("AGAI_LLM_MAX_RETRIES") or ("1" if IS_FREELLMAPI else "2"))
+# Wall-clock budget for healing: no new patch attempt starts after this; the best attempt so far is returned.
+HEAL_BUDGET_S = float(os.getenv("AGAI_HEAL_BUDGET_S", "900"))
 # CrewAI phones home to its telemetry collector on every kickoff; off unless explicitly enabled.
 os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
 if not (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")):

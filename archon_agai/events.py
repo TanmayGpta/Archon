@@ -42,6 +42,19 @@ def emit(session_id: str, framework: str, kind: str, message: str = "",
     return ev
 
 
+def relay(ev: AgentEvent) -> None:
+    """Publish an event produced by another process (the healing server) to this process's live stream.
+
+    Not appended to the JSONL log: locally the healing server already writes the same file, and on separate
+    hosts it keeps its own log, so persisting here would only duplicate lines.
+    """
+    with _lock:
+        _history[ev.session_id].append(ev)
+        subs = list(_subscribers[ev.session_id])
+    for loop, q in subs:
+        loop.call_soon_threadsafe(q.put_nowait, ev)
+
+
 def subscribe(session_id: str) -> asyncio.Queue:
     q: asyncio.Queue = asyncio.Queue()
     loop = asyncio.get_running_loop()

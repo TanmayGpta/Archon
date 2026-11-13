@@ -20,7 +20,8 @@ from mcp import StdioServerParameters
 
 from archon_agai.callbacks import AGENT_CALLBACKS, LLM_CALLBACKS
 from archon_agai.config import (ADK_MODEL, ALLOWED_ROOTS, READONLY_ROOTS, FS_MCP_COMMAND, HEALING_A2A_URL, HEALING_TIMEOUT_S,
-                                LLM_API_KEY, LLM_BASE_URL, OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, fs_mcp_args)
+                                IS_FREELLMAPI, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_RETRIES, LLM_TIMEOUT_S,
+                                OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, fs_mcp_args)
 from archon_agai.schemas import AuditNarrative
 
 
@@ -29,6 +30,8 @@ llm = LiteLlm(
     api_base=LLM_BASE_URL,
     api_key=LLM_API_KEY or "missing",
     fallbacks=[{"model": OLLAMA_MODEL, "api_base": OLLAMA_BASE_URL}],
+    # Local FreeLLMAPI only: without a timeout litellm waits up to 600s on a stalled provider.
+    **({"timeout": LLM_TIMEOUT_S, "num_retries": LLM_MAX_RETRIES} if IS_FREELLMAPI else {}),
 )
 
 archon_tools = McpToolset(
