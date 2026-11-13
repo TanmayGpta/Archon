@@ -55,8 +55,17 @@ def _resolve_llm_base_url() -> str:
     return "http://127.0.0.1:31415/v1"
 
 LLM_BASE_URL = _resolve_llm_base_url()
-ADK_MODEL = os.getenv("AGAI_ADK_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
-CREW_MODEL = os.getenv("AGAI_CREW_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
+def _resolve_model(env_var: str, default: str) -> str:
+    val = os.getenv(env_var, "").strip()
+    if not val:
+        return default
+    # If using local FreeLLMAPI, OpenRouter-specific `:free` slugs cause 503 on FreeLLMAPI; use auto instead
+    if LLM_API_KEY.startswith("freellmapi") and (":free" in val or "/" in val):
+        return "auto"
+    return val
+
+ADK_MODEL = _resolve_model("AGAI_ADK_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
+CREW_MODEL = _resolve_model("AGAI_CREW_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
 
 # Local offline Ollama fallback (e.g. Qwen 2.5 Coder 3B on 127.0.0.1:11434)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
