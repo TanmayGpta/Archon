@@ -20,11 +20,16 @@ from mcp import StdioServerParameters
 
 from archon_agai.callbacks import AGENT_CALLBACKS, LLM_CALLBACKS
 from archon_agai.config import (ADK_MODEL, ALLOWED_ROOTS, READONLY_ROOTS, FS_MCP_COMMAND, HEALING_A2A_URL, HEALING_TIMEOUT_S,
-                                LLM_API_KEY, LLM_BASE_URL, REPO_ROOT, fs_mcp_args)
+                                LLM_API_KEY, LLM_BASE_URL, OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, fs_mcp_args)
 from archon_agai.schemas import AuditNarrative
 
 
-llm = LiteLlm(model=f"openai/{ADK_MODEL}", api_base=LLM_BASE_URL, api_key=LLM_API_KEY or "missing")
+llm = LiteLlm(
+    model=f"openai/{ADK_MODEL}",
+    api_base=LLM_BASE_URL,
+    api_key=LLM_API_KEY or "missing",
+    fallbacks=[{"model": OLLAMA_MODEL, "api_base": OLLAMA_BASE_URL}],
+)
 
 archon_tools = McpToolset(
     connection_params=StdioConnectionParams(

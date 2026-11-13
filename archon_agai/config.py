@@ -38,10 +38,27 @@ except Exception:
 
 # LLMs go through FreeLLMAPI, a local OpenAI-compatible router (override in .env).
 # "auto" lets the router pick a provider; pin a model id (see GET /v1/models) for reproducible evals.
-LLM_BASE_URL = os.getenv("AGAI_LLM_BASE_URL", "http://127.0.0.1:31415/v1")
 LLM_API_KEY = os.getenv("FREELLMAPI_KEY") or os.getenv("OPENROUTER_KEY") or os.getenv("OPENROUTER_API_KEY") or ""
-ADK_MODEL = os.getenv("AGAI_ADK_MODEL", "auto")
-CREW_MODEL = os.getenv("AGAI_CREW_MODEL", "auto")
+
+def _resolve_llm_base_url() -> str:
+    custom_url = os.getenv("AGAI_LLM_BASE_URL", "")
+    if custom_url:
+        # If custom URL points to Groq but the user's key is a local FreeLLMAPI key (not gsk_),
+        # do not send FreeLLMAPI key to Groq — route to local FreeLLMAPI router instead!
+        if "groq.com" in custom_url and not LLM_API_KEY.startswith("gsk_"):
+            return "http://127.0.0.1:31415/v1"
+        return custom_url
+    if LLM_API_KEY.startswith("gsk_"):
+        return "https://api.groq.com/openai/v1"
+    return "http://127.0.0.1:31415/v1"
+
+LLM_BASE_URL = _resolve_llm_base_url()
+ADK_MODEL = os.getenv("AGAI_ADK_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
+CREW_MODEL = os.getenv("AGAI_CREW_MODEL", "openai/gpt-oss-120b" if LLM_API_KEY.startswith("gsk_") else "auto")
+
+# Local offline Ollama fallback (e.g. Qwen 2.5 Coder 3B on localhost:11434)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "ollama/qwen2.5-coder:3b")
 
 # Codebases the agents may heal / write. Anything outside these roots is rejected by guardrails.
 ALLOWED_ROOTS = [

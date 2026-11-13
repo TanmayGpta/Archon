@@ -1399,6 +1399,7 @@ export function VSCodeAgentIDE({
         setRecentProjects(data.recent_projects || []);
         setShowOpenProjectModal(false);
         setIsGitHubWorkspace(false);
+        onClosePreview?.();
         onProjectChange?.({ kind: 'local', path: data.project_path });
         setOpenTabs([]);
         setActiveTabPath('');
@@ -2319,12 +2320,27 @@ export function VSCodeAgentIDE({
 
   // A patch preview opens its target file; the diff then replaces the editor while it's set.
   useEffect(() => {
-    if (patchPreview?.operation === 'modify') handleOpenFile(patchPreview.path);
+    if (!patchPreview) return;
+    if (patchPreview.operation === 'modify') {
+      handleOpenFile(patchPreview.path);
+    } else if (patchPreview.operation === 'create') {
+      const fileName = patchPreview.path.split(/[\\/]/).pop() || patchPreview.path;
+      const existing = openTabs.find(t => pathHits(t.path, patchPreview.path));
+      if (!existing) {
+        const newTab = {
+          path: patchPreview.path,
+          name: fileName,
+          content: patchPreview.content || '',
+          original: ''
+        };
+        setOpenTabs(prev => [...prev, newTab]);
+      }
+      setActiveTabPath(patchPreview.path);
+    }
   }, [patchPreview]); // eslint-disable-line react-hooks/exhaustive-deps
   // Files with a pending patch open as a diff (from the explorer too) unless the preview was closed for that tab.
   const [rawViewPath, setRawViewPath] = useState<string | null>(null);
-  const shownPatch = patchPreview &&
-    (patchPreview.operation === 'create' || (!!activeTabPath && pathHits(activeTabPath, patchPreview.path)))
+  const shownPatch = patchPreview && (!!activeTabPath && pathHits(activeTabPath, patchPreview.path))
     ? patchPreview
     : (activeTabPath && activeTabPath !== rawViewPath
       ? pendingPatches.find(p => p.operation === 'modify' && pathHits(activeTabPath, p.path)) ?? null
@@ -3778,6 +3794,7 @@ export function VSCodeAgentIDE({
         onClose={() => setShowGitHubModal(false)}
         apiBase={apiBase}
         onOpenRepo={(info, branch, tree, token) => {
+          onClosePreview?.();
           setGithubRepoInfo(info);
           setGithubToken(token);
           setIsGitHubWorkspace(true);
@@ -3817,6 +3834,7 @@ export function VSCodeAgentIDE({
             });
             if (res.ok) {
               const data = await res.json();
+              onClosePreview?.();
               setGithubRepoInfo(data.repo_info);
               setIsGitHubWorkspace(true);
               setCurrentGitHubBranch(data.branch);
@@ -3846,6 +3864,7 @@ export function VSCodeAgentIDE({
               });
               if (res.ok) {
                 const data = await res.json();
+                onClosePreview?.();
                 setIsGitHubWorkspace(true);
                 setCurrentGitHubBranch(data.branch);
                 setCurrentProjectName(data.repo_info.full_name);

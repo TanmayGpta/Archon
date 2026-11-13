@@ -78,9 +78,16 @@ export default function ArchonGuardPage() {
     }));
   }, [s.state]);
 
+  // Proposed patch shown as a red/green diff in the editor. Tagged with canvasKey so it lapses
+  // automatically once an apply/revert/audit changes the files.
+  const [previewState, setPreviewState] = useState<{ p: FilePatch; key: number } | null>(null);
+  const preview = previewState?.key === s.canvasKey ? previewState.p : null;
+  const setPreview = useCallback((p: FilePatch | null) => setPreviewState(p ? { p, key: s.canvasKey } : null), [s.canvasKey]);
+
   // Whatever the IDE opens becomes the guarded codebase. GitHub repos are cloned locally first,
   // because audit / sandbox verification / apply all need real files; the IDE then switches to the clone.
   const onProjectChange = useCallback(async (p: IdeProject) => {
+    setPreview(null);
     if (p.kind === 'github') {
       const local = await s.importGitHub(p.repo, p.branch, p.token);
       // A Dockerised orchestrator reports container paths and needs the clone's container path too.
@@ -91,13 +98,7 @@ export default function ArchonGuardPage() {
     if (p.path === guardedPath.current) return;
     guardedPath.current = p.path;
     s.start(p.path);
-  }, [s.importGitHub, s.start]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Proposed patch shown as a red/green diff in the editor. Tagged with canvasKey so it lapses
-  // automatically once an apply/revert/audit changes the files.
-  const [previewState, setPreviewState] = useState<{ p: FilePatch; key: number } | null>(null);
-  const preview = previewState?.key === s.canvasKey ? previewState.p : null;
-  const setPreview = useCallback((p: FilePatch | null) => setPreviewState(p ? { p, key: s.canvasKey } : null), [s.canvasKey]);
+  }, [s.importGitHub, s.start, setPreview]);
 
   // Healing patches and reverts write to disk behind the IDE's back; pull them into the open tabs.
   useEffect(() => { ide.current?.reload(); }, [s.canvasKey]);

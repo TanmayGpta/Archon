@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from archon_agai import engine
 from archon_agai.config import (CREW_MODEL, DEMO_CODEBASE, LLM_API_KEY, LLM_BASE_URL, LLM_MAX_TOKENS, LLM_TIMEOUT_S,
-                                REPO_ROOT, FS_MCP_COMMAND, fs_mcp_args)
+                                OLLAMA_BASE_URL, OLLAMA_MODEL, REPO_ROOT, FS_MCP_COMMAND, fs_mcp_args)
 from archon_agai.events import emit
 from archon_agai.guardrails import check_patch_file
 from archon_agai.schemas import (FilePatch, HealingPlan, HealingReport, HealingRequest, PatchSet,
@@ -200,7 +200,24 @@ class HealingFlow(Flow[HealState]):
     def _kickoff_tasks(self, agents: List[Agent], tasks: List[Task], inputs: dict):
         crew = Crew(agents=agents, tasks=tasks, process=Process.sequential,
                     step_callback=self.step_cb, task_callback=self.task_cb, verbose=False)
-        out = crew.kickoff(inputs=inputs)
+        try:
+            out = crew.kickoff(inputs=inputs)
+        except Exception as primary_err:
+            emit(self.session_id, "crewai", "retry",
+                 f"Primary LLM failed ({type(primary_err).__name__}); attempting local {OLLAMA_MODEL} fallback",
+                 data={"error": str(primary_err)})
+            try:
+                fallback_llm = LLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, api_key="ollama",
+                                   temperature=0.1, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT_S)
+                for a in agents:
+                    a.llm = fallback_llm
+                self.llm = fallback_llm
+                fallback_crew = Crew(agents=agents, tasks=tasks, process=Process.sequential,
+                                     step_callback=self.step_cb, task_callback=self.task_cb, verbose=False)
+                out = fallback_crew.kickoff(inputs=inputs)
+            except Exception as fallback_err:
+                raise primary_err from fallback_err
+
         tu = getattr(out, "token_usage", None)
         if tu:
             u = self.state.usage
