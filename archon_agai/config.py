@@ -41,15 +41,17 @@ except Exception:
 LLM_API_KEY = os.getenv("FREELLMAPI_KEY") or os.getenv("OPENROUTER_KEY") or os.getenv("OPENROUTER_API_KEY") or ""
 
 def _resolve_llm_base_url() -> str:
-    custom_url = os.getenv("AGAI_LLM_BASE_URL", "")
-    if custom_url:
-        # If custom URL points to Groq but the user's key is a local FreeLLMAPI key (not gsk_),
-        # do not send FreeLLMAPI key to Groq — route to local FreeLLMAPI router instead!
-        if "groq.com" in custom_url and not LLM_API_KEY.startswith("gsk_"):
-            return "http://127.0.0.1:31415/v1"
-        return custom_url
+    # 1. If key is a local FreeLLMAPI key, it MUST go to local FreeLLMAPI router (:31415),
+    # regardless of any stale cloud AGAI_LLM_BASE_URL in .env
+    if LLM_API_KEY.startswith("freellmapi"):
+        return "http://127.0.0.1:31415/v1"
+    # 2. If key is a Groq key (starts with 'gsk_'), route to Groq
     if LLM_API_KEY.startswith("gsk_"):
         return "https://api.groq.com/openai/v1"
+    # 3. Explicit cloud override (e.g. Azure / custom endpoint)
+    custom_url = os.getenv("AGAI_LLM_BASE_URL", "")
+    if custom_url:
+        return custom_url
     return "http://127.0.0.1:31415/v1"
 
 LLM_BASE_URL = _resolve_llm_base_url()
