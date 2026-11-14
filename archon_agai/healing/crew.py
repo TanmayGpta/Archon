@@ -134,6 +134,18 @@ def patch_guardrail(codebase: str):
 
 DEMO_CACHE = Path(__file__).with_name("demo_cache.json")
 
+# A cached heal emits its whole trace in milliseconds; pace it so the live agent view is watchable in a demo.
+# Total seconds spread over the cached steps; 0 disables (eval sets it to 0).
+try:
+    DEMO_PACE_S = max(0.0, float(os.getenv("ARCHON_DEMO_PACE_S", "6")))
+except ValueError:
+    DEMO_PACE_S = 6.0
+
+
+def _pace(fraction: float) -> None:
+    if DEMO_PACE_S:
+        time.sleep(DEMO_PACE_S * fraction)
+
 
 def _demo_key(req: HealingRequest, sources: str) -> Optional[str]:
     if Path(req.codebase_path).resolve() != Path(DEMO_CODEBASE).resolve():
@@ -244,9 +256,13 @@ class HealingFlow(Flow[HealState]):
         self.state.cache_key = _demo_key(req, self.state.sources)
         cached = _load_demo(self.state.cache_key)
         if cached:
+            _pace(0.10)
             emit(self.session_id, "crewai", "debate", "Advocates strict Dependency Inversion: extract database queries and presentation auth imports in Domain into domain-owned typing.Protocol ports.", agent="DebateAgent-Purist")
+            _pace(0.20)
             emit(self.session_id, "crewai", "debate", "Argues against over-engineering: preserve main.py as the Composition Root for DI wiring to avoid artificial layer violations.", agent="DebateAgent-Pragmatist")
+            _pace(0.20)
             emit(self.session_id, "crewai", "arbiter", "Consensus ruling: create domain/ports.py (QueryPort, ErrorReporter); refactor infrastructure & presentation callers; keep main.py intact. Plan approved.", agent="Arbiter-ChiefArchitect")
+            _pace(0.15)
             self.state.plan = HealingPlan.model_validate(cached["plan"]) if cached["plan"] else None
             self.state.patches = [FilePatch.model_validate(p) for p in cached["patches"]]
             self.state.from_cache = True
@@ -292,6 +308,7 @@ class HealingFlow(Flow[HealState]):
         self.state.attempt += 1
         if self.state.from_cache and self.state.attempt == 1:
             emit(self.session_id, "crewai", "flow_step", "Refactoring Specialist: generating AST patch sets (ports, dependency injection wiring) from arbiter consensus", agent="RefactoringSpecialist")
+            _pace(0.35)
             return
         req = self.state.request
         emit(self.session_id, "crewai", "flow_step", f"Refactoring Specialist: writing patches (attempt {self.state.attempt})",
