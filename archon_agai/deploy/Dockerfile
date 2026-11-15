@@ -2,8 +2,8 @@
 #   docker build -f archon_agai/deploy/Dockerfile -t archon-guard .
 FROM python:3.13-slim
 
-# Node.js for the external Filesystem MCP server (npx)
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+# Node.js for the external Filesystem MCP server (npx) + git for importing codebases
+RUN apt-get update && apt-get install -y --no-install-recommends git nodejs npm \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g @modelcontextprotocol/server-filesystem@2025.8.21
 

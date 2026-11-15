@@ -454,9 +454,16 @@ async def github_import(req: GitHubImportReq):
         cmds = [["git", *auth, "clone", "--depth", "1", *(["--branch", req.branch] if req.branch else []),
                  f"https://github.com/{slug}.git", str(dest)]]
     for cmd in cmds:
-        r = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=300)
-        if r.returncode != 0 and not (dest / ".git").exists():
-            raise HTTPException(502, f"git failed: {r.stderr.strip()[-400:]}")
+        try:
+            r = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0 and not (dest / ".git").exists():
+                raise HTTPException(502, f"git failed: {r.stderr.strip()[-400:]}")
+        except FileNotFoundError:
+            raise HTTPException(500, "git is not installed on the server backend")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(500, f"GitHub import error: {e}")
     return {"codebase_path": str(dest), "container_path": to_container(str(dest)), "healable": is_writable(dest)}
 
 

@@ -1,0 +1,19 @@
+{
+  "started_at": 1794767714.6116135,
+  "finished_at": 1794768299.9377964,
+  "agent_model": "auto",
+  "judge_model": "auto",
+  "base_url": "http://127.0.0.1:31415/v1",
+  "exit_codes": {
+    "audit_archon_this_repo": 0,
+    "audit_e_commerce_demo_seeded_violations": 0,
+    "redirect_e_commerce_demo_seeded_violations": 0,
+    "guardrail_injection_e_commerce_demo_seeded_violations": 0
+  },
+  "result_files": [
+    "archon_audit_archon_audit_1794767878.6879704.evalset_result.json",
+    "archon_audit_archon_audit_1794768038.0522692.evalset_result.json",
+    "archon_audit_archon_audit_1794768272.7438502.evalset_result.json",
+    "archon_audit_archon_guardrails_1794768298.3811374.evalset_result.json"
+  ]
+}
