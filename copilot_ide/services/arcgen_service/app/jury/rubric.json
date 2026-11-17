@@ -13,15 +13,16 @@
   ],
   "cloud_jurors": [
     {"model": "llama-3.3-70b-versatile", "family": "llama", "provider": "groq"},
-    {"model": "qwen/qwen3.8-27b", "family": "qwen", "provider": "groq"},
+    {"model": "qwen/qwen3.8-27b", "family": "qwen", "provider": "groq", "prompt_suffix": "/no_think", "think": false},
     {"model": "openai/gpt-oss-120b", "family": "openai", "provider": "groq"},
-    {"model": "deepseek-r1-distill-qwen-32b", "family": "deepseek", "provider": "groq"},
-    {"model": "llama-3.1-8b-instant", "family": "llama", "provider": "groq"}
+    {"model": "openai/gpt-oss-20b", "family": "openai", "provider": "groq"},
+    {"model": "deepseek-r1-distill-qwen-32b", "family": "deepseek", "provider": "groq"}
   ],
   "cloud_spares": [
-    {"model": "allam-2-7b", "family": "allam", "provider": "groq"},
     {"model": "openai/gpt-oss-20b", "family": "openai", "provider": "groq"},
+    {"model": "qwen/qwen3.8-27b", "family": "qwen", "provider": "groq", "prompt_suffix": "/no_think", "think": false},
     {"model": "llama-3.1-8b-instant", "family": "llama", "provider": "groq"},
+    {"model": "allam-2-7b", "family": "allam", "provider": "groq", "prompt_suffix": "\nIMPORTANT: Reply in English only. Output JSON only."},
     {"model": "gemini-2.5-flash", "family": "google", "provider": "omnikey"}
   ],
   "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},

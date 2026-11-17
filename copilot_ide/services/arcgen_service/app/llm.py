@@ -123,10 +123,22 @@ def clean_thinking(text: str) -> str:
         return ""
     # Remove <think>...</think>, <thought>...</thought>, <reasoning>...</reasoning>
     cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*?</\1>", "", text, flags=re.IGNORECASE)
-    # Remove unclosed opening tag if truncated
+    # Remove unclosed opening tag if truncated (whole tail is thinking)
     if re.search(r"<(think|thought|reasoning)>", cleaned, re.IGNORECASE) and not re.search(r"</(think|thought|reasoning)>", cleaned, re.IGNORECASE):
         cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*$", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+    # Groq Qwen3: thinking tokens sometimes leak as "···\n...text before JSON\n···"
+    # Strip any leading non-JSON preamble before the first { or [
+    stripped = cleaned.strip()
+    first_brace = min(
+        (stripped.find(c) for c in ("{", "[") if stripped.find(c) != -1),
+        default=-1,
+    )
+    if first_brace > 0:
+        # Only trim if what precedes is not actual content (no alphanumeric words forming JSON keys)
+        preamble = stripped[:first_brace]
+        if not re.search(r'"[^"]+"\s*:', preamble):
+            stripped = stripped[first_brace:]
+    return stripped.strip()
 
 
 def safe_parse_json(content: str) -> Any:

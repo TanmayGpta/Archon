@@ -39,14 +39,15 @@ logger = logging.getLogger(__name__)
 
 JUROR_INSTRUCTION = """You are an independent juror reviewing a software architecture generator's work.
 Judge ONLY from the case below. Be strict and literal. Do not assume facts that are not written.
+IMPORTANT: Respond in ENGLISH only. Do not use any other language.
 
 For each question answer "yes" or "no".
 - "yes" means the check passes.
 - "no" means it fails, and you MUST list the IDs that prove it in "cite" (only IDs that appear in the case).
   A "no" without valid IDs is ignored.
 
-Reply with JSON only, no other text:
-{"answers": [{"item": "<question id>", "verdict": "yes" | "no", "cite": ["<ID>", ...], "reason": "<one short sentence>"}]}
+Reply with JSON only, no other text. Do not add thinking, reasoning, or commentary outside the JSON:
+{"answers": [{"item": "<question id>", "verdict": "yes" | "no", "cite": ["<ID>", ...], "reason": "<one short sentence in English>"}]}
 
 === CASE ===
 """
@@ -133,9 +134,11 @@ class AdkJuryPanel:
                 if key:
                     os.environ["GROQ_API_KEY"] = key
                 model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
-                # Only deepseek R1 models on Groq reject response_format
+                # Deepseek R1 and Qwen thinking models reject or misuse response_format
                 is_deepseek_r1 = "deepseek" in spec.model.lower() and "r1" in spec.model.lower()
-                fmt_kwargs = {} if (is_deepseek_r1 or force_no_fmt) else {"response_format": {"type": "json_object"}}
+                is_qwen = "qwen" in spec.model.lower()
+                skip_fmt = is_deepseek_r1 or is_qwen or force_no_fmt
+                fmt_kwargs = {} if skip_fmt else {"response_format": {"type": "json_object"}}
                 model = LiteLlm(
                     model=model_name,
                     api_key=key or None,
