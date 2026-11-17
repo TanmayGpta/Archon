@@ -49,6 +49,8 @@ if [[ -z "$ACR_NAME" ]]; then
 fi
 
 ACR_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+echo -e "${CYAN}🔑 Authenticating with ACR ($ACR_NAME)...${NC}"
+az acr login --name "$ACR_NAME"
 DEFAULT_DOMAIN=$(az containerapp env show --name "$ENV_NAME" --resource-group "$RG" --query "properties.defaultDomain" -o tsv)
 
 API_FQDN="archon-api.$DEFAULT_DOMAIN"
