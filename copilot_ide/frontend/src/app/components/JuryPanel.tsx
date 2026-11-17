@@ -125,10 +125,12 @@ function voteOf(v: JurorVerdict | undefined, itemId: string): Vote {
 
 /** Explain an abstention in words a user can act on. */
 function abstainHint(error: string): string {
-  const e = error.toLowerCase();
+  const e = (error || '').toLowerCase();
   if (e.includes('not found') || e.includes('pull')) return 'model is not installed in Ollama';
   if (e.includes('timeout') || e.includes('timed out')) return 'took too long to answer';
-  if (e.includes('connect')) return "couldn't reach Ollama";
+  if (e.includes('connect') || e.includes('econnrefused')) return "couldn't reach Ollama / API";
+  if (e.includes('rate_limit') || e.includes('429') || e.includes('quota') || e.includes('tpm') || e.includes('rpm')) return 'API rate limit reached';
+  if (e.includes('auth') || e.includes('api_key') || e.includes('api key') || e.includes('401') || e.includes('403') || e.includes('invalid_argument')) return 'API key is missing or invalid';
   if (e.includes('no response')) return 'never answered';
   return 'gave an answer that could not be read';
 }
@@ -493,6 +495,7 @@ function QuestionRow({ id, tally, jurors, byJuror, voters }: {
   const ignored = votes.filter(x => x.vote.kind === 'ignored').length;
   const ok = 'bg-success/15 text-success-fg border-success/30';
   const verdict = !tally ? null
+    : voters === 0 ? { cls: 'bg-raised text-fg-subtle border-line-strong', text: 'Not reviewed' }
     : tally.failed ? { cls: 'bg-warning/20 text-warning-fg border-warning/40', text: `Problem: ${problems} of ${voters} reviewers agree` }
     : problems > 0 ? { cls: ok, text: `Passed: only ${problems} of ${voters} saw a problem` }
     : oks === voters ? { cls: ok, text: `Passed: all ${voters} agree` }

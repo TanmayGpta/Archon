@@ -286,6 +286,35 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     return () => clearTimeout(timer);
   }, [loadData]);
 
+  // Automatically restore API keys from browser localStorage to the backend if the backend lost them (e.g. after container restart)
+  useEffect(() => {
+    try {
+      const groq = localStorage.getItem('archon:key:groq') || '';
+      const omni = localStorage.getItem('archon:key:omnikey') || '';
+      if (!groq && !omni) return;
+      fetch(`${effectiveApiBase}/api/arcgen/llm`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(s => {
+          if (!s?.providers) return;
+          if (groq && !s.providers.groq?.configured) {
+            fetch(`${effectiveApiBase}/api/arcgen/llm/keys/groq`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ api_key: groq.trim() }),
+            }).catch(() => {});
+          }
+          if (omni && !s.providers.omnikey?.configured) {
+            fetch(`${effectiveApiBase}/api/arcgen/llm/keys/omnikey`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ api_key: omni.trim() }),
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    } catch {}
+  }, [effectiveApiBase]);
+
   // Start Elicitation
   const handleStartElicitation = async () => {
     if (!prompt.trim()) return;

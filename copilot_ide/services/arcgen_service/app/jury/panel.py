@@ -172,7 +172,7 @@ class AdkJuryPanel:
         )
 
     async def _judge_many(self, sittings: List[Sitting], on_verdict) -> Dict[CheckpointName, List[JurorVerdict]]:
-        concurrency = 2 if self.is_cloud else max(1, self.rubric.ollama.max_concurrent)
+        concurrency = 1 if self.is_cloud else max(1, self.rubric.ollama.max_concurrent)
         gate = asyncio.Semaphore(concurrency)
         # agent name -> (checkpoint, seat); jurors keyed by model so a model is loaded once
         by_name: Dict[str, Tuple[CheckpointName, Seat]] = {}
@@ -187,44 +187,49 @@ class AdkJuryPanel:
                 per_model.setdefault(spec.model, []).append(agent)
                 order[checkpoint].append(agent.name)
 
-        jurors = []
-        for n, (model, agents) in enumerate(per_model.items(), 1):
-            juror = _GatedJuror(name=f"juror_{n}", sub_agents=agents)
-            juror._gate = gate
-            jurors.append(juror)
-
-        jury = ParallelAgent(name="jury", sub_agents=jurors)
-        runner = InMemoryRunner(agent=jury, app_name="arcgen_jury")
-        session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
         verdicts: Dict[str, JurorVerdict] = {}
-        last = time.monotonic()  # with one juror at a time, the gap between verdicts is that call's time (load included)
-
         message = types.Content(role="user", parts=[types.Part(text="Deliver your verdict as JSON.")])
-        try:
-            async for event in runner.run_async(user_id="arcgen", session_id=session.id, new_message=message):
-                name = event.author
-                if name not in by_name or name in verdicts or not event.is_final_response():
-                    continue
-                checkpoint, (seat, spec, case) = by_name[name]
-                cp = self.rubric.checkpoints[checkpoint]
-                now = time.monotonic()
-                seconds, last = now - last, now
-                # Skip reasoning ("thought") parts from thinking models such as qwen3; keep the answer.
-                parts = event.content.parts if event.content and event.content.parts else []
-                text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
-                if not text.strip():
-                    text = "".join(p.text for p in parts if p.text)
-                if text.startswith(JUROR_ERROR):
-                    v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
-                                     error=text[len(JUROR_ERROR):].strip(), seconds=round(seconds, 1))
-                else:
-                    v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
-                if not v.ok:
-                    logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
-                verdicts[name] = v
-                on_verdict(checkpoint, v)
-        finally:
-            await runner.close()
+
+        async def _run_juror(n: int, model_name: str, agents: List[LlmAgent]) -> None:
+            async with gate:
+                t0 = time.monotonic()
+                juror = SequentialAgent(name=f"juror_{n}", sub_agents=agents)
+                runner = InMemoryRunner(agent=juror, app_name="arcgen_jury")
+                try:
+                    session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
+                    last = t0
+                    async for event in runner.run_async(user_id="arcgen", session_id=session.id, new_message=message):
+                        name = event.author
+                        if name not in by_name or name in verdicts or not event.is_final_response():
+                            continue
+                        checkpoint, (seat, spec, case) = by_name[name]
+                        cp = self.rubric.checkpoints[checkpoint]
+                        now = time.monotonic()
+                        seconds, last = now - last, now
+                        # Skip reasoning ("thought") parts from thinking models such as qwen3; keep the answer.
+                        parts = event.content.parts if event.content and event.content.parts else []
+                        text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
+                        if not text.strip():
+                            text = "".join(p.text for p in parts if p.text)
+                        if text.startswith(JUROR_ERROR):
+                            v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
+                                             error=text[len(JUROR_ERROR):].strip(), seconds=round(seconds, 1))
+                        else:
+                            v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
+                        if not v.ok:
+                            logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
+                        verdicts[name] = v
+                        on_verdict(checkpoint, v)
+                except Exception as e:
+                    logger.error(f"Juror {n} ({model_name}) runner failed: {e}", exc_info=True)
+                finally:
+                    await runner.close()
+
+        tasks = [
+            _run_juror(n, model, agents)
+            for n, (model, agents) in enumerate(per_model.items(), 1)
+        ]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         out: Dict[CheckpointName, List[JurorVerdict]] = {}
         for checkpoint, names in order.items():  # jurors that never answered abstain

@@ -33,15 +33,29 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
     """Returns (panel, excluded_families).
 
     Jurors whose family produced any part of the generation are replaced by spares of an unused
-    family, in order. If spares run out the panel is smaller; the aggregate flags it.
+    family, in order. If distinct families run out (e.g. single-provider cloud setup), spares of
+    non-generator families fill the panel. If spares run out the panel is smaller; the aggregate flags it.
     """
     excluded = sorted({family_of(m) for m in generator_models if m})
     panel = [j for j in rubric.jurors if j.family not in excluded]
-    seated = {j.family for j in panel}
+    seated_families = {j.family for j in panel}
+    seated_models = {j.model for j in panel}
+
+    # Pass 1: Try to seat spares with unused families
     for spare in rubric.spares:
         if len(panel) >= len(rubric.jurors):
             break
-        if spare.family not in excluded and spare.family not in seated:
+        if spare.family not in excluded and spare.family not in seated_families:
             panel.append(spare)
-            seated.add(spare.family)
+            seated_families.add(spare.family)
+            seated_models.add(spare.model)
+
+    # Pass 2: If distinct families ran out (e.g. single-provider cloud), seat spares not in generator family
+    for spare in rubric.spares:
+        if len(panel) >= len(rubric.jurors):
+            break
+        if spare.family not in excluded and spare.model not in seated_models:
+            panel.append(spare)
+            seated_models.add(spare.model)
+
     return panel, excluded

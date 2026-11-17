@@ -61,12 +61,12 @@ class Rubric(BaseModel):
             return self
         r = self.model_copy(deep=True)
         if self.cloud_jurors:
-            if available_providers:
+            if available_providers is not None:
                 avail = {p.lower() for p in available_providers}
                 jurors = [j for j in self.cloud_jurors if not j.provider or j.provider.lower() in avail]
                 spares = [j for j in self.cloud_spares if not j.provider or j.provider.lower() in avail]
-                r.jurors = jurors or self.cloud_jurors
-                r.spares = spares or self.cloud_spares
+                r.jurors = jurors if jurors else self.cloud_jurors
+                r.spares = spares
             else:
                 r.jurors = self.cloud_jurors
                 r.spares = self.cloud_spares

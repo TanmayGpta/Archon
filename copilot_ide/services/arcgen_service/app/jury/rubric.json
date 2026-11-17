@@ -20,6 +20,7 @@
   ],
   "cloud_spares": [
     {"model": "openai/gpt-oss-20b", "family": "openai", "provider": "groq"},
+    {"model": "llama-3.1-8b-instant", "family": "llama", "provider": "groq"},
     {"model": "gemini-2.5-flash", "family": "google", "provider": "omnikey"}
   ],
   "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},

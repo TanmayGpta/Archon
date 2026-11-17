@@ -54,10 +54,24 @@ export function ArcGenLlmSettings({ apiBase, disabled = false }: { apiBase: stri
 
   useEffect(() => {
     let live = true;
-    call<LlmStatus>(base).then(
-      s => { if (live) { setStatus(s); setLoadError(''); } },
-      e => { if (live) setLoadError(errorMessage(e)); },
-    );
+    (async () => {
+      try {
+        let s = await call<LlmStatus>(base);
+        try {
+          const storedGroq = localStorage.getItem('archon:key:groq') || '';
+          const storedOmni = localStorage.getItem('archon:key:omnikey') || '';
+          if (storedGroq && !s.providers.groq.configured) {
+            s = await call<LlmStatus>(`${base}/keys/groq`, { method: 'PUT', body: JSON.stringify({ api_key: storedGroq.trim() }) });
+          }
+          if (storedOmni && !s.providers.omnikey.configured) {
+            s = await call<LlmStatus>(`${base}/keys/omnikey`, { method: 'PUT', body: JSON.stringify({ api_key: storedOmni.trim() }) });
+          }
+        } catch {}
+        if (live) { setStatus(s); setLoadError(''); }
+      } catch (e) {
+        if (live) setLoadError(errorMessage(e));
+      }
+    })();
     return () => { live = false; };
   }, [base]);
 

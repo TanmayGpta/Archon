@@ -308,6 +308,19 @@ class TestCloudJury(unittest.TestCase):
         both = rubric.for_mode(is_cloud=True, available_providers={"groq", "omnikey"})
         self.assertTrue(any(s.model == "gemini-2.5-flash" for s in both.spares))
 
+    def test_groq_jury_excludes_generator_family_and_avoids_missing_provider(self):
+        rubric = load_rubric().for_mode(is_cloud=True, available_providers={"groq"})
+        panel, excluded = select_panel(rubric, ["openai/gpt-oss-120b"])
+        self.assertIn("openai", excluded)
+        # None of the jurors should belong to the generator's family (openai)
+        self.assertTrue(all(j.family != "openai" for j in panel))
+        # None of the jurors should require omnikey/gemini
+        self.assertTrue(all(j.provider == "groq" for j in panel))
+        self.assertFalse(any(j.model == "gemini-2.5-flash" for j in panel))
+        # All jurors are distinct models
+        models = [j.model for j in panel]
+        self.assertEqual(len(models), len(set(models)))
+
 
 
 if __name__ == "__main__":
