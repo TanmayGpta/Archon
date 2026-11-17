@@ -9,6 +9,7 @@ POST   /test              {provider, model?, api_key?}: check the key / host and
 """
 
 import os
+from pathlib import Path
 import time
 from typing import Dict, List, Literal, Optional
 
@@ -25,6 +26,7 @@ from app.llm import (
     ResilientLLMClient,
     default_model,
     get_llm_client,
+    get_ollama_host,
     provider_of,
 )
 
@@ -53,6 +55,21 @@ class TestRequest(BaseModel):
     api_key: Optional[str] = None
 
 
+class TunnelUpdate(BaseModel):
+    url: str
+
+
+@router.post("/tunnel")
+def register_tunnel(req: TunnelUpdate):
+    """Registers an active Ollama tunnel URL dynamically."""
+    clean = req.url.strip().rstrip("/")
+    try:
+        Path("/tmp/ollama_host.txt").write_text(clean)
+    except Exception as e:
+        pass
+    return {"status": "connected", "host": clean}
+
+
 def _check_provider(provider: str) -> None:
     if provider not in llm_settings.PROVIDERS:
         raise HTTPException(status_code=404, detail=f"Unknown provider '{provider}'")
@@ -73,7 +90,7 @@ def _status() -> dict:
             "default_model": default_model(p),
             "model_is_default": not s.models.get(p),
         }
-    providers["ollama"]["host"] = DEFAULT_OLLAMA_HOST
+    providers["ollama"]["host"] = get_ollama_host()
     try:
         client = get_llm_client()
         tiers = client.clients if isinstance(client, ResilientLLMClient) else [client]
@@ -133,7 +150,7 @@ def clear_key(provider: str):
 def _list_models(provider: str, api_key: Optional[str] = None) -> List[str]:
     """Live model list; raises on a bad key / unreachable host."""
     if provider == "ollama":
-        r = requests.get(f"{DEFAULT_OLLAMA_HOST.rstrip('/')}/api/tags", timeout=TIMEOUT)
+        r = requests.get(f"{get_ollama_host().rstrip('/')}/api/tags", timeout=TIMEOUT)
         r.raise_for_status()
         return sorted(m["name"] for m in r.json().get("models", []))
     key = api_key or llm_settings.api_key(provider)[0]

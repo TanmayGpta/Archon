@@ -10,7 +10,7 @@ import os
 import asyncio
 import logging
 
-from .config import RAG_SERVICE_URL, INGESTION_SERVICE_URL, OLLAMA_URL, DEFAULT_MODEL
+from .config import RAG_SERVICE_URL, INGESTION_SERVICE_URL, OLLAMA_URL, DEFAULT_MODEL, get_ollama_url
 from .context_suggester import suggest_context_files
 from .github_workspace import GitHubWorkspaceClient
 from .flow_tracer import FlowTracer, is_flow_query
@@ -132,7 +132,7 @@ async def health():
             pass
 
         try:
-            r = await client.get(f"{OLLAMA_URL}/api/tags")
+            r = await client.get(f"{get_ollama_url()}/api/tags")
             ollama_healthy = r.status_code == 200
         except Exception:
             pass
@@ -248,7 +248,7 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
             try:
                 async with client.stream(
                     "POST",
-                    f"{OLLAMA_URL}/api/generate",
+                    f"{get_ollama_url()}/api/generate",
                     json={"model": req.model, "prompt": prompt, "stream": True},
                     timeout=None
                 ) as response:
@@ -1253,7 +1253,7 @@ You write clean, modular, production-ready code with rigorous adherence to best 
                 try:
                     async with client.stream(
                         "POST",
-                        f"{OLLAMA_URL}/api/chat",
+                        f"{get_ollama_url()}/api/chat",
                         json={
                             "model": req.model,
                             "messages": ollama_messages,
@@ -1379,7 +1379,7 @@ async def get_models_extended():
     local_models = []
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
-            response = await client.get(f"{OLLAMA_URL}/api/tags")
+            response = await client.get(f"{get_ollama_url()}/api/tags")
             if response.status_code == 200:
                 local_models = [m["name"] for m in response.json().get("models", [])]
         except Exception:
@@ -1392,6 +1392,21 @@ async def get_models_extended():
             cloud_models_available.extend(models)
 
     return {"models": local_models + cloud_models_available}
+
+
+class OllamaTunnelRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/ollama/tunnel")
+def register_ollama_tunnel(req: OllamaTunnelRequest):
+    """Registers an active Ollama tunnel URL dynamically."""
+    clean = req.url.strip().rstrip("/")
+    try:
+        Path("/tmp/ollama_url.txt").write_text(clean)
+    except Exception as e:
+        logger.warning(f"Could not write /tmp/ollama_url.txt: {e}")
+    return {"status": "connected", "ollama_url": clean}
 
 class ApiKeyTestRequest(BaseModel):
     provider: str

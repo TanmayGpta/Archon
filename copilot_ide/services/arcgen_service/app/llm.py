@@ -77,7 +77,18 @@ def _normalize_ollama_host(raw: str) -> str:
     return host
 
 
-DEFAULT_OLLAMA_HOST = _normalize_ollama_host(os.getenv("OLLAMA_HOST", os.getenv("OLLAMA_URL", "http://localhost:11434")))
+def get_ollama_host() -> str:
+    path = Path("/tmp/ollama_host.txt")
+    if path.exists():
+        try:
+            val = path.read_text(encoding="utf-8").strip()
+            if val.startswith("http"):
+                return _normalize_ollama_host(val)
+        except Exception:
+            pass
+    return _normalize_ollama_host(os.getenv("OLLAMA_HOST", os.getenv("OLLAMA_URL", "http://localhost:11434")))
+
+DEFAULT_OLLAMA_HOST = get_ollama_host()
 _ollama_default_cache: Dict[str, Any] = {"at": 0.0, "model": None}
 
 
@@ -94,7 +105,7 @@ def ollama_default_model() -> str:
     if _ollama_default_cache["model"] and now - _ollama_default_cache["at"] < 30:
         return _ollama_default_cache["model"]
     try:
-        r = requests.get(f"{DEFAULT_OLLAMA_HOST.rstrip('/')}/api/tags", timeout=2)
+        r = requests.get(f"{get_ollama_host().rstrip('/')}/api/tags", timeout=3)
         r.raise_for_status()
         installed = sorted(m["name"] for m in r.json().get("models", []))
     except Exception:
