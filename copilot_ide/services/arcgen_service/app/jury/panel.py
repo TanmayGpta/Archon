@@ -262,6 +262,7 @@ class AdkJuryPanel:
                 order[checkpoint].append(agent.name)
 
         verdicts: Dict[str, JurorVerdict] = {}
+        blocked_models: Set[str] = set()
         message = types.Content(role="user", parts=[types.Part(text="Deliver your verdict as JSON.")])
 
         async def _run_juror(n: int, model_name: str, agents: List[LlmAgent]) -> None:
@@ -296,6 +297,23 @@ class AdkJuryPanel:
                                         logger.info(f"{agent.name} hit rate limit, waiting 8s before retry...")
                                         await asyncio.sleep(8)
                                         break
+                                    # Blocked model / permission error / 403 / 404: swap to available spare immediately
+                                    if attempt == 0 and any(k in err_str.lower() for k in ("blocked", "permission", "403", "not_found", "404", "model_permission_blocked_org")):
+                                        blocked_models.add(spec.model.lower())
+                                        logger.warning(f"{agent.name} ({spec.model}) blocked or unavailable ({err_str[:100]}); swapping to available spare...")
+                                        replacement = None
+                                        candidates = list(self.rubric.spares or []) + list(self.rubric.jurors or [])
+                                        for cand in candidates:
+                                            if cand.model.lower() not in blocked_models and not cand.skip:
+                                                replacement = cand
+                                                break
+                                        if not replacement and self.is_cloud:
+                                            replacement = JurorSpec(model="openai/gpt-oss-20b", family="openai", provider="groq", fmt="json")
+                                        if replacement:
+                                            spec = replacement
+                                            agent = self._agent(checkpoint, int(agent.name.split("_")[1]), replacement, case)
+                                            await asyncio.sleep(0.5)
+                                            break
                                     # Bad request / response_format rejected: retry without it
                                     if attempt == 0 and any(k in err_str.lower() for k in ("400", "bad_request", "response_format", "json_object", "unsupported")):
                                         logger.info(f"{agent.name} hit format error, retrying without response_format...")

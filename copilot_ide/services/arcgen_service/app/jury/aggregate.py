@@ -66,7 +66,9 @@ def parse_verdict(
     rows = None
     if isinstance(data, dict):
         rows = data.get("answers")
-        if rows is None:
+        if isinstance(rows, dict):
+            rows = [dict(v, item=k) if isinstance(v, dict) else {"item": k, "verdict": v} for k, v in rows.items()]
+        elif rows is None:
             # Tolerate {"N1": {...}, "N2": {...}} or {"N1": "yes", ...}
             rows = [dict(v, item=k) if isinstance(v, dict) else {"item": k, "verdict": v} for k, v in data.items()]
     elif isinstance(data, list):

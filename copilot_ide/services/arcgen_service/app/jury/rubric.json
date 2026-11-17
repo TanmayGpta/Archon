@@ -6,8 +6,7 @@
     "fmt=json        → model reliably emits bare JSON; use response_format: json_object",
     "fmt=text        → model returns plain text; skip response_format; clean_thinking strips tags",
     "fmt=no_think    → thinking model (Qwen3, DeepSeek-R1); skip response_format; prompt includes /no_think",
-    "skip=true       → never seat this model (TTS, embed, non-English-only, guard models)",
-    "prompt_suffix   → appended verbatim after the case; use /no_think for Qwen3-family models"
+    "never_seat      → patterns for models that are audio/speech, guardrails, or blocked on Groq org tiers"
   ],
 
   "jurors": [
@@ -22,23 +21,27 @@
   ],
 
   "cloud_jurors": [
-    {"model": "llama-3.3-70b-versatile",         "family": "llama",   "provider": "groq", "fmt": "json"},
-    {"model": "qwen/qwen3.8-27b",                "family": "qwen",    "provider": "groq", "fmt": "no_think", "prompt_suffix": "/no_think", "think": false},
-    {"model": "openai/gpt-oss-120b",             "family": "openai",  "provider": "groq", "fmt": "json"},
-    {"model": "openai/gpt-oss-20b",              "family": "openai",  "provider": "groq", "fmt": "json"},
-    {"model": "deepseek-r1-distill-qwen-32b",    "family": "deepseek","provider": "groq", "fmt": "no_think"}
+    {"model": "llama-3.3-70b-versatile",         "family": "llama",       "provider": "groq", "fmt": "json"},
+    {"model": "qwen/qwen3.8-27b",                "family": "qwen",        "provider": "groq", "fmt": "no_think", "prompt_suffix": "/no_think", "think": false},
+    {"model": "openai/gpt-oss-120b",             "family": "openai",      "provider": "groq", "fmt": "json"},
+    {"model": "openai/gpt-oss-20b",              "family": "openai",      "provider": "groq", "fmt": "json"},
+    {"model": "deepseek-r1-distill-qwen-32b",    "family": "deepseek",    "provider": "groq", "fmt": "no_think"}
   ],
   "cloud_spares": [
-    {"model": "llama-3.1-8b-instant",            "family": "llama",   "provider": "groq", "fmt": "json"},
-    {"model": "allam-2-7b",                      "family": "allam",   "provider": "groq", "fmt": "json",
+    {"model": "openai/gpt-oss-20b",              "family": "openai",      "provider": "groq", "fmt": "json"},
+    {"model": "openai/gpt-oss-120b",             "family": "openai",      "provider": "groq", "fmt": "json"},
+    {"model": "llama-3.1-8b-instant",            "family": "llama",       "provider": "groq", "fmt": "json"},
+    {"model": "allam-2-7b",                      "family": "allam",       "provider": "groq", "fmt": "json",
      "prompt_suffix": "\nIMPORTANT: You MUST reply in English only. Output valid JSON only, no Arabic text."},
-    {"model": "gemini-2.5-flash",                "family": "google",  "provider": "omnikey", "fmt": "json"}
+    {"model": "gemini-2.5-flash",                "family": "google",      "provider": "omnikey", "fmt": "json"}
   ],
 
   "_never_seat_patterns": [
     "whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip"
   ],
-  "never_seat_patterns": ["whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip"],
+  "never_seat_patterns": [
+    "whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip"
+  ],
 
   "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},
   "checkpoints": {

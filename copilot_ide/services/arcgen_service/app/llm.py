@@ -128,6 +128,8 @@ def clean_thinking(text: str) -> str:
     """
     if not text:
         return ""
+    if text.startswith("JUROR_ERROR:"):
+        return text
 
     # Groq reasoning_format="parsed": whole response is a JSON envelope
     # {"thinking": "...", "content": "actual answer"} — extract content field

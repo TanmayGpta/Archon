@@ -126,6 +126,9 @@ function voteOf(v: JurorVerdict | undefined, itemId: string): Vote {
 /** Explain an abstention in words a user can act on. */
 function abstainHint(error: string): string {
   const e = (error || '').toLowerCase();
+  if (e.includes('blocked') || e.includes('permission') || e.includes('model_permission_blocked_org')) {
+    return 'model is blocked in your organization API settings';
+  }
   if (e.includes('not found') || e.includes('does not exist') || e.includes('not have access') || e.includes('model_not_found') || e.includes('pull')) {
     return 'model not available on this API key or server';
   }
