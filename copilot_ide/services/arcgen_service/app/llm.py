@@ -72,6 +72,8 @@ def _normalize_ollama_host(raw: str) -> str:
     if "://" not in host:
         host = "http://" + host
     host = host.replace("://0.0.0.0", "://localhost")
+    if host.startswith("https://"):
+        return host
     if host.count(":") == 1:  # scheme only, no port
         host += ":11434"
     return host

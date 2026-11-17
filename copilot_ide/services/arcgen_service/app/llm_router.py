@@ -195,7 +195,7 @@ def test_provider(req: TestRequest):
         if "401" in msg or "403" in msg:
             msg = "API key rejected"
         elif req.provider == "ollama":
-            msg = f"Ollama not reachable at {DEFAULT_OLLAMA_HOST}"
+            msg = f"Ollama not reachable at {get_ollama_host()}"
         return {"ok": False, "message": msg[:200], "latency_ms": int((time.monotonic() - started) * 1000)}
     latency = int((time.monotonic() - started) * 1000)
     if models and model not in models:
