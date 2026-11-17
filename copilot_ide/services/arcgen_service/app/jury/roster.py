@@ -6,6 +6,7 @@ from app.jury.models import JurorSpec, Rubric
 
 # Substring -> family. Gemma and Gemini are both Google models, so they count as one family.
 _FAMILY_KEYS = [
+    ("deepseek", "deepseek"),
     ("qwen", "qwen"),
     ("llama", "llama"),
     ("gemma", "google"),
@@ -14,8 +15,9 @@ _FAMILY_KEYS = [
     ("granite", "granite"),
     ("mixtral", "mistral"),
     ("mistral", "mistral"),
+    ("openai", "openai"),
     ("gpt", "openai"),
-    ("deepseek", "deepseek"),
+    ("minimax", "minimax"),
 ]
 
 

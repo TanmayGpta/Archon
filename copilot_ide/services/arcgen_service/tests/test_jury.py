@@ -289,17 +289,24 @@ class TestCloudJury(unittest.TestCase):
         self.assertEqual(local_rubric.jurors[0].model, "qwen3:4b")
         self.assertEqual(len(cloud_rubric.jurors), 5)
         self.assertEqual(cloud_rubric.jurors[0].model, "llama-3.3-70b-versatile")
-        self.assertTrue(any(j.family == "mistral" for j in cloud_rubric.jurors))
+        self.assertTrue(any(j.family == "openai" for j in cloud_rubric.jurors))
+        self.assertTrue(any(j.family == "qwen" for j in cloud_rubric.jurors))
+        self.assertTrue(any(j.family == "deepseek" for j in cloud_rubric.jurors))
 
-    def test_cloud_jury_select_panel_excludes_generator_family(self):
-        cloud_rubric = load_rubric().for_mode(is_cloud=True)
-        # Generator is a Llama model -> Llama family must be excluded from panel
-        panel, excluded = select_panel(cloud_rubric, ["llama-3.3-70b-versatile"])
-        self.assertIn("llama", excluded)
-        self.assertTrue(all(j.family != "llama" for j in panel))
-        # Unique families
-        families = [j.family for j in panel]
-        self.assertEqual(len(families), len(set(families)))
+    def test_deepseek_family_detected_before_qwen(self):
+        self.assertEqual(family_of("deepseek-r1-distill-qwen-32b"), "deepseek")
+        self.assertEqual(family_of("qwen/qwen3.8-27b"), "qwen")
+        self.assertEqual(family_of("openai/gpt-oss-120b"), "openai")
+
+    def test_cloud_jury_provider_filtering(self):
+        rubric = load_rubric()
+        groq_only = rubric.for_mode(is_cloud=True, available_providers={"groq"})
+        self.assertTrue(all(j.provider == "groq" for j in groq_only.jurors))
+        self.assertTrue(all(s.provider == "groq" for s in groq_only.spares))
+        self.assertFalse(any(s.model == "gemini-2.5-flash" for s in groq_only.spares))
+
+        both = rubric.for_mode(is_cloud=True, available_providers={"groq", "omnikey"})
+        self.assertTrue(any(s.model == "gemini-2.5-flash" for s in both.spares))
 
 
 

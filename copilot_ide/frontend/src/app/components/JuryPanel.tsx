@@ -231,7 +231,7 @@ export function juryOutcome(state: JuryState): Outcome {
     return { tone: 'pass', headline: 'Approved', detail: `The reviewers agreed your requirements were read correctly and the design fits them${drafts > 1 ? ` (after ${drafts} drafts)` : ' on the first draft'}.`, findings: [] };
   }
   if (verdict === 'NO_JURY') {
-    return { tone: 'neutral', headline: 'Not reviewed', detail: "None of the reviewer models gave a usable answer, so the design wasn't checked. Make sure Ollama is running and the reviewer models are pulled.", findings: [] };
+    return { tone: 'neutral', headline: 'Not reviewed', detail: "None of the reviewer models gave a usable answer, so the design wasn't checked. Check your API key or ensure Ollama is running.", findings: [] };
   }
   if (arch?.passed && norm && !norm.passed) {
     const tries = state.sittings.filter(s => s.checkpoint === 'normalization').length;

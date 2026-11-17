@@ -73,6 +73,7 @@ class _GatedJuror(SequentialAgent):
 
 def _on_model_error(callback_context, llm_request, error) -> LlmResponse:
     """Turn a failed juror call into an abstention instead of aborting the whole panel."""
+    logger.error(f"Juror model error: {type(error).__name__}: {error}", exc_info=True)
     msg = f"{JUROR_ERROR} {type(error).__name__}: {str(error)[:300]}"
     return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=msg)]))
 
@@ -86,10 +87,15 @@ class AdkJuryPanel:
         api_keys: Optional[Dict[str, str]] = None,
     ):
         self.is_cloud = is_cloud
-        raw_rubric = rubric or load_rubric()
-        self.rubric = raw_rubric.for_mode(is_cloud) if hasattr(raw_rubric, "for_mode") else raw_rubric
-        self.host = ollama_host or get_ollama_host()
         self.api_keys = api_keys or {}
+        available_providers = {k.lower() for k, v in self.api_keys.items() if v}
+        raw_rubric = rubric or load_rubric()
+        self.rubric = (
+            raw_rubric.for_mode(is_cloud, available_providers=available_providers)
+            if hasattr(raw_rubric, "for_mode")
+            else raw_rubric
+        )
+        self.host = ollama_host or get_ollama_host()
 
     def judge(
         self,
@@ -118,20 +124,24 @@ class AdkJuryPanel:
         if self.is_cloud or (spec.provider and spec.provider != "ollama"):
             prov = (spec.provider or "groq").lower()
             if prov == "groq":
-                key = self.api_keys.get("groq") or os.getenv("GROQ_API_KEY") or os.getenv("groq")
+                key = (self.api_keys.get("groq") or os.getenv("GROQ_API_KEY") or os.getenv("groq") or "").strip().strip("\"'")
+                if key:
+                    os.environ["GROQ_API_KEY"] = key
                 model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
                 model = LiteLlm(
                     model=model_name,
-                    api_key=key,
+                    api_key=key or None,
                     timeout=90,
                     response_format={"type": "json_object"},
                 )
             elif prov in ("omnikey", "gemini"):
-                key = self.api_keys.get("omnikey") or os.getenv("OMNIKEY_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("omnikey")
+                key = (self.api_keys.get("omnikey") or os.getenv("OMNIKEY_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("omnikey") or "").strip().strip("\"'")
+                if key:
+                    os.environ["GEMINI_API_KEY"] = key
                 model_name = f"gemini/{spec.model}" if not spec.model.startswith("gemini/") else spec.model
                 model = LiteLlm(
                     model=model_name,
-                    api_key=key,
+                    api_key=key or None,
                     timeout=90,
                     response_format={"type": "json_object"},
                 )
@@ -202,6 +212,8 @@ class AdkJuryPanel:
                 # Skip reasoning ("thought") parts from thinking models such as qwen3; keep the answer.
                 parts = event.content.parts if event.content and event.content.parts else []
                 text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
+                if not text.strip():
+                    text = "".join(p.text for p in parts if p.text)
                 if text.startswith(JUROR_ERROR):
                     v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
                                      error=text[len(JUROR_ERROR):].strip(), seconds=round(seconds, 1))

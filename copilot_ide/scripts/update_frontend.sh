@@ -26,7 +26,7 @@ echo "• API Endpoint:    https://$API_FQDN"
 echo "• ArcGen Endpoint: https://$ARCGEN_FQDN"
 echo "======================================================================"
 
-TAG="v3"
+TAG="v4"
 
 echo "🔨 Building Next.js frontend with mixed-content fixes..."
 docker build -t "$ACR_SERVER/archon-ui:$TAG" -t "$ACR_SERVER/archon-ui:latest" \

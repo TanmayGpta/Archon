@@ -132,6 +132,10 @@ def set_key(provider: str, req: KeyUpdate):
     s = llm_settings.load()
     s.keys[provider] = key
     llm_settings.save(s)
+    if provider == "groq":
+        os.environ["GROQ_API_KEY"] = key
+    elif provider == "omnikey":
+        os.environ["OMNIKEY_API_KEY"] = key
     return _status()
 
 
@@ -140,6 +144,10 @@ def clear_key(provider: str):
     _check_provider(provider)
     s = llm_settings.load()
     s.keys.pop(provider, None)
+    if provider == "groq":
+        os.environ.pop("GROQ_API_KEY", None)
+    elif provider == "omnikey":
+        os.environ.pop("OMNIKEY_API_KEY", None)
     # Picking a provider that no longer has any key would break generation: fall back to auto.
     if s.provider == provider and not llm_settings.api_key(provider, s)[0]:
         s.provider = "auto"

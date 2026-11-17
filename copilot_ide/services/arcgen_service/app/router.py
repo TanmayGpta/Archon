@@ -374,7 +374,7 @@ async def generate_architecture(req: GenerateArchitectureRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _get_active_api_keys() -> Dict[str, str]:
+def _get_active_api_keys(client: Optional[BaseLLMClient] = None) -> Dict[str, str]:
     keys: Dict[str, str] = {}
     try:
         from app import llm_settings
@@ -382,15 +382,39 @@ def _get_active_api_keys() -> Dict[str, str]:
         for p in llm_settings.KEY_PROVIDERS:
             val, _ = llm_settings.api_key(p, s)
             if val:
-                keys[p] = val
+                keys[p] = str(val).strip().strip("\"'")
     except Exception:
         pass
     for k in ("GROQ_API_KEY", "groq"):
         if os.getenv(k) and "groq" not in keys:
-            keys["groq"] = os.getenv(k)
+            keys["groq"] = os.getenv(k, "").strip().strip("\"'")
     for k in ("OMNIKEY_API_KEY", "omnikey", "GEMINI_API_KEY"):
         if os.getenv(k) and "omnikey" not in keys:
-            keys["omnikey"] = os.getenv(k)
+            keys["omnikey"] = os.getenv(k, "").strip().strip("\"'")
+
+    # Extract keys directly from the active LLM client or its resilient tiers if available
+    if client is not None:
+        direct_key = getattr(client, "api_key", None)
+        if direct_key:
+            from app.llm import GroqClient, OmniKeyClient
+            if isinstance(client, GroqClient) and "groq" not in keys:
+                keys["groq"] = str(direct_key).strip().strip("\"'")
+            elif isinstance(client, OmniKeyClient) and "omnikey" not in keys:
+                keys["omnikey"] = str(direct_key).strip().strip("\"'")
+        tiers = getattr(client, "clients", [])
+        for c in tiers:
+            tk = getattr(c, "api_key", None)
+            if tk:
+                from app.llm import GroqClient, OmniKeyClient
+                if isinstance(c, GroqClient) and "groq" not in keys:
+                    keys["groq"] = str(tk).strip().strip("\"'")
+                elif isinstance(c, OmniKeyClient) and "omnikey" not in keys:
+                    keys["omnikey"] = str(tk).strip().strip("\"'")
+
+    if keys.get("groq"):
+        os.environ["GROQ_API_KEY"] = keys["groq"]
+    if keys.get("omnikey"):
+        os.environ["OMNIKEY_API_KEY"] = keys["omnikey"]
     return keys
 
 
@@ -416,7 +440,7 @@ def _is_cloud_selected(client: Optional[BaseLLMClient] = None) -> bool:
             if isinstance(active, OllamaClient):
                 return False
 
-    keys = _get_active_api_keys()
+    keys = _get_active_api_keys(client)
     if keys.get("groq") or keys.get("omnikey"):
         return True
     return False
@@ -432,9 +456,10 @@ def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
         try:
             if req.jury:
                 is_cloud = _is_cloud_selected(client)
-                api_keys = _get_active_api_keys()
+                api_keys = _get_active_api_keys(client)
+                available_providers = {k.lower() for k, v in api_keys.items() if v}
                 panel = AdkJuryPanel(is_cloud=is_cloud, api_keys=api_keys)
-                rubric = load_rubric().for_mode(is_cloud)
+                rubric = load_rubric().for_mode(is_cloud, available_providers=available_providers)
                 run = JuryRun(client=client, panel=panel, emit=job.emit, rubric=rubric)
                 graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
                 payload = _architecture_payload(graph, table, report)

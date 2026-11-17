@@ -3,7 +3,7 @@
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Dict, Iterable, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field
 
@@ -56,13 +56,20 @@ class Rubric(BaseModel):
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     checkpoints: Dict[CheckpointName, Checkpoint]
 
-    def for_mode(self, is_cloud: bool) -> "Rubric":
+    def for_mode(self, is_cloud: bool, available_providers: Optional[Iterable[str]] = None) -> "Rubric":
         if not is_cloud:
             return self
         r = self.model_copy(deep=True)
         if self.cloud_jurors:
-            r.jurors = self.cloud_jurors
-            r.spares = self.cloud_spares
+            if available_providers:
+                avail = {p.lower() for p in available_providers}
+                jurors = [j for j in self.cloud_jurors if not j.provider or j.provider.lower() in avail]
+                spares = [j for j in self.cloud_spares if not j.provider or j.provider.lower() in avail]
+                r.jurors = jurors or self.cloud_jurors
+                r.spares = spares or self.cloud_spares
+            else:
+                r.jurors = self.cloud_jurors
+                r.spares = self.cloud_spares
         return r
 
 

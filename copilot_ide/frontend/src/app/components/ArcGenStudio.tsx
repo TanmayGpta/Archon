@@ -410,7 +410,7 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
           setActiveOutputTab('diagram');
           const verdict = event.result?.jury?.verdict;
           setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the reviewers."
-            : verdict === 'NO_JURY' ? "Architecture generated, but no reviewer model answered (is Ollama running?)."
+            : verdict === 'NO_JURY' ? "Architecture generated, but no reviewer model answered (check API key or Ollama connection)."
             : "Architecture generated with open review issues. See the banner above the diagram.");
           return;
         }
