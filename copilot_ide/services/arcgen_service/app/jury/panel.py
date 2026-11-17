@@ -128,11 +128,14 @@ class AdkJuryPanel:
                 if key:
                     os.environ["GROQ_API_KEY"] = key
                 model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
+                # Groq returns 400 BadRequest if response_format json_object is passed to reasoning/thinking models
+                is_reasoning = any(x in spec.model.lower() for x in ("deepseek", "qwen", "qwq", "reasoner", "thinking"))
+                fmt_kwargs = {} if is_reasoning else {"response_format": {"type": "json_object"}}
                 model = LiteLlm(
                     model=model_name,
                     api_key=key or None,
                     timeout=90,
-                    response_format={"type": "json_object"},
+                    **fmt_kwargs,
                 )
             elif prov in ("omnikey", "gemini"):
                 key = (self.api_keys.get("omnikey") or os.getenv("OMNIKEY_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("omnikey") or "").strip().strip("\"'")
@@ -192,38 +195,52 @@ class AdkJuryPanel:
 
         async def _run_juror(n: int, model_name: str, agents: List[LlmAgent]) -> None:
             async with gate:
-                t0 = time.monotonic()
-                juror = SequentialAgent(name=f"juror_{n}", sub_agents=agents)
-                runner = InMemoryRunner(agent=juror, app_name="arcgen_jury")
-                try:
-                    session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
-                    last = t0
-                    async for event in runner.run_async(user_id="arcgen", session_id=session.id, new_message=message):
-                        name = event.author
-                        if name not in by_name or name in verdicts or not event.is_final_response():
-                            continue
-                        checkpoint, (seat, spec, case) = by_name[name]
-                        cp = self.rubric.checkpoints[checkpoint]
-                        now = time.monotonic()
-                        seconds, last = now - last, now
-                        # Skip reasoning ("thought") parts from thinking models such as qwen3; keep the answer.
-                        parts = event.content.parts if event.content and event.content.parts else []
-                        text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
-                        if not text.strip():
-                            text = "".join(p.text for p in parts if p.text)
-                        if text.startswith(JUROR_ERROR):
-                            v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
-                                             error=text[len(JUROR_ERROR):].strip(), seconds=round(seconds, 1))
-                        else:
-                            v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
-                        if not v.ok:
-                            logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
-                        verdicts[name] = v
-                        on_verdict(checkpoint, v)
-                except Exception as e:
-                    logger.error(f"Juror {n} ({model_name}) runner failed: {e}", exc_info=True)
-                finally:
-                    await runner.close()
+                for agent in agents:
+                    if agent.name in verdicts:
+                        continue
+                    checkpoint, (seat, spec, case) = by_name[agent.name]
+                    cp = self.rubric.checkpoints[checkpoint]
+                    # Run each checkpoint agent independently so no conversation history leaks between checkpoints
+                    # and each checkpoint gets an authoritative final response event.
+                    for attempt in range(2):
+                        runner = InMemoryRunner(agent=agent, app_name="arcgen_jury")
+                        t0 = time.monotonic()
+                        try:
+                            session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
+                            got_response = False
+                            async for event in runner.run_async(user_id="arcgen", session_id=session.id, new_message=message):
+                                if not event.is_final_response():
+                                    continue
+                                got_response = True
+                                seconds = round(time.monotonic() - t0, 1)
+                                parts = event.content.parts if event.content and event.content.parts else []
+                                text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
+                                if not text.strip():
+                                    text = "".join(p.text for p in parts if p.text)
+                                if text.startswith(JUROR_ERROR):
+                                    err_str = text[len(JUROR_ERROR):].strip()
+                                    # Rate limit retry
+                                    if attempt == 0 and any(k in err_str.lower() for k in ("429", "rate_limit", "tpm")):
+                                        logger.info(f"{agent.name} hit rate limit, waiting 6s before retry...")
+                                        await asyncio.sleep(6)
+                                        break
+                                    v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
+                                                     error=err_str, seconds=seconds)
+                                else:
+                                    v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
+                                if not v.ok:
+                                    logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
+                                verdicts[agent.name] = v
+                                on_verdict(checkpoint, v)
+                                break
+                            if got_response and agent.name in verdicts:
+                                break
+                        except Exception as e:
+                            logger.error(f"Juror {n} ({model_name}) agent {agent.name} failed: {e}", exc_info=True)
+                            if attempt == 0:
+                                await asyncio.sleep(2)
+                        finally:
+                            await runner.close()
 
         tasks = [
             _run_juror(n, model, agents)

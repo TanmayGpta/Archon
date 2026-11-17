@@ -290,20 +290,26 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   useEffect(() => {
     try {
       const groq = localStorage.getItem('archon:key:groq') || '';
-      const omni = localStorage.getItem('archon:key:omnikey') || '';
+      let omni = localStorage.getItem('archon:key:omnikey') || '';
+      // Clean up accidental cross-provider keys: Groq key in omnikey
+      if (omni && omni.startsWith('gsk_')) {
+        localStorage.removeItem('archon:key:omnikey');
+        omni = '';
+        fetch(`${effectiveApiBase}/api/arcgen/llm/keys/omnikey`, { method: 'DELETE' }).catch(() => {});
+      }
       if (!groq && !omni) return;
       fetch(`${effectiveApiBase}/api/arcgen/llm`)
         .then(r => (r.ok ? r.json() : null))
         .then(s => {
           if (!s?.providers) return;
-          if (groq && !s.providers.groq?.configured) {
+          if (groq && !s.providers.groq?.configured && !groq.startsWith('AIza')) {
             fetch(`${effectiveApiBase}/api/arcgen/llm/keys/groq`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ api_key: groq.trim() }),
             }).catch(() => {});
           }
-          if (omni && !s.providers.omnikey?.configured) {
+          if (omni && !s.providers.omnikey?.configured && !omni.startsWith('gsk_')) {
             fetch(`${effectiveApiBase}/api/arcgen/llm/keys/omnikey`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },

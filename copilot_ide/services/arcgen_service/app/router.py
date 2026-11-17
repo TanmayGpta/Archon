@@ -184,8 +184,8 @@ def _interview_status(tracker: ASRTracker, criterion_met: bool, reason: str) -> 
     The criterion (coverage threshold / plateau / turn cap) only unlocks generation; the interview
     keeps asking about unfilled drivers so the user can still take coverage to 100%.
     """
-    done = not tracker.unfilled_categories()
-    ready = criterion_met or done
+    done = not tracker.unfilled_categories() or tracker.turn_count >= 8
+    ready = criterion_met or done or tracker.turn_count >= 6
     if done:
         reason = "All architectural drivers captured (100% coverage)."
     elif ready:
@@ -256,15 +256,18 @@ async def answer_elicitation(req: ElicitAnswerRequest):
     current_q: Optional[QuestionItem] = session.get("current_question")
 
     try:
-        # Match target dimension
+        # Match target dimension robustly (handles values, names, whitespace/slash variations)
+        clean_target = re.sub(r'[\s/_-]+', '', req.target_dimension).lower()
         target_dim = None
         for dim in ArchitectureDriverDimension:
-            if dim.value.lower() == req.target_dimension.lower():
+            dim_clean_val = re.sub(r'[\s/_-]+', '', dim.value).lower()
+            dim_clean_name = re.sub(r'[\s/_-]+', '', dim.name).lower()
+            if clean_target in (dim_clean_val, dim_clean_name):
                 target_dim = dim
                 break
 
         if not target_dim:
-            target_dim = ArchitectureDriverDimension.THROUGHPUT_SCALE
+            target_dim = tracker.unfilled_categories()[0] if tracker.unfilled_categories() else ArchitectureDriverDimension.THROUGHPUT_SCALE
 
         # If user did not skip, process answer with agent
         if not req.skip and req.answer.strip():
@@ -411,6 +414,14 @@ def _get_active_api_keys(client: Optional[BaseLLMClient] = None) -> Dict[str, st
                 elif isinstance(c, OmniKeyClient) and "omnikey" not in keys:
                     keys["omnikey"] = str(tk).strip().strip("\"'")
 
+    # Sanitize cross-provider keys: Groq keys start with 'gsk_', Gemini keys start with 'AIza'
+    if keys.get("omnikey", "").startswith("gsk_"):
+        logger.warning("Sanitizing Groq key mistakenly saved under omnikey")
+        del keys["omnikey"]
+    if keys.get("groq", "").startswith("AIza"):
+        logger.warning("Sanitizing Google key mistakenly saved under groq")
+        del keys["groq"]
+
     if keys.get("groq"):
         os.environ["GROQ_API_KEY"] = keys["groq"]
     if keys.get("omnikey"):
@@ -457,7 +468,17 @@ def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
             if req.jury:
                 is_cloud = _is_cloud_selected(client)
                 api_keys = _get_active_api_keys(client)
-                available_providers = {k.lower() for k, v in api_keys.items() if v}
+                from app import llm_settings
+                s = llm_settings.load()
+                if s.provider in ("groq", "omnikey"):
+                    # Strictly enforce selected single cloud provider
+                    available_providers = {s.provider}
+                    api_keys = {s.provider: api_keys.get(s.provider, "")}
+                elif s.provider == "ollama":
+                    available_providers = set()
+                    api_keys = {}
+                else:
+                    available_providers = {k.lower() for k, v in api_keys.items() if v}
                 panel = AdkJuryPanel(is_cloud=is_cloud, api_keys=api_keys)
                 rubric = load_rubric().for_mode(is_cloud, available_providers=available_providers)
                 run = JuryRun(client=client, panel=panel, emit=job.emit, rubric=rubric)

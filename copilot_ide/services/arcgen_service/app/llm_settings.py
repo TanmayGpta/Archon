@@ -61,10 +61,23 @@ def api_key(provider: str, settings: Optional[LLMSettings] = None) -> Tuple[Opti
     """(key, source) where source is "ui", "env" or None."""
     s = settings or load()
     if s.keys.get(provider):
-        return s.keys[provider], "ui"
+        val = s.keys[provider].strip()
+        # Sanitize cross-provider keys: Groq starts with 'gsk_', Gemini with 'AIza'
+        if provider == "omnikey" and val.startswith("gsk_"):
+            val = None
+        elif provider == "groq" and val.startswith("AIza"):
+            val = None
+        if val:
+            return val, "ui"
     for name in ENV_KEY_NAMES.get(provider, ()):
         if os.getenv(name):
-            return os.getenv(name), "env"
+            val = os.getenv(name, "").strip()
+            if provider == "omnikey" and val.startswith("gsk_"):
+                val = ""
+            elif provider == "groq" and val.startswith("AIza"):
+                val = ""
+            if val:
+                return val, "env"
     return None, None
 
 

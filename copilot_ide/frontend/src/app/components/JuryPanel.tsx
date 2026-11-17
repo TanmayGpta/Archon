@@ -131,6 +131,7 @@ function abstainHint(error: string): string {
   if (e.includes('connect') || e.includes('econnrefused')) return "couldn't reach Ollama / API";
   if (e.includes('rate_limit') || e.includes('429') || e.includes('quota') || e.includes('tpm') || e.includes('rpm')) return 'API rate limit reached';
   if (e.includes('auth') || e.includes('api_key') || e.includes('api key') || e.includes('401') || e.includes('403') || e.includes('invalid_argument')) return 'API key is missing or invalid';
+  if (e.includes('bad_request') || e.includes('badrequest') || e.includes('400')) return 'API request format error';
   if (e.includes('no response')) return 'never answered';
   return 'gave an answer that could not be read';
 }

@@ -141,6 +141,14 @@ export function LlmSetupModal({ apiBase, forceOpen, onClose }: LlmSetupModalProp
     try {
       storedGroq = localStorage.getItem("archon:key:groq") || "";
       storedOmni = localStorage.getItem("archon:key:omnikey") || "";
+
+      // Auto-clean: if user mistakenly put a Groq key into omnikey, purge it
+      if (storedOmni && storedOmni.startsWith("gsk_")) {
+        localStorage.removeItem("archon:key:omnikey");
+        storedOmni = "";
+        apiFetch(`${base}/keys/omnikey`, { method: "DELETE" }).catch(() => {});
+      }
+
       if (storedGroq) setGroqKey(storedGroq);
       if (storedOmni) setOmniKey(storedOmni);
     } catch {}
@@ -561,7 +569,7 @@ function ApiPanel({
         badge="Free tier · recommended"
         badgeColor="text-success-fg"
         helpUrl="https://console.groq.com/keys"
-        helpText="Get a free Groq API key"
+        helpText="Get a free Groq API key (starts with gsk_)"
         placeholder="gsk_..."
         configured={!!groqConfigured}
         maskedKey={groqMasked}
@@ -574,14 +582,14 @@ function ApiPanel({
         onSave={onSaveGroq}
       />
 
-      {/* OmniKey card */}
+      {/* Gemini card */}
       <ApiKeyCard
-        label="OmniKey (Gemini gateway)"
-        badge="Unified key for Gemini models"
+        label="Google Gemini (Optional)"
+        badge="Gemini models via API"
         badgeColor="text-info"
-        helpUrl="https://omnikey-ai-unified-key-manager.onrender.com"
-        helpText="Get OmniKey"
-        placeholder="ok_..."
+        helpUrl="https://aistudio.google.com/app/apikey"
+        helpText="Get a Gemini API key (starts with AIza)"
+        placeholder="AIza..."
         configured={!!omniConfigured}
         maskedKey={omniMasked}
         value={omniKey}
@@ -594,9 +602,8 @@ function ApiPanel({
       />
 
       <div className="bg-info/5 border border-info/20 rounded-panel px-3 py-2 text-xs text-fg-muted">
-        <strong className="text-fg-strong">Token tips:</strong> The jury uses small fast models (8B) with
-        a 512-token output cap — cost is minimal. Groq's free tier supports ~1 000 jury sittings/day.
-        Keys are stored server-side and only returned masked.
+        <strong className="text-fg-strong">Token tips:</strong> Groq free tier provides instant, high-rate
+        tokens for both architecture generation and reviewing. Keys are stored server-side and only returned masked.
       </div>
     </div>
   );
@@ -612,6 +619,12 @@ function ApiKeyCard({
   value: string; testResult: TestResult | null; busy: boolean; savedLabel?: string;
   onChange: (v: string) => void; onTest: () => void; onSave?: () => void;
 }) {
+  const isCrossKey = (label.includes("Gemini") || label.includes("OmniKey")) && value.trim().startsWith("gsk_")
+    ? "⚠️ That's a Groq key (starts with 'gsk_'). Please paste it into Groq Cloud above!"
+    : label.includes("Groq") && value.trim().startsWith("AIza")
+    ? "⚠️ That's a Google Gemini key (starts with 'AIza'). Please paste it into Google Gemini below!"
+    : "";
+
   return (
     <div className="border border-line-strong rounded-panel p-3 flex flex-col gap-2 bg-raised">
       <div className="flex items-center justify-between">
@@ -626,35 +639,44 @@ function ApiKeyCard({
         </div>
       )}
 
-      <div className="flex gap-1.5">
-        <input
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={configured ? "Paste a new key to replace it" : placeholder}
-          disabled={busy}
-          className="flex-1 min-w-0 bg-surface border border-line-strong rounded-control px-2 py-1.5 text-xs font-mono text-fg-strong placeholder-fg-subtle focus:outline-none focus:border-info/60"
-        />
-        <button
-          type="button"
-          onClick={onTest}
-          disabled={busy || (!configured && !value.trim())}
-          className="px-2.5 py-1.5 rounded-control border border-line-strong text-xs text-fg-soft hover:text-info cursor-pointer disabled:opacity-50 flex items-center gap-1"
-        >
-          {busy && <span className="w-2.5 h-2.5 border-2 border-fg-subtle/40 border-t-fg-subtle rounded-full animate-spin" />}
-          Test
-        </button>
-        {onSave && (
+      <div className="flex flex-col gap-1">
+        <div className="flex gap-1.5">
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={configured ? "Paste a new key to replace it" : placeholder}
+            disabled={busy}
+            className={`flex-1 min-w-0 bg-surface border rounded-control px-2.5 py-1.5 text-xs font-mono text-fg-strong placeholder-fg-subtle focus:outline-none ${
+              isCrossKey ? "border-warning-fg focus:border-warning-fg" : "border-line-strong focus:border-info/60"
+            }`}
+          />
           <button
             type="button"
-            onClick={onSave}
-            disabled={busy || !value.trim()}
-            className="px-3 py-1.5 rounded-control bg-info-strong text-white text-xs font-semibold hover:brightness-110 cursor-pointer disabled:opacity-40 flex items-center gap-1"
+            onClick={onTest}
+            disabled={busy || (!configured && !value.trim())}
+            className="px-2.5 py-1.5 rounded-control border border-line-strong text-xs text-fg-soft hover:text-info cursor-pointer disabled:opacity-50 flex items-center gap-1"
           >
-            {savedLabel || "Save"}
+            {busy && <span className="w-2.5 h-2.5 border-2 border-fg-subtle/40 border-t-fg-subtle rounded-full animate-spin" />}
+            Test
           </button>
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={busy || !value.trim() || !!isCrossKey}
+              className="px-3 py-1.5 rounded-control bg-info-strong text-white text-xs font-semibold hover:brightness-110 cursor-pointer disabled:opacity-40 flex items-center gap-1"
+            >
+              {savedLabel || "Save"}
+            </button>
+          )}
+        </div>
+        {isCrossKey && (
+          <div className="text-xs text-warning-fg font-medium bg-warning/10 border border-warning/30 rounded px-2 py-1">
+            {isCrossKey}
+          </div>
         )}
       </div>
 
