@@ -2,10 +2,14 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 
-// The intro plays every time the studio opens (click or Esc skips it; reduced motion never plays it)
 import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 import { prefersReducedMotion } from '@/lib/motion';
+
+// The intro plays once per page load (click or Esc skips it; reduced motion never plays it).
+// Module memory survives client-side tab switches but resets on a hard refresh.
+let introPlayed = false;
+export const hasIntroPlayed = () => introPlayed;
 
 interface ConformanceCanvasProps {
   nodes: ConformanceNode[];
@@ -297,10 +301,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const dragOriginRef = useRef({ x: 0, y: 0 });
   const pendingEdgeRef = useRef<ConformanceEdge | null>(null);
-  // bl00d.money intro: plays once per mount, full screen from the very first paint (it also
+  // bl00d.money intro: plays once per page load, full screen from the very first paint (it also
   // covers the audit fetch). Node positions during the intro are derived every frame from these
   // per-id maps, so the graph data reloading mid-intro can't knock nodes off the dial.
-  const [introActive, setIntroActive] = useState(true);
+  const [introActive, setIntroActive] = useState(() => !introPlayed);
   const introRef = useRef<{
     placed: boolean; // ring laid out for the current node set
     started: boolean; // dial fill has begun (clock running)
@@ -311,15 +315,13 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     spin: number; // waiting-dial rotation
     cx: number; // ring centre (world)
     cy: number;
-    dialCam: { x: number; y: number; zoom: number } | null; // camera while the dial fills
-    finalCam: { x: number; y: number; zoom: number } | null; // framing the burst lands on
     targets: Map<string, { x: number; y: number }>;
     ring: Map<string, { x: number; y: number }>;
     at: Map<string, number>; // when each bead lights up on the dial
     dl: Map<string, number>; // per-node burst delay (by rank)
     al: Map<string, number>; // per-node alpha
-  } | null>({
-    placed: false, started: false, clock: 0, last: 0, wait: 0, born: 0, spin: 0, cx: 0, cy: 0, dialCam: null, finalCam: null,
+  } | null>(introPlayed ? null : {
+    placed: false, started: false, clock: 0, last: 0, wait: 0, born: 0, spin: 0, cx: 0, cy: 0,
     targets: new Map(), ring: new Map(), at: new Map(), dl: new Map(), al: new Map()
   });
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -331,8 +333,19 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   }, []);
   const hoverArmedRef = useRef(true);
   const hoverOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const handBackPendingRef = useRef(false);
+  const fullSizeRef = useRef({ w: 0, h: 0 }); // canvas size while full screen
 
-  // End (or skip) the intro: snap to the final layout without any DOM jumping or canvas buffer wipes
+  // Give the screen back to the studio (canvas returns to its slot)
+  const handBack = useCallback(() => {
+    if (!handBackPendingRef.current && wrapperRef.current?.classList.contains('fixed')) {
+      handBackPendingRef.current = true;
+      setIntroActive(false);
+      onIntroChangeRef.current?.(false);
+    }
+  }, []);
+
+  // End (or skip) the intro: snap to the final layout
   const finishIntro = useCallback(() => {
     const intro = introRef.current;
     if (!intro) return;
@@ -340,16 +353,31 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       const t = intro.targets.get(n.id);
       if (t) { n.x = t.x; n.y = t.y; }
     });
-    if (intro.finalCam) {
-      cameraRef.current = { ...intro.finalCam };
-    }
-    cameraTweenRef.current = null;
     introRef.current = null;
+    introPlayed = true;
     introEndedAtRef.current = performance.now();
     hoverArmedRef.current = false;
-    setIntroActive(false);
-    onIntroChangeRef.current?.(false);
-  }, []);
+    handBack();
+  }, [handBack]);
+
+  // Canvas just shrank from full screen into its slot: shift the camera by the slot's offset
+  // so every node stays at the same pixel, and redraw before paint so nothing visibly moves
+  useLayoutEffect(() => {
+    if (introActive || !handBackPendingRef.current) return;
+    handBackPendingRef.current = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const cam = cameraRef.current;
+    cameraTweenRef.current = null;
+    cameraRef.current = {
+      ...cam,
+      x: cam.x + fullSizeRef.current.w / 2 - (r.left + r.width / 2),
+      y: cam.y + fullSizeRef.current.h / 2 - (r.top + r.height / 2)
+    };
+    if (animFrameIdRef.current !== null) cancelAnimationFrame(animFrameIdRef.current);
+    renderRef.current?.();
+  }, [introActive]);
 
   // Reduced motion: end the intro before the first paint. Otherwise a click or Esc skips it.
   useLayoutEffect(() => {
@@ -481,7 +509,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       simEdgesRef.current = visibleEdges;
       topNodeIdRef.current = newSimNodes[0]?.id ?? null;
       introRef.current.targets = new Map();
-      introRef.current.finalCam = null;
       introRef.current.placed = false;
       introRef.current.wait = 0;
     }
@@ -602,7 +629,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       // this node set on the next frame (it needs the camera)
       if (introRef.current) {
         introRef.current.targets = computeLayoutTargets(mode, newSimNodes, visibleEdges, netPositions, selectedNode);
-        introRef.current.finalCam = null;
         introRef.current.placed = false;
         introRef.current.wait = 0;
       }
@@ -698,51 +724,57 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           intro.last = now;
           if (!intro.born) intro.born = now;
 
-          // Lay the dial out for the current node set: visually centered on screen
-          if (!intro.placed && currentNodes.length > 0 && cssWidth > 50) {
+          if (wrapperRef.current?.classList.contains('fixed')) fullSizeRef.current = { w: cssWidth, h: cssHeight };
+
+          // Lay the dial out for the current node set: first as soon as the nodes arrive (beads
+          // start filling right away, provisional camera), then again once the layout has settled
+          // with the real camera. The ring sits at the same screen pixels both times.
+          // Waits for the full-screen layout to commit, with a fallback so it can never stall.
+          if (!intro.placed && currentNodes.length > 0) {
             intro.wait++;
-            if (intro.wait > 2) {
-              const canvasRect = canvas.getBoundingClientRect();
-              const screenCenterX = window.innerWidth / 2;
-              const screenCenterY = (window.innerHeight - 56) / 2 + 56;
-              const dialOffsetX = screenCenterX - (canvasRect.left + cssWidth / 2);
-              const dialOffsetY = screenCenterY - (canvasRect.top + cssHeight / 2);
-
-              const est = computeFitT(currentNodes, cssWidth, cssHeight, 75);
-              const cam0 = intro.started && intro.dialCam
-                ? intro.dialCam
-                : { x: dialOffsetX, y: dialOffsetY, zoom: est.zoom };
-
-              intro.dialCam = cam0;
-              cameraRef.current = { ...cam0 };
+            const isFull = cssWidth >= window.innerWidth - 2 && cssHeight >= window.innerHeight - 2;
+            if (isFull || intro.wait > 20) {
+              const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
+              // Frame the end state exactly as the default view of the canvas's slot in the
+              // studio would, expressed in full-screen coordinates, so the hand-back is seamless
+              const slot = wrapperRef.current?.classList.contains('fixed')
+                ? wrapperRef.current.parentElement?.getBoundingClientRect()
+                : undefined;
+              let cam0 = intro.targets.size > 0
+                ? computeFitT(fitPts, cssWidth, cssHeight, 75)
+                : { x: 0, y: 0, zoom: 1 };
+              if (intro.targets.size > 0 && slot && slot.width > 50 && slot.height > 50) {
+                const fit = computeFitT(fitPts, slot.width, slot.height, 75);
+                cam0 = {
+                  ...fit,
+                  x: fit.x + slot.left + slot.width / 2 - cssWidth / 2,
+                  y: fit.y + slot.top + slot.height / 2 - cssHeight / 2
+                };
+              }
+              cameraRef.current = cam0;
               cameraTweenRef.current = null;
               hasFittedInitialCameraRef.current = true;
-
-              // Ring centred on (0, 0) world, radius 20% of the short side
+              // Ring centred on screen, radius 20% of the short side (bl00d.money)
               const rw = (Math.min(cssWidth, cssHeight) * 0.2) / cam0.zoom;
-              intro.cx = 0;
-              intro.cy = 0;
+              const cx = -cam0.x / cam0.zoom;
+              const cy = -cam0.y / cam0.zoom;
+              intro.cx = cx;
+              intro.cy = cy;
 
               const layerIdx = (l: string) => { const i = INTRO_LAYER_ORDER.indexOf(l); return i < 0 ? 99 : i; };
-              const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
-              intro.ring.clear();
-              order.forEach((n, i) => {
-                const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
-                intro.ring.set(n.id, { x: Math.cos(a) * rw, y: Math.sin(a) * rw });
-                intro.at.set(n.id, (i / order.length) * INTRO_FILL);
-                if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
-              });
-              // currentNodes is sorted by degree, so its index is the rank
+            const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
+            intro.ring.clear();
+            order.forEach((n, i) => {
+              const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
+              intro.ring.set(n.id, { x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rw });
+              intro.at.set(n.id, (i / order.length) * INTRO_FILL);
+              if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
+            });
+            // currentNodes is sorted by degree, so its index is the rank
               currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(900, rank * 7)));
               intro.placed = true;
               intro.started = true;
             }
-          }
-
-          // Layout settled: work out the final framing directly in the slot's dimensions
-          if (intro.started && intro.targets.size > 0 && !intro.finalCam && cssWidth > 50) {
-            const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
-            intro.finalCam = computeFitT(fitPts, cssWidth, cssHeight, 75);
           }
 
           if (!intro.started) {
@@ -753,16 +785,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           } else {
             intro.clock += dt;
             // Layout not settled yet: hold on the full dial until it is
-            if (!intro.finalCam) intro.clock = Math.min(intro.clock, INTRO_HOLD);
+            if (intro.targets.size === 0) intro.clock = Math.min(intro.clock, INTRO_HOLD);
             const c = intro.clock;
             const burst = c - INTRO_BURST;
-            // Camera glides from the dial framing to the final one over the whole burst
-            if (intro.dialCam && intro.finalCam) {
-              const d = intro.dialCam, f = intro.finalCam;
-              const e = easeCubicInOut(Math.max(0, Math.min(1, burst / (INTRO_TWEEN + 900))));
-              const zoom = d.zoom * Math.pow(f.zoom / d.zoom, e);
-              cameraRef.current = { x: d.x + (f.x - d.x) * e, y: d.y + (f.y - d.y) * e, zoom };
-            }
             currentNodes.forEach(n => {
               const tg = c >= (intro.at.get(n.id) ?? 0) ? 1 : 0;
               const a = intro.al.get(n.id) ?? 0;
@@ -924,9 +949,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
         // Intro dial (screen space): progress arc, outer ring, ticks and a sweeping bead
         if (introNow && introDial > 0) {
-          // Pinned to the bead ring's centre on screen (smoothly follows camera)
-          const dcx = cssWidth / 2 + cam.x;
-          const dcy = cssHeight / 2 + cam.y;
+          // Pinned to the bead ring's centre on screen (canvas centre until it is laid out)
+          const dcx = introNow.started ? cssWidth / 2 + cam.x + introNow.cx * cam.zoom : cssWidth / 2;
+          const dcy = introNow.started ? cssHeight / 2 + cam.y + introNow.cy * cam.zoom : cssHeight / 2;
           const R = Math.min(cssWidth, cssHeight) * 0.2;
           const top = -Math.PI / 2;
           ctx.lineWidth = 1;
@@ -1427,7 +1452,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       isRunning = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [mode, selectedNode, selectedEdge, highlightLayer, highlightCycles, finishIntro]);
+  }, [mode, selectedNode, selectedEdge, highlightLayer, highlightCycles, finishIntro, handBack]);
 
   // Window resize listener
   // Window resize listener (does not move or reset user camera)
@@ -1686,7 +1711,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   return (
     <div
       ref={wrapperRef}
-      className={`${SLOT_WRAPPER_CLASS} ${WRAPPER_CLASS}`}
+      className={`${introActive ? 'fixed inset-0 z-[100]' : SLOT_WRAPPER_CLASS} ${WRAPPER_CLASS}`}
     >
       {introActive && (
         <button

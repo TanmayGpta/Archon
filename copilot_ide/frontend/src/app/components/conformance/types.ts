@@ -76,6 +76,8 @@ export interface BlueprintInfo {
   id: string;
   name: string;
   description: string;
+  // shared_fixtures (built-in) | arcgen_synthesis | custom (imported)
+  source?: string;
   // Only on the audited blueprint: layer order and allowed [source, target] layer pairs
   layers?: string[];
   allowed?: [string, string][];
