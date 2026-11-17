@@ -38,6 +38,7 @@ class JurorSpec(BaseModel):
     # like /no_think is not enough: qwen3 still reasons for thousands of tokens, overflows num_ctx
     # and returns a truncated answer (the juror then abstains).
     think: Optional[bool] = None
+    provider: Optional[str] = None
 
 
 class OllamaSettings(BaseModel):
@@ -50,8 +51,19 @@ class Rubric(BaseModel):
     max_regenerations: int = 2
     jurors: List[JurorSpec]
     spares: List[JurorSpec] = Field(default_factory=list)
+    cloud_jurors: List[JurorSpec] = Field(default_factory=list)
+    cloud_spares: List[JurorSpec] = Field(default_factory=list)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     checkpoints: Dict[CheckpointName, Checkpoint]
+
+    def for_mode(self, is_cloud: bool) -> "Rubric":
+        if not is_cloud:
+            return self
+        r = self.model_copy(deep=True)
+        if self.cloud_jurors:
+            r.jurors = self.cloud_jurors
+            r.spares = self.cloud_spares
+        return r
 
 
 @lru_cache(maxsize=1)

@@ -31,9 +31,10 @@ from app.phase_a.asr_tracker import ASRTracker, DEFAULT_ASR_WEIGHTS
 from app.phase_a.elicitation_agent import ElicitationAgent, QuestionItem
 from app.generator import generate_architecture_from_srs
 from app.phase_b.normalizer import normalize_srs
-from app.llm import get_llm_client
+from app.llm import get_llm_client, BaseLLMClient
 from app.jury.pipeline import JuryRun
-from app.jury.panel import AdkOllamaPanel
+from app.jury.panel import AdkJuryPanel, AdkOllamaPanel
+from app.jury.models import load_rubric
 from app import jobs
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,15 @@ router = APIRouter()
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 # Where /save-to-workspace writes: the mounted workspace in Docker, else copilot_ide/ when run natively.
-WORKSPACE_ROOT = Path(os.getenv("WORKSPACE_ROOT", "/workspace" if os.path.exists("/workspace") else str(Path(__file__).resolve().parents[3])))
+def _resolve_workspace_root() -> Path:
+    if os.getenv("WORKSPACE_ROOT"):
+        return Path(os.getenv("WORKSPACE_ROOT"))
+    if os.path.exists("/workspace"):
+        return Path("/workspace")
+    parents = Path(__file__).resolve().parents
+    return parents[3] if len(parents) > 3 else parents[1]
+
+WORKSPACE_ROOT = _resolve_workspace_root()
 
 # In-memory session store for multi-turn elicitation interviews
 SESSIONS: Dict[str, Dict[str, Any]] = {}
@@ -359,6 +368,54 @@ async def generate_architecture(req: GenerateArchitectureRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _get_active_api_keys() -> Dict[str, str]:
+    keys: Dict[str, str] = {}
+    try:
+        from app import llm_settings
+        s = llm_settings.load()
+        for p in llm_settings.KEY_PROVIDERS:
+            val, _ = llm_settings.api_key(p, s)
+            if val:
+                keys[p] = val
+    except Exception:
+        pass
+    for k in ("GROQ_API_KEY", "groq"):
+        if os.getenv(k) and "groq" not in keys:
+            keys["groq"] = os.getenv(k)
+    for k in ("OMNIKEY_API_KEY", "omnikey", "GEMINI_API_KEY"):
+        if os.getenv(k) and "omnikey" not in keys:
+            keys["omnikey"] = os.getenv(k)
+    return keys
+
+
+def _is_cloud_selected(client: Optional[BaseLLMClient] = None) -> bool:
+    try:
+        from app import llm_settings
+        s = llm_settings.load()
+        if s.provider in ("groq", "omnikey"):
+            return True
+        if s.provider == "ollama":
+            return False
+    except Exception:
+        pass
+
+    if client is not None:
+        from app.llm import GroqClient, OmniKeyClient, ResilientLLMClient, OllamaClient
+        if isinstance(client, (GroqClient, OmniKeyClient)):
+            return True
+        if isinstance(client, ResilientLLMClient):
+            active = getattr(client, "active_client", None) or (client.clients[0] if client.clients else None)
+            if isinstance(active, (GroqClient, OmniKeyClient)):
+                return True
+            if isinstance(active, OllamaClient):
+                return False
+
+    keys = _get_active_api_keys()
+    if keys.get("groq") or keys.get("omnikey"):
+        return True
+    return False
+
+
 def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
     """Starts a generation job in a worker thread; raises 400 before anything runs on bad input."""
     client = get_llm_client()
@@ -368,7 +425,11 @@ def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
     def work() -> None:
         try:
             if req.jury:
-                run = JuryRun(client=client, panel=AdkOllamaPanel(), emit=job.emit)
+                is_cloud = _is_cloud_selected(client)
+                api_keys = _get_active_api_keys()
+                panel = AdkJuryPanel(is_cloud=is_cloud, api_keys=api_keys)
+                rubric = load_rubric().for_mode(is_cloud)
+                run = JuryRun(client=client, panel=panel, emit=job.emit, rubric=rubric)
                 graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
                 payload = _architecture_payload(graph, table, report)
                 payload["jury"] = trace.model_dump(mode="json")

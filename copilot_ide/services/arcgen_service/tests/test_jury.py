@@ -280,5 +280,28 @@ class TestDiffAndCases(unittest.TestCase):
         self.assertNotIn("gemini", a.text.lower())
 
 
+class TestCloudJury(unittest.TestCase):
+    def test_rubric_for_mode_cloud(self):
+        rubric = load_rubric()
+        cloud_rubric = rubric.for_mode(is_cloud=True)
+        local_rubric = rubric.for_mode(is_cloud=False)
+        self.assertEqual(len(local_rubric.jurors), 5)
+        self.assertEqual(local_rubric.jurors[0].model, "qwen3:4b")
+        self.assertEqual(len(cloud_rubric.jurors), 5)
+        self.assertEqual(cloud_rubric.jurors[0].model, "llama-3.3-70b-versatile")
+        self.assertTrue(any(j.family == "mistral" for j in cloud_rubric.jurors))
+
+    def test_cloud_jury_select_panel_excludes_generator_family(self):
+        cloud_rubric = load_rubric().for_mode(is_cloud=True)
+        # Generator is a Llama model -> Llama family must be excluded from panel
+        panel, excluded = select_panel(cloud_rubric, ["llama-3.3-70b-versatile"])
+        self.assertIn("llama", excluded)
+        self.assertTrue(all(j.family != "llama" for j in panel))
+        # Unique families
+        families = [j.family for j in panel]
+        self.assertEqual(len(families), len(set(families)))
+
+
+
 if __name__ == "__main__":
     unittest.main()

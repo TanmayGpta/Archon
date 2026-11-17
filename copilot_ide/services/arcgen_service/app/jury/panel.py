@@ -18,6 +18,7 @@ max_concurrent and jurors really run side by side.
 
 import asyncio
 import logging
+import os
 import time
 from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
@@ -76,10 +77,19 @@ def _on_model_error(callback_context, llm_request, error) -> LlmResponse:
     return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=msg)]))
 
 
-class AdkOllamaPanel:
-    def __init__(self, rubric: Optional[Rubric] = None, ollama_host: Optional[str] = None):
-        self.rubric = rubric or load_rubric()
+class AdkJuryPanel:
+    def __init__(
+        self,
+        rubric: Optional[Rubric] = None,
+        ollama_host: Optional[str] = None,
+        is_cloud: bool = False,
+        api_keys: Optional[Dict[str, str]] = None,
+    ):
+        self.is_cloud = is_cloud
+        raw_rubric = rubric or load_rubric()
+        self.rubric = raw_rubric.for_mode(is_cloud) if hasattr(raw_rubric, "for_mode") else raw_rubric
         self.host = ollama_host or DEFAULT_OLLAMA_HOST
+        self.api_keys = api_keys or {}
 
     def judge(
         self,
@@ -105,15 +115,43 @@ class AdkOllamaPanel:
             + f"\n\nAnswer EVERY question ({ids}), one entry each, in the JSON format above."
             + (f"\n{spec.prompt_suffix}" if spec.prompt_suffix else "")
         )
-        extra = {"reasoning_effort": "none"} if spec.think is False else {}  # LiteLLM -> Ollama think: false
-        model = LiteLlm(
-            model=f"ollama_chat/{spec.model}",
-            api_base=self.host,
-            timeout=self.rubric.ollama.timeout_s,
-            num_ctx=self.rubric.ollama.num_ctx,
-            format="json",
-            **extra,
-        )
+        if self.is_cloud or (spec.provider and spec.provider != "ollama"):
+            prov = (spec.provider or "groq").lower()
+            if prov == "groq":
+                key = self.api_keys.get("groq") or os.getenv("GROQ_API_KEY") or os.getenv("groq")
+                model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
+                model = LiteLlm(
+                    model=model_name,
+                    api_key=key,
+                    timeout=90,
+                    response_format={"type": "json_object"},
+                )
+            elif prov in ("omnikey", "gemini"):
+                key = self.api_keys.get("omnikey") or os.getenv("OMNIKEY_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("omnikey")
+                model_name = f"gemini/{spec.model}" if not spec.model.startswith("gemini/") else spec.model
+                model = LiteLlm(
+                    model=model_name,
+                    api_key=key,
+                    timeout=90,
+                    response_format={"type": "json_object"},
+                )
+            else:
+                model_name = spec.model
+                model = LiteLlm(
+                    model=model_name,
+                    timeout=90,
+                    response_format={"type": "json_object"},
+                )
+        else:
+            extra = {"reasoning_effort": "none"} if spec.think is False else {}  # LiteLLM -> Ollama think: false
+            model = LiteLlm(
+                model=f"ollama_chat/{spec.model}",
+                api_base=self.host,
+                timeout=self.rubric.ollama.timeout_s,
+                num_ctx=self.rubric.ollama.num_ctx,
+                format="json",
+                **extra,
+            )
         return LlmAgent(
             name=f"juror_{idx}_{checkpoint}",
             model=model,
@@ -124,7 +162,8 @@ class AdkOllamaPanel:
         )
 
     async def _judge_many(self, sittings: List[Sitting], on_verdict) -> Dict[CheckpointName, List[JurorVerdict]]:
-        gate = asyncio.Semaphore(max(1, self.rubric.ollama.max_concurrent))
+        concurrency = 2 if self.is_cloud else max(1, self.rubric.ollama.max_concurrent)
+        gate = asyncio.Semaphore(concurrency)
         # agent name -> (checkpoint, seat); jurors keyed by model so a model is loaded once
         by_name: Dict[str, Tuple[CheckpointName, Seat]] = {}
         per_model: Dict[str, List[LlmAgent]] = {}
@@ -188,3 +227,8 @@ class AdkOllamaPanel:
                 on_verdict(checkpoint, v)
                 out[checkpoint].append(v)
         return out
+
+
+# Backwards compatibility alias
+AdkOllamaPanel = AdkJuryPanel
+

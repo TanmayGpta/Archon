@@ -11,6 +11,17 @@
   "spares": [
     {"model": "mistral:7b", "family": "mistral"}
   ],
+  "cloud_jurors": [
+    {"model": "llama-3.3-70b-versatile", "family": "llama", "provider": "groq"},
+    {"model": "qwen-2.5-32b", "family": "qwen", "provider": "groq"},
+    {"model": "mixtral-8x7b-32768", "family": "mistral", "provider": "groq"},
+    {"model": "gemma2-9b-it", "family": "google", "provider": "groq"},
+    {"model": "deepseek-r1-distill-llama-70b", "family": "deepseek", "provider": "groq"}
+  ],
+  "cloud_spares": [
+    {"model": "llama-3.1-8b-instant", "family": "llama", "provider": "groq"},
+    {"model": "gemini-2.5-flash", "family": "google", "provider": "omnikey"}
+  ],
   "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},
   "checkpoints": {
     "normalization": {
