@@ -14,6 +14,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from conformance.studio.service import ConformanceService
+from conformance.studio.session import load_latest_session, save_session
 from conformance.studio.blueprints import (
     RULESET_TEMPLATE,
     RulesetError,
@@ -33,7 +34,7 @@ class RulesetRequest(BaseModel):
 
 
 class AuditRequest(BaseModel):
-    target_path: Optional[str] = Field(None, description="Path to codebase folder to audit")
+    target_path: Optional[str] = Field(None, description="Codebase folder to audit, or a github.com URL (shallow-cloned into test_codebases/imported)")
     blueprint_id: Optional[str] = Field("archon_architecture", description="ID of architecture blueprint to check against")
     include_external: Optional[bool] = Field(True, description="Whether to include stdlib and 3rd-party library nodes")
     custom_ruleset: Optional[Dict[str, Any]] = Field(None, description="Optional custom ruleset JSON")
@@ -153,6 +154,15 @@ def remove_ruleset(blueprint_id: str):
     if not delete_custom_ruleset(blueprint_id):
         raise HTTPException(status_code=404, detail=f"No imported ruleset with id '{blueprint_id}'.")
     return {"status": "success", "deleted": blueprint_id}
+
+
+@router.get("/session")
+def get_session():
+    """Returns the latest audit session record so Conformance Studio and IDE share the exact same state."""
+    session = load_latest_session()
+    if not session:
+        return {"status": "none", "session": None}
+    return {"status": "success", "session": session}
 
 
 @router.post("/audit")

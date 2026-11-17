@@ -5,6 +5,7 @@ import { FileTree, InlineNameInput, type InlineNameEdit } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 import { ErrorState, Skeleton } from '../../components/StateViews';
+import { ConformancePanel } from './ConformancePanel';
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -128,8 +129,11 @@ export function Sidebar() {
 
       {/* ── 2. Sidebar (Explorer / Search, resizable) ──────────────── */}
       <div style={{ width: panel.size }} className="bg-surface border-r border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
-        
-        {/* Project Title Bar & Explorer Actions Toolbar */}
+        {activeActivity === 'diagnostics' ? (
+          <ConformancePanel />
+        ) : (
+          <>
+            {/* Project Title Bar & Explorer Actions Toolbar */}
         <div className="px-3 py-2 border-b border-line-subtle flex justify-between items-center bg-canvas">
           <div className="flex items-center gap-1.5 truncate">
             <span className="text-xs font-mono font-bold tracking-wider text-fg uppercase truncate max-w-[105px]" title={currentProjectPath}>
@@ -259,6 +263,8 @@ export function Sidebar() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
       <ResizeHandle
         edge="right"

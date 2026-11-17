@@ -28,11 +28,31 @@ export function useIdeStore() {
   // Remote Clone-Free GitHub Workspace State
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showAutoForkModal, setShowAutoForkModal] = useState(false);
-  const [githubRepoInfo, setGithubRepoInfo] = useState<GitHubRepoInfo | null>(null);
+  const [githubRepoInfo, setGithubRepoInfoState] = useState<GitHubRepoInfo | null>(() => {
+    try {
+      const saved = localStorage.getItem('archon.ide.githubRepoInfo');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const setGithubRepoInfo = (info: GitHubRepoInfo | null) => {
+    setGithubRepoInfoState(info);
+    try {
+      if (info) localStorage.setItem('archon.ide.githubRepoInfo', JSON.stringify(info));
+      else localStorage.removeItem('archon.ide.githubRepoInfo');
+    } catch {}
+  };
   // A token typed this session; kept in memory only. The local runner keeps one between visits.
   const [githubToken, setGithubToken] = useState('');
   const githubAuth = useGitHubAuth(githubToken);
-  const [isGitHubWorkspace, setIsGitHubWorkspace] = useState(false);
+  const [isGitHubWorkspace, setIsGitHubWorkspace] = useState(() => {
+    try {
+      return !!localStorage.getItem('archon.ide.githubRepoInfo');
+    } catch {
+      return false;
+    }
+  });
   const [currentGitHubBranch, setCurrentGitHubBranch] = useState('main');
   const [remoteFileShas, setRemoteFileShas] = useState<Record<string, string>>({});
 

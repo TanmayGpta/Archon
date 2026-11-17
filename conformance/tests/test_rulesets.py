@@ -180,6 +180,59 @@ def test_custom_ruleset_is_validated_on_audit():
         pass
 
 
+PHASE2_ARCGEN = {
+    "project_name": "Shop",
+    "nodes": [
+        {"node_id": "api", "name": "Shop API", "node_type": "service", "layer": "Presentation"},
+        {"node_id": "orders", "name": "Order Use Case", "node_type": "service", "layer": "Application"},
+        {"node_id": "rules", "name": "Pricing Rules", "node_type": "module", "layer": "Domain"},
+        {"node_id": "db", "name": "Order Repository", "node_type": "module", "layer": "Infrastructure"},
+    ],
+    "edges": [
+        {"edge_id": "E1", "source": "api", "target": "orders", "justification": "API delegates to use cases.", "traced_requirements": ["FR-1"]},
+        {"edge_id": "E2", "source": "orders", "target": "rules", "justification": "Use cases apply pricing.", "traced_requirements": ["FR-2"]},
+        {"edge_id": "E3", "source": "orders", "target": "db", "justification": "Use cases persist orders.", "traced_requirements": ["FR-3"]},
+    ],
+}
+
+
+def test_audit_maps_automatically_with_coverage_and_traces():
+    from conformance.studio.service import ConformanceService
+    r = ConformanceService().run_audit("test_codebases/ecommerce_platform", custom_ruleset=copy.deepcopy(PHASE2_ARCGEN),
+                                       include_external=False)
+    assert r["status"] == "success", r.get("error")
+    m = r["metrics"]
+    # All modules map to layers, full coverage
+    assert m["coverage"] == 100.0
+    assert m["totalModules"] > 0
+    # Every violation carries its relative source file and blueprint trace
+    assert r["violations"] and all(v["trace"] is not None for v in r["violations"])
+    assert all("source_file" in v for v in r["violations"])
+    v = next(v for v in r["violations"] if v["source_layer"] == "Presentation" and v["target_layer"] == "Infrastructure")
+    assert v["trace"]["route"] == ["Presentation", "Application", "Infrastructure"]
+    assert [h["arcgenEdges"] for h in v["trace"]["rules"]] == [["E1"], ["E3"]]
+    assert [h["requirements"] for h in v["trace"]["rules"]] == [["FR-1"], ["FR-3"]]
+
+
+def test_session_persistence_and_github_slugs():
+    from conformance.studio.service import heuristic_layer_classify
+    from conformance.studio.github_import import github_slug
+    from conformance.studio.session import load_latest_session
+    # Heuristic maps domain package and fallback
+    assert heuristic_layer_classify("domain") == "Domain"
+    assert heuristic_layer_classify("unknown_helper") == "Application"
+    # Session persistence verification
+    session = load_latest_session()
+    assert session is not None
+    assert "metrics" in session
+    # GitHub slugs
+    assert github_slug("https://github.com/acme/shop.git") == "acme/shop"
+    assert github_slug("github.com/acme/shop/tree/main") == "acme/shop"
+    assert github_slug("gh:acme/shop") == "acme/shop"
+    assert github_slug("acme/shop") is None
+    assert github_slug("C:/code/shop") is None
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in list(globals().items()):

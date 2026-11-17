@@ -343,7 +343,15 @@ def normalize_workspace_path(p_str: str) -> Path:
 
     p = Path(cleaned)
     if not p.is_absolute() and not cleaned.startswith("/"):
-        return (ACTIVE_WORKSPACE_ROOT / cleaned).resolve()
+        cand = (ACTIVE_WORKSPACE_ROOT / cleaned).resolve()
+        if cand.exists():
+            return cand
+        host_archon = Path("/mnt/c/Users/krish/OneDrive/Desktop/Archon")
+        if (host_archon / cleaned).exists():
+            return (host_archon / cleaned).resolve()
+        if (WORKSPACE_ROOT / cleaned).exists():
+            return (WORKSPACE_ROOT / cleaned).resolve()
+        return cand
     return p.resolve()
 
 def get_active_git_branch(directory: Path) -> str:
@@ -379,6 +387,32 @@ def get_workspace_projects():
 def open_workspace_project(req: OpenProjectRequest):
     """Opens any folder / directory on the host as the active IDE project root, creating if requested."""
     global ACTIVE_WORKSPACE_ROOT, RECENT_PROJECTS
+
+    # Check if target is a GitHub URL or slug (e.g. https://github.com/owner/repo)
+    raw_p = req.path.strip()
+    slug = None
+    if "github.com/" in raw_p:
+        parts = raw_p.split("github.com/")[-1].strip("/").split("/")
+        if len(parts) >= 2:
+            slug = f"{parts[0]}/{parts[1].replace('.git', '')}"
+    elif raw_p.startswith("gh:"):
+        slug = raw_p[3:].strip("/")
+
+    if slug:
+        from conformance.studio.github_import import import_github_repo
+        cloned_dir = import_github_repo(slug, WORKSPACE_ROOT)
+        ACTIVE_WORKSPACE_ROOT = cloned_dir
+        normalized_path = str(cloned_dir).replace("\\", "/")
+        if normalized_path not in RECENT_PROJECTS:
+            RECENT_PROJECTS.insert(0, normalized_path)
+        return {
+            "status": "success",
+            "current_project": slug,
+            "project_path": normalized_path,
+            "git_branch": get_active_git_branch(cloned_dir),
+            "recent_projects": list(dict.fromkeys(RECENT_PROJECTS))[:10]
+        }
+
     target_path = normalize_workspace_path(req.path)
     
     if not target_path.exists():
@@ -408,6 +442,60 @@ def open_workspace_project(req: OpenProjectRequest):
         "project_path": normalized_path,
         "git_branch": get_active_git_branch(target_path),
         "recent_projects": list(dict.fromkeys(RECENT_PROJECTS))[:10]
+    }
+
+
+@app.get("/api/workspace/resolve-folder")
+def resolve_folder_path(name: str):
+    """Given a folder name selected in Windows Explorer, resolves its full path."""
+    name_clean = name.strip().replace("\\", "/").rstrip("/").split("/")[-1]
+    candidates = [
+        ACTIVE_WORKSPACE_ROOT / name_clean,
+        WORKSPACE_ROOT / "test_codebases" / name_clean,
+        WORKSPACE_ROOT / "targets" / name_clean,
+        WORKSPACE_ROOT / name_clean,
+    ]
+    for c in candidates:
+        if c.exists() and c.is_dir():
+            return {"found": True, "path": str(c).replace("\\", "/")}
+    
+    # Recursive search up to 2 levels deep
+    for root, dirs, _ in os.walk(str(WORKSPACE_ROOT)):
+        depth = root[len(str(WORKSPACE_ROOT)):].count(os.sep)
+        if depth > 2:
+            dirs.clear()
+            continue
+        if name_clean in dirs:
+            found_p = Path(root) / name_clean
+            return {"found": True, "path": str(found_p).replace("\\", "/")}
+            
+    return {"found": False, "path": name}
+
+
+@app.get("/api/workspace/browse-directory")
+def browse_directory(path: Optional[str] = None):
+    """Lists subdirectories to allow visual folder selection."""
+    target = normalize_workspace_path(path) if path else ACTIVE_WORKSPACE_ROOT
+    if not target.exists() or not target.is_dir():
+        target = WORKSPACE_ROOT
+    
+    subdirs = []
+    try:
+        for entry in os.scandir(str(target)):
+            if entry.is_dir() and not entry.name.startswith("."):
+                subdirs.append({
+                    "name": entry.name,
+                    "path": str(entry.path).replace("\\", "/")
+                })
+    except Exception:
+        pass
+    
+    subdirs.sort(key=lambda x: x["name"].lower())
+    parent_path = str(target.parent).replace("\\", "/") if target.parent != target else None
+    return {
+        "current_path": str(target).replace("\\", "/"),
+        "parent_path": parent_path,
+        "directories": subdirs
     }
 
 @app.post("/api/terminal/exec")
@@ -709,11 +797,27 @@ async def github_open_repo(req: GitHubOpenRequest):
         repo_info = await client.get_repo_info(owner, repo, token=req.token)
         branch = req.branch or repo_info.get("default_branch", "main")
         tree = await client.get_tree(owner, repo, branch=branch, token=req.token)
+
+        # Shallow-clone repository locally so real files exist on disk for AST conformance & IDE persistence
+        cloned_path_str = None
+        try:
+            from conformance.studio.github_import import import_github_repo
+            slug = f"{owner}/{repo}"
+            cloned_dir = import_github_repo(slug, WORKSPACE_ROOT, branch=branch)
+            global ACTIVE_WORKSPACE_ROOT, RECENT_PROJECTS
+            ACTIVE_WORKSPACE_ROOT = cloned_dir
+            cloned_path_str = str(cloned_dir).replace("\\", "/")
+            if cloned_path_str not in RECENT_PROJECTS:
+                RECENT_PROJECTS.insert(0, cloned_path_str)
+        except Exception as e:
+            print(f"Warning: Local cloning of {owner}/{repo} failed: {e}")
+
         return {
             "status": "success",
             "repo_info": repo_info,
             "branch": branch,
-            "tree": tree
+            "tree": tree,
+            "cloned_path": cloned_path_str
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

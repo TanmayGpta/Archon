@@ -123,9 +123,11 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
 });
 
 export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, initialPath, initialBlueprintId, introScope = 'viewport', initialView, initialFocus, syncUrl = false }) => {
-  // Default target (Archon itself): start from the bundled snapshot instead of waiting on the API.
-  // "Run audit" still fetches live. Regenerate the snapshot when Archon's structure changes.
-  const fromSnapshot = !initialPath?.trim() && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
+  // Read open project from localStorage if initialPath is not provided
+  const savedIdeProject = typeof window !== 'undefined' ? (localStorage.getItem('archon.ide.lastProject') || '') : '';
+  const effectiveInitialPath = initialPath?.trim() || (savedIdeProject && savedIdeProject !== '/workspace' ? savedIdeProject : '');
+  // Default target (Archon itself): start from the bundled snapshot only if no custom project is open
+  const fromSnapshot = !effectiveInitialPath && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
   // includeExternal value the current data was audited with (the snapshot uses true). Compared
   // instead of a one-shot flag so React StrictMode's double effect run can't refetch mid-intro.
   const auditedExternalRef = useRef<boolean | null>(fromSnapshot ? true : null);
@@ -138,9 +140,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
 
   // Target Codebase Path State
-  const [targetPath, setTargetPath] = useState<string>(initialPath || '');
+  const [targetPath, setTargetPath] = useState<string>(effectiveInitialPath || '');
   // Path of the audit on screen ('' = workspace root), for the URL
-  const [auditedPath, setAuditedPath] = useState<string>(initialPath || '');
+  const [auditedPath, setAuditedPath] = useState<string>(effectiveInitialPath || '');
   const [pendingFocus, setPendingFocus] = useState<string | undefined>(initialFocus);
 
   // View & Filter States
@@ -174,13 +176,94 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const dossierPanel = usePanelSize('conformance.dossier', { initial: 320, min: 260, max: 640 });
   const [introActive, setIntroActive] = useState<boolean>(() => !hasIntroPlayed());
 
+  // Project open in the IDE: what an empty PATH audits (ref so runAudit never reads a stale value)
+  const [ideProject, setIdeProject] = useState<{ name: string; path: string } | null>(null);
+  const ideProjectRef = useRef<{ name: string; path: string } | null>(null);
+  useEffect(() => {
+    let idePath = '';
+    try {
+      idePath = localStorage.getItem('archon.ide.lastProject') || '';
+    } catch {}
+
+    const initSync = async () => {
+      let resolvedPath = effectiveInitialPath;
+      let projectName = '';
+      try {
+        const projRes = await fetch(`${apiBase}/api/workspace/projects`);
+        if (projRes.ok) {
+          const d = await projRes.json();
+          resolvedPath = effectiveInitialPath || (d?.project_path !== '/workspace' ? d?.project_path : '') || '';
+          projectName = d?.current_project || '';
+        }
+      } catch {}
+
+      if (resolvedPath) {
+        const p = { name: projectName || resolvedPath.split('/').pop() || resolvedPath, path: resolvedPath };
+        ideProjectRef.current = p;
+        setIdeProject(p);
+      }
+
+      // Check if there is already a matching session saved on backend
+      let matchingSession = false;
+      try {
+        const sessRes = await fetch(`${apiBase}/api/conformance/session`);
+        if (sessRes.ok) {
+          const s = await sessRes.json();
+          if (s?.session) {
+            const sessPath = s.session.targetPath || '';
+            const matchesCurrent = (!resolvedPath && (!sessPath || sessPath === '/workspace')) ||
+                                   (resolvedPath && (sessPath === resolvedPath || sessPath.endsWith(resolvedPath) || resolvedPath.endsWith(sessPath)));
+            if (!initialPath?.trim() && matchesCurrent) {
+              setAuditData(s.session);
+              setAuditedPath(sessPath);
+              if (sessPath) setTargetPath(sessPath);
+              if (s.session.blueprint?.id) setSelectedBlueprintId(s.session.blueprint.id);
+              setFilterLayers(new Set((s.session.layers || []).map((l: any) => l.name)));
+              setLoading(false);
+              matchingSession = true;
+            }
+          }
+        }
+      } catch {}
+
+      // If no matching session and the open project is not default /workspace, run audit immediately!
+      if (!matchingSession && !initialPath?.trim() && resolvedPath && resolvedPath !== '/workspace') {
+        setTargetPath(resolvedPath);
+        runAudit(undefined, resolvedPath);
+      }
+    };
+
+    initSync();
+  }, [apiBase, initialPath]);
+
+  // Sync across tabs: re-load session when IDE triggers a re-audit
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'archon.conformance.updated') {
+        fetch(`${apiBase}/api/conformance/session`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(d => {
+            if (d?.session) {
+              setAuditData(d.session);
+              setAuditedPath(d.session.targetPath || '');
+            }
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [apiBase]);
+
   // Fetch / Run Audit
   const runAudit = async (blueprintId?: string, customPath?: string, classifierId?: ClassifierId) => {
     setLoading(true);
     setError(null);
     const bp = blueprintId || selectedBlueprintId;
     const pathToScan = customPath !== undefined ? customPath : targetPath;
-    const where = pathToScan.trim() || 'the workspace root';
+    // Empty PATH = the IDE's open project (the workspace root if the IDE service didn't answer)
+    const effectivePath = pathToScan.trim() || ideProjectRef.current?.path || '';
+    const where = pathToScan.trim() || (ideProjectRef.current ? `the IDE project (${ideProjectRef.current.name})` : 'the workspace root');
     lastAuditRef.current = { blueprintId, path: pathToScan };
 
     try {
@@ -188,7 +271,7 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          target_path: pathToScan.trim() ? pathToScan.trim() : undefined,
+          target_path: effectivePath || undefined,
           blueprint_id: bp,
           include_external: includeExternal,
           classifier: classifierId || classifier
@@ -212,6 +295,9 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
       }
       setAuditData(data);
       setAuditedPath(pathToScan.trim());
+      try {
+        localStorage.setItem('archon.conformance.updated', String(Date.now()));
+      } catch {}
 
       const layersSet = new Set(data.layers.map(l => l.name));
       setFilterLayers(layersSet);
@@ -430,12 +516,12 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
           <span className="text-xs font-mono text-[#8b8b86]"><Glyph name="folder" /> PATH:</span>
           <input
             type="text"
-            placeholder="Default: Workspace Root"
+            placeholder={ideProject ? `IDE project: ${ideProject.name}` : 'Default: Workspace Root'}
             value={targetPath}
             onChange={e => setTargetPath(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && runAudit(undefined, targetPath)}
             className="w-40 sm:w-56 lg:w-72 bg-transparent text-xs font-mono text-[#e8ff00] placeholder-[#5a5a58] outline-none"
-            title="Type or paste any codebase folder path to audit (Press Enter to scan)"
+            title="Empty = the project open in the IDE. Or paste a folder path, or a github.com/owner/repo URL (cloned into test_codebases/imported). Press Enter to scan."
           />
           {targetPath && (
             <button
@@ -853,6 +939,57 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                 </div>
               )}
 
+              {/* Open in IDE Button */}
+              {selectedEdge.isViolation && (
+                <div className="mb-3">
+                  <a
+                    href={`/ide?project=${encodeURIComponent(auditedPath || targetPath || ideProjectRef.current?.path || '')}&file=${encodeURIComponent(
+                      selectedEdge.violation?.source_file || selectedEdge.source.replace(/\./g, '/') + '.py'
+                    )}${selectedEdge.lineNumber ? `&line=${selectedEdge.lineNumber}` : ''}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#1e293b] hover:bg-[#334155] text-cyan-400 hover:text-cyan-300 font-mono text-xs border border-cyan-500/30 transition-all font-semibold"
+                    title="Open this file and jump to the line in Archon IDE"
+                  >
+                    <Glyph name="zap" />
+                    <span>Open in IDE</span>
+                    {selectedEdge.lineNumber && <span className="text-white/60">(:{selectedEdge.lineNumber})</span>}
+                    <span>➔</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Traceability: what the blueprint allows instead, and the ArcGen edges behind it */}
+              {selectedEdge.violation?.trace && (() => {
+                const trace = selectedEdge.violation.trace;
+                return (
+                  <div className="mb-3 bg-[#141413] p-2.5 rounded border border-[#1f1f1e] space-y-2">
+                    <div className="text-[#8b8b86] text-xs">BLUEPRINT TRACE:</div>
+                    <div className="text-[#d1d5db]">
+                      {trace.route ? (
+                        <>Allowed only via <b className="text-[#e8ff00]">{trace.route.join(' → ')}</b></>
+                      ) : trace.rules.length ? (
+                        <>The blueprint lets <b className="text-[#e8ff00]">{selectedEdge.sourceLayer}</b> depend only on:</>
+                      ) : (
+                        <>The blueprint allows <b className="text-[#e8ff00]">{selectedEdge.sourceLayer}</b> no dependencies on other groups.</>
+                      )}
+                    </div>
+                    {trace.rules.map(rule => (
+                      <div key={`${rule.source}->${rule.target}`} className="pl-2 border-l border-[#2b2b2a] space-y-0.5">
+                        <div className="text-white">{rule.source} → {rule.target}</div>
+                        {rule.justification && <div className="text-[#a0a0a0] break-words">{rule.justification}</div>}
+                        {rule.arcgenEdges.length > 0 && (
+                          <div className="text-[#8b8b86]">ArcGen edges: <span className="text-[#4f9dff]">{rule.arcgenEdges.join(', ')}</span></div>
+                        )}
+                        {rule.requirements.length > 0 && (
+                          <div className="text-[#8b8b86]">Requirements: <span className="text-[#6fd38a]">{rule.requirements.join(', ')}</span></div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               {/* Module flow graph + AI review (rule-based text until it loads) */}
               {selectedEdge.violation && (
                 <ViolationInsight
@@ -1002,6 +1139,21 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
                   </span>
                   <span className="text-xs font-mono text-[#8b8b86]">CONFORMANCE</span>
                 </div>
+                {auditData?.metrics.coverage !== undefined && (
+                  <div
+                    className="mt-1 text-xs font-mono text-[#a0a0a0]"
+                    title={`Files the blueprint patterns or the classifier could place. Unclassified files and their ${auditData.metrics.excludedDependencies ?? 0} imports are left out of the score.`}
+                  >
+                    <b className={auditData.metrics.coverage >= 80 ? 'text-white' : 'text-[#f59e0b]'}>
+                      {Math.round(auditData.metrics.coverage)}%
+                    </b>{' '}
+                    of files classified
+                    <span className="text-[#5a5a58]">
+                      {' '}({auditData.metrics.classifiedModules ?? 0}/
+                      {(auditData.metrics.classifiedModules ?? 0) + (auditData.metrics.unclassifiedModules ?? 0)})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Metric Blocks (.kv grid) */}

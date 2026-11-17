@@ -16,6 +16,7 @@ export interface GitHubRepoInfo {
   can_push: boolean;
   stars?: number;
   is_fork?: boolean;
+  cloned_path?: string;
 }
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
   /** Token typed earlier this session (memory only) */
   sessionToken: string;
   /** `token` is what to keep in memory for this tab: '' when the runner holds it */
-  onOpenRepo: (info: GitHubRepoInfo, branch: string, tree: any[], token: string) => void;
+  onOpenRepo: (info: GitHubRepoInfo, branch: string, tree: any[], token: string, clonedPath?: string) => void;
   onForkNeeded?: (info: GitHubRepoInfo, token: string) => void;
 }
 
@@ -100,11 +101,12 @@ export default function GitHubOpenModal({
 
       onClose();
 
-      // Check if user has write access
+      // Always open the repo in the IDE so it is active, cloned and saved to lastProject
+      onOpenRepo(repoInfo, data.branch, data.tree, keep, data.cloned_path);
+
+      // Check if user has write access; if not, suggest 1-click fork
       if (!repoInfo.can_push && onForkNeeded) {
         onForkNeeded(repoInfo, keep);
-      } else {
-        onOpenRepo(repoInfo, data.branch, data.tree, keep);
       }
     } catch (err) {
       setError(errorMessage(err) || 'Error opening repository');

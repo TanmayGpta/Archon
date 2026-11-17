@@ -45,6 +45,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     setTerminals,
     setWorkspaceTree,
     showQuickOpen,
+    setGithubRepoInfo,
+    setIsGitHubWorkspace,
   } = ide;
 
   // Open Any Custom Folder / Project (with create_if_missing)
@@ -65,6 +67,24 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         setCurrentProjectPath(data.project_path);
         setGitBranch(data.git_branch || 'main');
         setRecentProjects(data.recent_projects || []);
+        if (!data.project_path?.includes('test_codebases/imported')) {
+          setIsGitHubWorkspace(false);
+          setGithubRepoInfo(null);
+        } else {
+          setIsGitHubWorkspace(true);
+          const parts = (data.current_project || '').split('__');
+          if (parts.length === 2) {
+            setGithubRepoInfo({
+              owner: parts[0],
+              repo: parts[1],
+              full_name: `${parts[0]}/${parts[1]}`,
+              default_branch: data.git_branch || 'main',
+              can_push: false,
+              is_fork: false,
+              stars: 0
+            });
+          }
+        }
         setShowOpenProjectModal(false);
         setOpenTabs([]);
         setActiveTabPath('');
@@ -99,8 +119,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
         }, 150);
       } else {
         const detail = errorDetail(await res.text());
-        if (quiet) writeLastProject('');
-        else toast({
+        if (!quiet) toast({
           tone: 'error',
           title: `Couldn't open ${targetPath.trim()}`,
           detail: `${detail} Check the path, or pick a recent project.`,
@@ -119,7 +138,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
   // Load the recent list, plus the open project's branch and tree. With no project open, only the recent list loads.
   const fetchProjectsAndTree = async () => {
     const linked = ide.deepLink?.project;
-    const projectPath = isGitHubWorkspace ? '' : (currentProjectPath || linked || readLastProject());
+    const projectPath = currentProjectPath || linked || readLastProject();
     setLoadingTree(true);
     try {
       const projRes = await fetch(`${apiBase}/api/workspace/projects`);
@@ -136,11 +155,27 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
           return;
         }
 
-        if (projectPath) {
+        const activePath = projectPath || (projData.project_path && projData.project_path !== '/workspace' ? projData.project_path : '');
+        if (activePath) {
           setCurrentProjectName(projData.current_project || '');
-          setCurrentProjectPath(projData.project_path || '');
+          setCurrentProjectPath(projData.project_path || activePath);
           setGitBranch(projData.git_branch || 'main');
           setTerminals(prev => prev.map(t => ({ ...t, cwd: projData.project_path || t.cwd })));
+          if (projData.project_path?.includes('test_codebases/imported')) {
+            setIsGitHubWorkspace(true);
+            const parts = (projData.current_project || '').split('__');
+            if (parts.length === 2) {
+              setGithubRepoInfo({
+                owner: parts[0],
+                repo: parts[1],
+                full_name: `${parts[0]}/${parts[1]}`,
+                default_branch: projData.git_branch || 'main',
+                can_push: false,
+                is_fork: false,
+                stars: 0
+              });
+            }
+          }
 
           const treeRes = await fetch(`${apiBase}/api/workspace/tree`);
           if (treeRes.ok) {
@@ -155,10 +190,10 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     setLoadingTree(false);
   };
 
-  // Remember the open local folder so a refresh reopens it
+  // Remember the open folder so a refresh or tab switch reopens it
   useEffect(() => {
-    if (currentProjectPath && !isGitHubWorkspace) writeLastProject(currentProjectPath);
-  }, [currentProjectPath, isGitHubWorkspace]);
+    if (currentProjectPath) writeLastProject(currentProjectPath);
+  }, [currentProjectPath]);
 
   useEffect(() => {
     fetchProjectsAndTree();

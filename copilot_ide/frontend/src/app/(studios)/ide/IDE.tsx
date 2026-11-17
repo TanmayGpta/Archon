@@ -24,6 +24,7 @@ import { EditorPane } from './EditorPane';
 import { AgentChat } from './AgentChat';
 import { IdeDialogs } from './IdeDialogs';
 import { useCommand } from '../../components/commandsContext';
+import { writeLastProject } from './lastProject';
 
 /* -- VS Code Style Archon Agent IDE Workspace ---------------- */
 function VSCodeAgentIDE(props: IdeProps) {
@@ -58,6 +59,7 @@ function VSCodeAgentIDE(props: IdeProps) {
     setActiveTabPath,
     setCurrentGitHubBranch,
     setCurrentProjectName,
+    setCurrentProjectPath,
     setEditorContent,
     setGitBranch,
     setGithubRepoInfo,
@@ -207,7 +209,7 @@ function VSCodeAgentIDE(props: IdeProps) {
         onClose={() => setShowGitHubModal(false)}
         apiBase={apiBase}
         sessionToken={githubToken}
-        onOpenRepo={(info, branch, tree, token) => {
+        onOpenRepo={(info, branch, tree, token, clonedPath) => {
           setGithubRepoInfo(info);
           setGithubToken(token);
           setIsGitHubWorkspace(true);
@@ -218,6 +220,10 @@ function VSCodeAgentIDE(props: IdeProps) {
           setOpenTabs([]);
           setActiveTabPath('');
           setEditorContent('');
+          if (clonedPath) {
+            setCurrentProjectPath(clonedPath);
+            writeLastProject(clonedPath);
+          }
         }}
         onForkNeeded={(info, token) => {
           setGithubRepoInfo(info);
@@ -249,6 +255,11 @@ function VSCodeAgentIDE(props: IdeProps) {
               setOpenTabs([]);
               setActiveTabPath('');
               setEditorContent('');
+              const p = data.cloned_path || data.repo_info?.cloned_path;
+              if (p) {
+                setCurrentProjectPath(p);
+                writeLastProject(p);
+              }
             }
           } catch (e) {
             console.error("Failed to open forked repository", e);
@@ -270,6 +281,11 @@ function VSCodeAgentIDE(props: IdeProps) {
                 setOpenTabs([]);
                 setActiveTabPath('');
                 setEditorContent('');
+                const p = data.cloned_path || data.repo_info?.cloned_path;
+                if (p) {
+                  setCurrentProjectPath(p);
+                  writeLastProject(p);
+                }
               }
             } catch (e) {
               console.error("Failed to open read-only repository", e);
