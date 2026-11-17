@@ -1,0 +1,27 @@
+# Caddy Reverse Proxy Configuration for Archon Copilot IDE
+# If you have a domain pointing to your VM, set DOMAIN_NAME in .env (e.g. DOMAIN_NAME=archon.example.com)
+# Otherwise, it defaults to :80 for plain HTTP IP access.
+
+{$DOMAIN_NAME::80} {
+    encode zstd gzip
+
+    # Route ArcGen microservice
+    handle /api/arcgen/* {
+        reverse_proxy arcgen-service:8004
+    }
+
+    # Route Evaluation microservice
+    handle /api/evaluate/* {
+        reverse_proxy evaluation-service:8003
+    }
+
+    # Route Orchestrator Gateway (conformance, database, chat, etc.)
+    handle /api/* {
+        reverse_proxy orchestrator-service:8000
+    }
+
+    # Route Next.js Frontend
+    handle {
+        reverse_proxy ui-service:3000
+    }
+}

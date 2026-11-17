@@ -1,0 +1,196 @@
+services:
+  # 1. Ingestion & Schema Microservice
+  ingestion-service:
+    build:
+      context: ./services/ingestion_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-ingestion
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./dataset:/dataset:ro
+    environment:
+      - PORT=8002
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+    networks:
+      - apicopilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 2. RAG & Hybrid Search Microservice
+  rag-service:
+    build:
+      context: ./services/rag_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-rag
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - rag_data:/app/data
+      - rag_hf_cache:/root/.cache/huggingface
+    environment:
+      - PORT=8001
+      - HOST=0.0.0.0
+      - INGESTION_SERVICE_URL=http://ingestion-service:8002
+      - EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+      - CROSS_ENCODER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+    networks:
+      - apicopilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # 3. Orchestrator Gateway Microservice
+  orchestrator-service:
+    build:
+      context: ./services/orchestrator_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-orchestrator
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/workspace
+      - ../conformance:/workspace/conformance:ro
+      - ../shared:/workspace/shared:ro
+      - ${HOST_USERS_DIR:-/tmp}:/mnt/c/Users:ro
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - RAG_SERVICE_URL=http://rag-service:8001
+      - INGESTION_SERVICE_URL=http://ingestion-service:8002
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-gemma3:4b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3:4b}
+      - DEFAULT_WORKSPACE_DIR=/workspace
+      - OMNIKEY_API_KEY=${OMNIKEY_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_API_KEY_2=${GROQ_API_KEY_2:-}
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - rag-service
+      - ingestion-service
+    networks:
+      - apicopilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # 4. Next.js UI Frontend (Production standalone build)
+  ui-service:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: apicopilot-ui
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+      - NEXT_PUBLIC_ARCGEN_API_URL=${NEXT_PUBLIC_ARCGEN_API_URL:-}
+      - NEXT_PUBLIC_EVALUATION_API_URL=${NEXT_PUBLIC_EVALUATION_API_URL:-}
+    depends_on:
+      - orchestrator-service
+      - arcgen-service
+    networks:
+      - apicopilot-net
+
+  # 5. ArcGen Microservice (SRS / prompt -> architecture)
+  arcgen-service:
+    build:
+      context: ./services/arcgen_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-arcgen
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./services/arcgen_service/output:/workspace/services/arcgen_service/output
+      - .:/workspace
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - PORT=8004
+      - HOST=0.0.0.0
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - OMNIKEY_API_KEY=${OMNIKEY_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - ARCGEN_SETTINGS_PATH=/workspace/services/arcgen_service/output/llm_settings.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - apicopilot-net
+
+  # 6. Evaluation Microservice
+  evaluation-service:
+    build:
+      context: ./services/evaluation_service
+      dockerfile: Dockerfile
+    container_name: apicopilot-evaluation
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - HOST=0.0.0.0
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - apicopilot-net
+
+  # 7. Optional Caddy Reverse Proxy & Automatic SSL (run with --profile proxy)
+  caddy:
+    image: caddy:2-alpine
+    container_name: apicopilot-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - apicopilot-net
+    profiles:
+      - proxy
+    depends_on:
+      - ui-service
+      - orchestrator-service
+      - arcgen-service
+
+volumes:
+  rag_data:
+    driver: local
+  rag_hf_cache:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  apicopilot-net:
+    driver: bridge

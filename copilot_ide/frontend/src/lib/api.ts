@@ -6,22 +6,39 @@
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 function resolveServiceBase(configured: string | undefined, defaultPort: number): string {
-  const base = (configured || `http://127.0.0.1:${defaultPort}`).replace(/\/+$/, '');
-  if (typeof window === 'undefined') return base;
+  // If explicitly configured, respect it (and upgrade to https if page is loaded on https)
+  if (configured && configured.trim() !== '') {
+    const clean = configured.trim().replace(/\/+$/, '');
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && clean.startsWith('http://') && !LOOPBACK_HOSTS.has(new URL(clean).hostname)) {
+      return clean.replace(/^http:\/\//, 'https://');
+    }
+    return clean;
+  }
+
+  if (typeof window === 'undefined') return `http://127.0.0.1:${defaultPort}`;
 
   const pageHost = window.location.hostname;
-  if (!pageHost || LOOPBACK_HOSTS.has(pageHost)) return base;
+  const isLoopback = !pageHost || LOOPBACK_HOSTS.has(pageHost);
 
-  // Opened from another host (e.g. a WSL or LAN IP): a loopback URL would point at the
-  // viewer's own machine, so reach the service on the host that served the page instead.
-  try {
-    const url = new URL(base);
-    if (!LOOPBACK_HOSTS.has(url.hostname)) return base;
-    url.hostname = pageHost;
-    return url.origin;
-  } catch {
-    return base;
+  // If running locally (localhost / loopback), use local ports
+  if (isLoopback) {
+    return `http://127.0.0.1:${defaultPort}`;
   }
+
+  // If opened on LAN IP (e.g. 192.168.x.x or 10.x.x.x), use same host with defaultPort
+  const isPrivateIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(pageHost);
+  if (isPrivateIp) {
+    const proto = window.location.protocol;
+    return `${proto}//${pageHost}:${defaultPort}`;
+  }
+
+  // On remote cloud domains (e.g. azurecontainerapps.io or custom domains):
+  // Never construct arbitrary unexposed ports like :8003 or insecure http:// URLs!
+  if (defaultPort === 8003) {
+    return '';
+  }
+
+  return window.location.origin;
 }
 
 /** Orchestrator gateway: RAG, workspace, agent and conformance routes. */

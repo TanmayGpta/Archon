@@ -1,0 +1,21 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    WORKSPACE_ROOT=/app
+
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+
+COPY copilot_ide/services/orchestrator_service/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
+
+# Bake core conformance engine and shared schemas directly into image (serverless, no host mounts)
+COPY conformance/ ./conformance/
+COPY shared/ ./shared/
+COPY copilot_ide/services/orchestrator_service/app/ ./app/
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

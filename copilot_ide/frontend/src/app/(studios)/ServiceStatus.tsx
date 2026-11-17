@@ -49,7 +49,10 @@ export function ServiceStatus({ appVersion }: { appVersion: string }) {
 
   const refresh = async () => {
     setChecking(true);
-    const [orchestrator, evaluation] = await Promise.all([probe(API_BASE), probe(EVALUATION_API_BASE)]);
+    const [orchestrator, evaluation] = await Promise.all([
+      probe(API_BASE),
+      EVALUATION_API_BASE ? probe(EVALUATION_API_BASE) : Promise.resolve(null),
+    ]);
     setProbes({ orchestrator, evaluation, at: new Date() });
     setChecking(false);
   };

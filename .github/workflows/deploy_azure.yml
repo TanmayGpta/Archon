@@ -1,0 +1,49 @@
+name: Deploy Archon to Azure Container Apps
+
+on:
+  workflow_dispatch: # Manual trigger
+  push:
+    branches: [ main ]
+    paths:
+      - 'copilot_ide/**'
+      - 'conformance/**'
+      - 'shared/**'
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Azure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & Push Orchestrator Service
+        run: |
+          docker build -t ${{ secrets.ACR_SERVER }}/archon-api:${{ github.sha }} -t ${{ secrets.ACR_SERVER }}/archon-api:latest \
+            -f copilot_ide/services/orchestrator_service/Dockerfile.azure .
+          docker push ${{ secrets.ACR_SERVER }}/archon-api:${{ github.sha }}
+          docker push ${{ secrets.ACR_SERVER }}/archon-api:latest
+
+      - name: Build & Push ArcGen Service
+        run: |
+          docker build -t ${{ secrets.ACR_SERVER }}/archon-arcgen:${{ github.sha }} -t ${{ secrets.ACR_SERVER }}/archon-arcgen:latest \
+            -f copilot_ide/services/arcgen_service/Dockerfile copilot_ide/services/arcgen_service
+          docker push ${{ secrets.ACR_SERVER }}/archon-arcgen:${{ github.sha }}
+          docker push ${{ secrets.ACR_SERVER }}/archon-arcgen:latest
+
+      - name: Build & Push Next.js Frontend
+        run: |
+          docker build -t ${{ secrets.ACR_SERVER }}/archon-ui:${{ github.sha }} -t ${{ secrets.ACR_SERVER }}/archon-ui:latest \
+            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_ARCGEN_API_URL="${{ secrets.NEXT_PUBLIC_ARCGEN_API_URL }}" \
+            -f copilot_ide/frontend/Dockerfile copilot_ide/frontend
+          docker push ${{ secrets.ACR_SERVER }}/archon-ui:${{ github.sha }}
+          docker push ${{ secrets.ACR_SERVER }}/archon-ui:latest
