@@ -18,7 +18,7 @@ if str(ROOT_DIR) not in sys.path:
 from conformance.extraction import extract_project_dependencies, read_module_source
 from conformance.graph import build_dependency_graph, find_cycles, STDLIB_MODULES
 from conformance.checker import check_architecture, ArchitecturalViolation, ConformanceReport
-from conformance.studio.blueprints import get_blueprint_by_id, load_available_blueprints
+from conformance.studio.blueprints import get_blueprint_by_id, load_available_blueprints, normalize_ruleset
 
 LAYER_COLORS = {
     "Presentation": "#e8ff00",    # Signal neon yellow (Company)
@@ -122,7 +122,9 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
 def resolve_blueprint(blueprint_id: Optional[str], custom_ruleset: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Custom ruleset if given, else the named blueprint, else the first available one."""
     if custom_ruleset:
-        return {"id": "custom", "name": "Custom Architecture", "ruleset": custom_ruleset}
+        # Raises RulesetError (a ValueError) listing every problem; an ArcGen graph is compiled first.
+        ruleset = normalize_ruleset(custom_ruleset)
+        return {"id": "custom", "name": ruleset.get("project_name") or "Custom Architecture", "ruleset": ruleset}
     blueprint = get_blueprint_by_id(blueprint_id or "archon_architecture")
     if not blueprint:
         blueprints = load_available_blueprints()
@@ -184,7 +186,7 @@ class ConformanceService:
                 "cycles": [],
                 "layers": [],
                 "availableBlueprints": [
-                    {"id": b["id"], "name": b["name"], "description": b["description"]}
+                    {"id": b["id"], "name": b["name"], "description": b["description"], "source": b["source"]}
                     for b in load_available_blueprints()
                 ],
                 "metrics": {
@@ -374,7 +376,7 @@ class ConformanceService:
             "cycles": cycles,
             "layers": active_layers,
             "availableBlueprints": [
-                {"id": b["id"], "name": b["name"], "description": b["description"]}
+                {"id": b["id"], "name": b["name"], "description": b["description"], "source": b["source"]}
                 for b in load_available_blueprints()
             ]
         }

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Ensure Archon root is in sys.path
@@ -13,10 +14,23 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from conformance.studio.service import ConformanceService
-from conformance.studio.blueprints import load_available_blueprints, get_blueprint_by_id
+from conformance.studio.blueprints import (
+    RULESET_TEMPLATE,
+    RulesetError,
+    delete_custom_ruleset,
+    normalize_ruleset,
+    save_custom_ruleset,
+    scan_blueprints,
+)
 
 router = APIRouter()
 service = ConformanceService()
+
+
+class RulesetRequest(BaseModel):
+    ruleset: Any = Field(..., description="A ruleset JSON object, or a saved ArcGen architecture to compile into one")
+    name: Optional[str] = Field(None, description="Display name; defaults to the ruleset's project_name")
+
 
 class AuditRequest(BaseModel):
     target_path: Optional[str] = Field(None, description="Path to codebase folder to audit")
@@ -97,11 +111,48 @@ def classifier_status():
 
 @router.get("/blueprints")
 def list_blueprints():
-    """Returns all available architecture blueprints (Clean Architecture, Archon Core, MVC, ArcGen)."""
+    """All usable blueprints (built-in, ArcGen-generated, imported) plus any ruleset files that were skipped."""
     try:
-        return {"status": "success", "blueprints": load_available_blueprints()}
+        blueprints, issues = scan_blueprints()
+        return {"status": "success", "blueprints": blueprints, "issues": issues}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/rulesets/template")
+def ruleset_template():
+    """A starter ruleset to edit and import."""
+    return JSONResponse(RULESET_TEMPLATE, headers={"Content-Disposition": 'attachment; filename="ruleset_template.json"'})
+
+
+@router.post("/rulesets/validate")
+def validate_imported_ruleset(req: RulesetRequest):
+    """Checks a ruleset (or an ArcGen architecture file) without saving it."""
+    try:
+        ruleset = normalize_ruleset(req.ruleset)
+    except RulesetError as e:
+        return {"valid": False, "errors": e.errors}
+    return {"valid": True, "errors": [], "name": ruleset["project_name"],
+            "layers": [l["name"] for l in ruleset["layers"]], "rules": len(ruleset["rules"])}
+
+
+@router.post("/rulesets")
+def import_ruleset(req: RulesetRequest):
+    """Validates and stores a ruleset so it appears in the blueprint list. Same name replaces the old one."""
+    try:
+        return {"status": "success", **save_custom_ruleset(req.ruleset, req.name)}
+    except RulesetError as e:
+        raise HTTPException(status_code=422, detail={"message": "The ruleset is not valid.", "errors": e.errors})
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not save the ruleset: {e}")
+
+
+@router.delete("/rulesets/{blueprint_id}")
+def remove_ruleset(blueprint_id: str):
+    """Deletes an imported ruleset (built-in and ArcGen blueprints are not deletable)."""
+    if not delete_custom_ruleset(blueprint_id):
+        raise HTTPException(status_code=404, detail=f"No imported ruleset with id '{blueprint_id}'.")
+    return {"status": "success", "deleted": blueprint_id}
 
 
 @router.post("/audit")
@@ -116,6 +167,8 @@ def audit_codebase(req: AuditRequest):
             classifier=req.classifier or "heuristic"
         )
         return result
+    except RulesetError as e:
+        raise HTTPException(status_code=422, detail={"message": "The custom ruleset is not valid.", "errors": e.errors})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Audit failed: {str(e)}")
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal
 
 class Layer(BaseModel):
     name: str = Field(description="The formal name of the architectural layer (e.g., 'Domain', 'Infrastructure')")
@@ -7,6 +7,10 @@ class Layer(BaseModel):
     match_patterns: Optional[List[str]] = Field(
         default=None, 
         description="Optional glob patterns (e.g., 'app/api/routes/*.py'). If a file matches this, bypasses LLM and assigns deterministically."
+    )
+    parent_layer: Optional[str] = Field(
+        default=None,
+        description="Set on component-level groups derived from a generated architecture: the tier the component sits in."
     )
 
 class DependencyRule(BaseModel):
@@ -17,6 +21,14 @@ class DependencyRule(BaseModel):
     severity: Literal["critical", "major", "minor"] = Field(
         default="major",
         description="Severity assigned to a violation of this specific rule"
+    )
+    derived_from: Optional[List[str]] = Field(
+        default=None,
+        description="Edge ids of the generated architecture this rule was compiled from (traceability)."
+    )
+    traced_requirements: Optional[List[str]] = Field(
+        default=None,
+        description="Requirement ids (FR/ASR) that justify this dependency in the generated architecture."
     )
 
 class ArchitectureRuleset(BaseModel):
@@ -32,6 +44,10 @@ class ArchitectureRuleset(BaseModel):
     )
     layers: List[Layer] = Field(description="All defined layers in the system")
     rules: List[DependencyRule] = Field(description="The explicit relationship rules between layers")
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Where the ruleset came from (e.g. the generated architecture file it was compiled from)."
+    )
 
     @model_validator(mode="after")
     def check_layer_references(self):

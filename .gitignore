@@ -58,6 +58,11 @@ slides_export/
 # External target codebases scanned by Conformance Studio
 targets/
 copilot_ide/targets/
+test_codebases/imported/
+
+# AI Tool Caches & Artifacts
+.claude/
+graphify-out/
 
 CLAUDE.md
 
