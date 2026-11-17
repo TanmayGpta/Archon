@@ -42,7 +42,7 @@ from app.jury.models import (
     Rubric,
     load_rubric,
 )
-from app.jury.roster import select_panel
+from app.jury.roster import family_of, select_panel
 from app.knowledge_base.loader import get_catalog
 from app.llm import BaseLLMClient
 from app.phase_b.edge_generator import generate_edges
@@ -191,6 +191,7 @@ class JuryRun:
         rounds = self.rubric.max_regenerations + 1
         trace: Optional[JuryTrace] = None
         no_jury = False
+        excluded_families = sorted({family_of(m) for m in generator_models(self.client) if m})
 
         srs: Optional[SRSDocument] = None
         norm_feedback: Optional[List[str]] = None
@@ -268,14 +269,14 @@ class JuryRun:
             if norm_result is not None and norm_result.voting_jurors == 0:
                 fb = self._fallback_verdict("normalization", requests[0][2](0))
                 if fb is not None:
-                    norm_result = aggregate("normalization", self.rubric.checkpoints["normalization"], [fb], norm_attempt, excluded, raw_source)
+                    norm_result = aggregate("normalization", self.rubric.checkpoints["normalization"], [fb], norm_attempt, excluded_families, raw_source)
                     trace.notes.append("External jurors abstained; used fallback reviewer for normalization checkpoint.")
                     self.emit({"type": "checkpoint", "result": norm_result.model_dump(mode="json")})
 
             if arch_result.voting_jurors == 0:
                 fb = self._fallback_verdict("architecture", requests[-1][2](0))
                 if fb is not None:
-                    arch_result = aggregate("architecture", self.rubric.checkpoints["architecture"], [fb], rnd, excluded, raw_source)
+                    arch_result = aggregate("architecture", self.rubric.checkpoints["architecture"], [fb], rnd, excluded_families, raw_source)
                     trace.notes.append("External jurors abstained; used fallback reviewer for architecture checkpoint.")
                     self.emit({"type": "checkpoint", "result": arch_result.model_dump(mode="json")})
 

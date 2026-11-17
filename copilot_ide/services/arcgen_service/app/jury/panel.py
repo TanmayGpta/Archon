@@ -88,13 +88,16 @@ class AdkJuryPanel:
     ):
         self.is_cloud = is_cloud
         self.api_keys = api_keys or {}
-        available_providers = {k.lower() for k, v in self.api_keys.items() if v}
-        raw_rubric = rubric or load_rubric()
-        self.rubric = (
-            raw_rubric.for_mode(is_cloud, available_providers=available_providers)
-            if hasattr(raw_rubric, "for_mode")
-            else raw_rubric
-        )
+        if rubric is not None:
+            self.rubric = rubric
+        else:
+            available_providers = {k.lower() for k, v in self.api_keys.items() if v}
+            raw_rubric = load_rubric()
+            self.rubric = (
+                raw_rubric.for_mode(is_cloud, available_providers=available_providers)
+                if hasattr(raw_rubric, "for_mode")
+                else raw_rubric
+            )
         self.host = ollama_host or get_ollama_host()
 
     def judge(
