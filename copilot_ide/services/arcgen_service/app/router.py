@@ -8,6 +8,7 @@ Exposes REST endpoints for:
 """
 
 import os
+import re
 import uuid
 import json
 import logging

@@ -325,6 +325,12 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   const handleStartElicitation = async () => {
     if (!prompt.trim()) return;
     setIsEliciting(true);
+    setSessionId('');
+    setAsrSummary(null);
+    setCurrentQuestion(null);
+    setShouldStop(false);
+    setReadyToGenerate(false);
+    setStopReason('');
     setStatusMsg("Analyzing initial requirements & extracting architectural drivers...");
     try {
       const res = await fetch(`${effectiveApiBase}/api/arcgen/elicit/start`, {
@@ -829,7 +835,31 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     placeholder="Describe your software system requirements, scale, or business concept..."
                     className="w-full bg-raised border border-line-strong rounded-control p-3 text-xs text-fg-strong placeholder-fg-subtle focus:outline-none focus:border-info/60 focus:ring-1 focus:ring-info/40 font-mono transition-all resize-none"
                   />
-                  {!sessionId && (
+                  {sessionId ? (
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleStartElicitation}
+                        disabled={isEliciting || !prompt.trim()}
+                        className="flex-1 py-2 px-3 rounded-control bg-info-strong text-white text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isEliciting ? "Extracting Drivers..." : "Re-prompt ASR (Start New Interview)"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSessionId('');
+                          setAsrSummary(null);
+                          setCurrentQuestion(null);
+                          setShouldStop(false);
+                          setReadyToGenerate(false);
+                          setStopReason('');
+                        }}
+                        className="py-2 px-3 rounded-control border border-line-strong text-xs text-fg-soft hover:text-danger-fg cursor-pointer"
+                        title="Clear current elicitation interview"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       onClick={handleStartElicitation}
                       disabled={isEliciting || !prompt.trim()}
