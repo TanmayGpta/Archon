@@ -107,6 +107,12 @@ export function InlineNameInput({ edit, className = '' }: { edit: InlineNameEdit
   );
 }
 
+export interface TreeProblemFlag {
+  tooltip: string;
+  hasViolation: boolean;
+  hasCycle: boolean;
+}
+
 interface TreeHandlers {
   activePath: string;
   inlineEdit?: InlineNameEdit | null;
@@ -115,6 +121,7 @@ interface TreeHandlers {
   onRename?: (path: string, oldName: string) => void;
   onNewFileInDir?: (parentPath: string) => void;
   onNewFolderInDir?: (parentPath: string) => void;
+  flag?: (path: string, isDir: boolean) => string | TreeProblemFlag | null;
 }
 
 /* -- Keyboard-navigable file tree (WAI-ARIA tree pattern) ------
@@ -187,6 +194,7 @@ function FileTreeNode({
   onRename,
   onNewFileInDir,
   onNewFolderInDir,
+  flag,
   isExpanded,
   setExpanded,
   tabStop,
@@ -202,6 +210,10 @@ function FileTreeNode({
 }) {
   const isDir = node.type === 'directory';
   const isActive = node.path === activePath;
+  const rawProblem = flag?.(node.path, isDir) ?? null;
+  const problem: TreeProblemFlag | null = typeof rawProblem === 'string'
+    ? { tooltip: rawProblem, hasViolation: true, hasCycle: false }
+    : rawProblem;
   const renaming = inlineEdit?.mode === 'rename' && inlineEdit.path === node.path ? { ...inlineEdit, isDir } : null;
   const creatingHere = isDir && inlineEdit?.mode === 'create' && inlineEdit.path === node.path ? inlineEdit : null;
   const expanded = isExpanded(node, depth) || !!creatingHere;
@@ -267,7 +279,30 @@ function FileTreeNode({
         {renaming ? (
           <InlineNameInput edit={renaming} className="ml-0.5" />
         ) : (
-          <span className="truncate flex-1 ml-0.5" title={node.path}>{node.name}</span>
+          <span
+            className={`truncate flex-1 ml-0.5 ${
+              problem && !isDir
+                ? problem.hasViolation
+                  ? 'text-[#fca5a5] font-medium'
+                  : 'text-[#e9d5ff] font-medium'
+                : ''
+            }`}
+            title={problem ? `${node.path}\n\n${problem.tooltip}` : node.path}
+          >
+            {node.name}
+          </span>
+        )}
+        {problem?.hasViolation && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#ef4444] shadow-[0_0_6px_#ef4444] flex-shrink-0 mr-1"
+          />
+        )}
+        {problem?.hasCycle && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#c026ff] shadow-[0_0_6px_#c026ff] flex-shrink-0 mr-1"
+          />
         )}
 
         {/* Hover Action Buttons */}
@@ -333,6 +368,7 @@ function FileTreeNode({
               onRename={onRename}
               onNewFileInDir={onNewFileInDir}
               onNewFolderInDir={onNewFolderInDir}
+              flag={flag}
               isExpanded={isExpanded}
               setExpanded={setExpanded}
               tabStop={tabStop}

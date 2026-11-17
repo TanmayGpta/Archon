@@ -43,6 +43,50 @@ def extract_imports_from_file(filepath: str) -> Dict[str, Dict[str, Any]]:
                 
     return imports
 
+def iter_python_files(
+    project_root: str,
+    exclude_dirs: Optional[List[str]] = None
+):
+    """Yield (module_name, rel_posix_path, abs_filepath) for project Python files while pruning heavy cache dirs."""
+    default_excludes = {
+        ".venv", "venv", "__pycache__", ".git", ".idea", ".vscode",
+        "node_modules", ".next", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+        "conformance_sessions", "graphify-out", ".turbo", "dist", "build", "htmlcov",
+    }
+    all_excludes = default_excludes | set(exclude_dirs or [])
+    root_abs = os.path.abspath(project_root)
+
+    for root, dirs, files in os.walk(project_root):
+        rel_root = os.path.relpath(root, root_abs).replace("\\", "/")
+        if rel_root == ".":
+            rel_root = ""
+
+        # Prune excluded directories in-place (skip test_codebases/imported only when scanning a parent workspace)
+        pruned = []
+        for d in dirs:
+            if d in all_excludes or d.startswith(".venv") or d.endswith(".egg-info"):
+                continue
+            rel_sub = f"{rel_root}/{d}" if rel_root else d
+            if rel_sub == "test_codebases/imported":
+                continue
+            pruned.append(d)
+        dirs[:] = pruned
+
+        for file in files:
+            if not file.endswith(".py"):
+                continue
+            filepath = os.path.join(root, file)
+            rel_path = os.path.relpath(filepath, project_root)
+            rel_posix = rel_path.replace(os.sep, "/")
+            if file == "__init__.py":
+                module_name = os.path.dirname(rel_path).replace(os.sep, ".")
+                if not module_name:  # Root __init__.py
+                    continue
+            else:
+                module_name = rel_posix[:-3].replace("/", ".")
+            yield module_name, rel_posix, filepath
+
+
 def extract_project_dependencies(
     project_root: str,
     exclude_dirs: Optional[List[str]] = None
@@ -53,31 +97,8 @@ def extract_project_dependencies(
     Returns: { source_module: { target_module: {'line_number': int, 'code_snippet': str} } }
     """
     dependencies = {}
-    default_excludes = [".venv", "__pycache__", ".git", ".idea", ".vscode", "node_modules"]
-    all_excludes = set(default_excludes + (exclude_dirs or []))
-    
-    for root, dirs, files in os.walk(project_root):
-        # Prune excluded directories in-place to avoid deep traversals
-        dirs[:] = [d for d in dirs if d not in all_excludes and not any(skip in d for skip in all_excludes)]
-        if any(skip in root.split(os.sep) for skip in all_excludes):
-            continue
-            
-        for file in files:
-            if file.endswith(".py"):
-                filepath = os.path.join(root, file)
-                
-                # Convert file path into Python module name 
-                rel_path = os.path.relpath(filepath, project_root)
-                if file == "__init__.py":
-                    module_name = os.path.dirname(rel_path).replace(os.sep, ".")
-                    if not module_name: # Root __init__.py
-                        continue
-                else:
-                    module_name = rel_path.replace(os.sep, ".")[:-3]
-                
-                imports_with_meta = extract_imports_from_file(filepath)
-                dependencies[module_name] = imports_with_meta
-                
+    for module_name, _rel_posix, filepath in iter_python_files(project_root, exclude_dirs):
+        dependencies[module_name] = extract_imports_from_file(filepath)
     return dependencies
 
 

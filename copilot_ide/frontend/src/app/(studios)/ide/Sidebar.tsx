@@ -1,11 +1,11 @@
 "use client";
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Icons, Glyph } from '../../components/Icons';
-import { FileTree, InlineNameInput, type InlineNameEdit } from './FileTree';
+import { FileTree, InlineNameInput, type InlineNameEdit, type TreeProblemFlag } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 import { ErrorState, Skeleton } from '../../components/StateViews';
-import { ConformancePanel } from './ConformancePanel';
+import { normPath, pathHits } from './violationUtils';
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -30,6 +30,8 @@ export function Sidebar() {
     inlineCreateName,
     inlineCreateState,
     loadingTree,
+    rightPanelTab,
+    setRightPanelTab,
     setActiveActivity,
     setFilterQuery,
     setInlineCreateName,
@@ -41,7 +43,31 @@ export function Sidebar() {
     setShowOpenProjectModal,
     setShowQuickOpen,
     workspaceTree,
+    violationMarkers,
   } = useIde();
+
+  const flagPath = useCallback((path: string, isDir: boolean): TreeProblemFlag | null => {
+    if (!violationMarkers || violationMarkers.length === 0) return null;
+    const hits = violationMarkers.filter(m => isDir
+      ? normPath(m.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')))
+      : pathHits(path, m.path));
+    if (!hits.length) return null;
+    const hasViolation = hits.some(m => m.kind !== 'cycle');
+    const hasCycle = hits.some(m => m.kind === 'cycle');
+    const vCount = hits.filter(m => m.kind !== 'cycle').length;
+    const cCount = hits.filter(m => m.kind === 'cycle').length;
+    const summaryParts = [
+      vCount > 0 ? `${vCount} violation(s)` : '',
+      cCount > 0 ? `${cCount} cycle hop(s)` : '',
+    ].filter(Boolean);
+    return {
+      hasViolation,
+      hasCycle,
+      tooltip: isDir
+        ? `${summaryParts.join(', ')} inside`
+        : hits.map(m => `${m.line ? `L${m.line}: ` : ''}${m.message}`).join('\n'),
+    };
+  }, [violationMarkers]);
   const inlineEdit: InlineNameEdit | null = renameTarget
     ? {
         mode: 'rename',
@@ -101,10 +127,13 @@ export function Sidebar() {
             <Icons.Search />
           </button>
           <button
-            onClick={() => setActiveActivity('copilot')}
-            title="Archon Agent Chat" aria-label="Archon Agent Chat"
+            onClick={() => {
+              setActiveActivity('copilot');
+              setRightPanelTab('agent');
+            }}
+            title="Archon Agent Chat (Right Panel)" aria-label="Archon Agent Chat (Right Panel)"
             className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
-              activeActivity === 'copilot'
+              activeActivity === 'copilot' || rightPanelTab === 'agent'
                 ? 'bg-raised text-accent-fg border border-accent/30'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
             }`}
@@ -112,15 +141,18 @@ export function Sidebar() {
             <Icons.ArchonAI />
           </button>
           <button
-            onClick={() => setActiveActivity('diagnostics')}
-            title="Health & Diagnostics" aria-label="Health & Diagnostics"
+            onClick={() => {
+              setActiveActivity('diagnostics');
+              setRightPanelTab('conformance');
+            }}
+            title="Conformance Violations (Right Panel)" aria-label="Conformance Violations (Right Panel)"
             className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
-              activeActivity === 'diagnostics'
-                ? 'bg-raised text-accent-fg border border-accent/30'
+              activeActivity === 'diagnostics' || rightPanelTab === 'conformance'
+                ? 'bg-raised text-[#e8ff00] border border-[#e8ff00]/40 shadow-[0_0_12px_rgba(232,255,0,0.15)]'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
             }`}
           >
-            <Icons.Diagnostics />
+            <Icons.Conformance />
           </button>
         </div>
 
@@ -129,11 +161,7 @@ export function Sidebar() {
 
       {/* ── 2. Sidebar (Explorer / Search, resizable) ──────────────── */}
       <div style={{ width: panel.size }} className="bg-surface border-r border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
-        {activeActivity === 'diagnostics' ? (
-          <ConformancePanel />
-        ) : (
-          <>
-            {/* Project Title Bar & Explorer Actions Toolbar */}
+        {/* Project Title Bar & Explorer Actions Toolbar */}
         <div className="px-3 py-2 border-b border-line-subtle flex justify-between items-center bg-canvas">
           <div className="flex items-center gap-1.5 truncate">
             <span className="text-xs font-mono font-bold tracking-wider text-fg uppercase truncate max-w-[105px]" title={currentProjectPath}>
@@ -244,6 +272,7 @@ export function Sidebar() {
                 onRename={handleRenameItem}
                 onNewFileInDir={p => startCreate(p, false)}
                 onNewFolderInDir={p => startCreate(p, true)}
+                flag={flagPath}
               />
           ) : (
             <div className="p-3 flex flex-col gap-2 text-xs text-fg-muted">
@@ -263,8 +292,6 @@ export function Sidebar() {
             </div>
           )}
         </div>
-          </>
-        )}
       </div>
       <ResizeHandle
         edge="right"

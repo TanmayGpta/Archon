@@ -15,7 +15,7 @@ ROOT_DIR = Path("/workspace") if Path("/workspace/conformance").exists() else Pa
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from conformance.extraction import extract_project_dependencies, read_module_source
+from conformance.extraction import extract_project_dependencies, iter_python_files, read_module_source
 from conformance.graph import build_dependency_graph, find_cycles, STDLIB_MODULES
 from conformance.checker import check_architecture, ArchitecturalViolation, ConformanceReport
 from conformance.studio.blueprints import get_blueprint_by_id, load_available_blueprints, normalize_ruleset
@@ -58,6 +58,10 @@ def heuristic_layer_classify(module_name: str) -> str:
     for part in parts[:-1] + [base]:
         if part in explicit:
             return explicit[part]
+
+    # Test modules (tests/test_*.py, *_test.py, conftest.py) should not be misclassified as Domain/Infra by filenames like test_rulesets
+    if "tests" in parts[:-1] or "test" in parts[:-1] or base.startswith("test_") or base.endswith("_test") or base == "conftest":
+        return "Application"
 
     # Only true UI / CLI entrypoints are Presentation
     if base in ["app", "main", "cli", "interactive_cli"] and any(k in full for k in ["ui", "frontend", "cli", "shared"]):
@@ -322,16 +326,10 @@ class ConformanceService:
                         mapped_by[node] = "classifier"
             except Exception as e:
                 classifier_info["detail"] = f"{classifier} and its Groq fallback both failed ({e}); used keyword heuristic."
-        # Build relative file paths for IDE jump-to-line
-        module_to_file: Dict[str, str] = {}
-        for root, _, files in os.walk(str(scan_dir)):
-            for f in files:
-                if f.endswith(".py"):
-                    full_p = os.path.join(root, f)
-                    rel = os.path.relpath(full_p, str(scan_dir)).replace("\\", "/")
-                    parts = rel[:-3].split("/")
-                    mod = ".".join(parts[:-1]) if parts[-1] == "__init__" else ".".join(parts)
-                    module_to_file[mod] = rel
+        # Build relative file paths for IDE jump-to-line (pruning heavy build/cache dirs)
+        module_to_file: Dict[str, str] = {
+            mod: rel for mod, rel, _ in iter_python_files(str(scan_dir))
+        }
 
         default_layer = next((l["name"] for l in layers_def if l["name"].lower() == "application"),
                              layers_def[0]["name"] if layers_def else "Application")
@@ -426,6 +424,7 @@ class ConformanceService:
                 "target": tgt,
                 "sourceLayer": mapping.get(src, "Unclassified"),
                 "targetLayer": mapping.get(tgt, "Unclassified"),
+                "sourceFile": module_to_file.get(src),
                 "lineNumber": data.get("line_number"),
                 "codeSnippet": data.get("code_snippet"),
                 "isViolation": is_v,

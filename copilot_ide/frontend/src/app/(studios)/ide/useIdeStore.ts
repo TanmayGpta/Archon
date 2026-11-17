@@ -9,6 +9,18 @@ import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit } from './types'
 import { WELCOME_MESSAGE } from './chatHistory';
 import { useGitHubAuth } from '../../components/useRunner';
 
+export type MarkerKind = 'violation' | 'cycle';
+
+export interface ViolationMarker {
+  kind?: MarkerKind;
+  path: string;
+  line?: number | null;
+  message: string;
+  source_layer?: string;
+  target_layer?: string;
+  severity?: string;
+}
+
 /* -- All IDE state in one place; the action hooks and panels read it through IdeContext - */
 export function useIdeStore() {
   // Project & Workspace State
@@ -98,6 +110,8 @@ export function useIdeStore() {
 
   // Layout & Activity State
   const [activeActivity, setActiveActivity] = useState<'explorer' | 'search' | 'copilot' | 'diagnostics'>('explorer');
+  const [rightPanelTab, setRightPanelTab] = useState<'agent' | 'conformance'>('agent');
+  const [violationMarkers, setViolationMarkers] = useState<ViolationMarker[]>([]);
   const [showBottomPanel, setShowBottomPanel] = useState<boolean>(true);
   const [bottomTab, setBottomTab] = useState<'terminal' | 'output' | 'diagnostics'>('terminal');
 
@@ -240,6 +254,10 @@ export function useIdeStore() {
     setAgentEdits,
     activeActivity,
     setActiveActivity,
+    rightPanelTab,
+    setRightPanelTab,
+    violationMarkers,
+    setViolationMarkers,
     showBottomPanel,
     setShowBottomPanel,
     bottomTab,

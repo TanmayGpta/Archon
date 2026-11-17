@@ -8,6 +8,7 @@ import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { PendingEdit } from './types';
 import { useFeedback } from '../../components/Feedback';
+import { pathHits } from './violationUtils';
 
 /* -- Tabs and editor buffer: open, close, edit, save, apply agent edits, shortcuts - */
 export function useEditorActions(ide: IdeProps & IdeStore) {
@@ -41,12 +42,12 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   // Open a file from explorer (Local or Remote GitHub)
   // Resolves to the path that opened, or null if it couldn't be read
   const handleOpenFile = async (path: string): Promise<string | null> => {
-    const existing = openTabs.find(t => t.path === path);
+    const existing = openTabs.find(t => t.path === path || pathHits(t.path, path));
     if (existing) {
-      setActiveTabPath(path);
+      setActiveTabPath(existing.path);
       setEditorContent(existing.content);
       setIsDirty(existing.content !== existing.original);
-      return path;
+      return existing.path;
     }
 
     // Remote GitHub Workspace file fetch

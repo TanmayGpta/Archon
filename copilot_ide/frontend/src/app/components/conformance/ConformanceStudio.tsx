@@ -21,6 +21,9 @@ import {
   ClassifierId
 } from './types';
 
+const EMPTY_NODES: ConformanceNode[] = [];
+const EMPTY_EDGES: ConformanceEdge[] = [];
+
 // A ruleset file the server found but could not use
 interface BlueprintIssue {
   file: string;
@@ -52,7 +55,18 @@ const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
   blueprint: {
     id: blueprintId,
     name: 'Archon System Architecture',
-    description: 'Interactive architectural reality graph preview'
+    description: 'Interactive architectural reality graph preview',
+    layers: ['Presentation', 'Application', 'Domain', 'Infrastructure', 'Observability'],
+    allowed: [
+      ['Presentation', 'Application'],
+      ['Presentation', 'Domain'],
+      ['Presentation', 'Infrastructure'],
+      ['Application', 'Domain'],
+      ['Application', 'Infrastructure'],
+      ['Infrastructure', 'Domain'],
+      ['Observability', 'Domain'],
+      ['Observability', 'Application']
+    ]
   },
   metrics: {
     healthScore: 92.4,
@@ -128,9 +142,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const effectiveInitialPath = initialPath?.trim() || (savedIdeProject && savedIdeProject !== '/workspace' ? savedIdeProject : '');
   // Default target (Archon itself): start from the bundled snapshot only if no custom project is open
   const fromSnapshot = !effectiveInitialPath && (!initialBlueprintId || initialBlueprintId === 'archon_architecture');
-  // includeExternal value the current data was audited with (the snapshot uses true). Compared
-  // instead of a one-shot flag so React StrictMode's double effect run can't refetch mid-intro.
-  const auditedExternalRef = useRef<boolean | null>(fromSnapshot ? true : null);
+  // Track includeExternal so only explicit user toggles trigger a re-audit (not initial mount before session check).
+  const auditedExternalRef = useRef<boolean>(true);
   const [loading, setLoading] = useState<boolean>(!fromSnapshot);
   const [auditData, setAuditData] = useState<ConformanceAuditResult | null>(
     fromSnapshot ? (archonAuditSnapshot as unknown as ConformanceAuditResult) : null
@@ -180,22 +193,27 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
   const [ideProject, setIdeProject] = useState<{ name: string; path: string } | null>(null);
   const ideProjectRef = useRef<{ name: string; path: string } | null>(null);
   useEffect(() => {
-    let idePath = '';
-    try {
-      idePath = localStorage.getItem('archon.ide.lastProject') || '';
-    } catch {}
+    let cancelled = false;
+    const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+    const pathMatches = (sessPath: string, target: string) => {
+      const s = norm(sessPath);
+      const t = norm(target);
+      if (!t || t === '/workspace') return !s || s === '/workspace';
+      return s === t || s.endsWith('/' + t) || t.endsWith('/' + s);
+    };
 
     const initSync = async () => {
       let resolvedPath = effectiveInitialPath;
       let projectName = '';
       try {
         const projRes = await fetch(`${apiBase}/api/workspace/projects`);
-        if (projRes.ok) {
+        if (projRes.ok && !cancelled) {
           const d = await projRes.json();
           resolvedPath = effectiveInitialPath || (d?.project_path !== '/workspace' ? d?.project_path : '') || '';
           projectName = d?.current_project || '';
         }
       } catch {}
+      if (cancelled) return;
 
       if (resolvedPath) {
         const p = { name: projectName || resolvedPath.split('/').pop() || resolvedPath, path: resolvedPath };
@@ -203,38 +221,40 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         setIdeProject(p);
       }
 
-      // Check if there is already a matching session saved on backend
+      // Check if there is already a matching session saved on backend (including when ?path= is present)
       let matchingSession = false;
       try {
         const sessRes = await fetch(`${apiBase}/api/conformance/session`);
-        if (sessRes.ok) {
+        if (sessRes.ok && !cancelled) {
           const s = await sessRes.json();
           if (s?.session) {
             const sessPath = s.session.targetPath || '';
-            const matchesCurrent = (!resolvedPath && (!sessPath || sessPath === '/workspace')) ||
-                                   (resolvedPath && (sessPath === resolvedPath || sessPath.endsWith(resolvedPath) || resolvedPath.endsWith(sessPath)));
-            if (!initialPath?.trim() && matchesCurrent) {
+            const bpMatches = !initialBlueprintId || s.session.blueprint?.id === initialBlueprintId;
+            if (pathMatches(sessPath, resolvedPath) && bpMatches) {
               setAuditData(s.session);
               setAuditedPath(sessPath);
               if (sessPath) setTargetPath(sessPath);
               if (s.session.blueprint?.id) setSelectedBlueprintId(s.session.blueprint.id);
-              setFilterLayers(new Set((s.session.layers || []).map((l: any) => l.name)));
+              setFilterLayers(new Set((s.session.layers || []).map((l: { name: string }) => l.name)));
               setLoading(false);
               matchingSession = true;
             }
           }
         }
       } catch {}
+      if (cancelled) return;
 
-      // If no matching session and the open project is not default /workspace, run audit immediately!
-      if (!matchingSession && !initialPath?.trim() && resolvedPath && resolvedPath !== '/workspace') {
-        setTargetPath(resolvedPath);
-        runAudit(undefined, resolvedPath);
+      // Only run a fresh audit if we have a custom target or blueprint and no matching session exists yet
+      if (!matchingSession && (resolvedPath || !fromSnapshot)) {
+        if (resolvedPath) setTargetPath(resolvedPath);
+        runAudit(initialBlueprintId, resolvedPath);
       }
     };
 
     initSync();
-  }, [apiBase, initialPath]);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, initialPath, initialBlueprintId]);
 
   // Sync across tabs: re-load session when IDE triggers a re-audit
   useEffect(() => {
@@ -804,8 +824,8 @@ export const ConformanceStudio: React.FC<ConformanceStudioProps> = ({ apiBase, i
         {/* ── CANVAS ENGINE (FULL BLEED) ───────────────────────────── */}
         <div className="relative min-w-0 h-[65vh] flex-none md:flex-1 md:h-full order-1 md:order-none bg-[#080808]">
           <ConformanceCanvas
-            nodes={auditData?.nodes || []}
-            edges={auditData?.edges || []}
+            nodes={auditData?.nodes || EMPTY_NODES}
+            edges={auditData?.edges || EMPTY_EDGES}
             mode={mode}
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}

@@ -7,6 +7,7 @@ import { CodeEditor } from './CodeEditor';
 import { EditReview } from './EditReview';
 import { useIde } from './IdeContext';
 import { TerminalPanel } from './TerminalPanel';
+import { pathHits } from './violationUtils';
 
 /* -- Tabs, editor and the bottom panel - */
 export function EditorPane() {
@@ -44,6 +45,7 @@ export function EditorPane() {
     setShowIndexDrawer,
     setShowKnowledgeGraph,
     setShowOpenProjectModal,
+    violationMarkers,
   } = useIde();
 
   return (
@@ -176,8 +178,9 @@ export function EditorPane() {
                 onChange={handleEditorChange}
                 onCursor={handleCursorChange}
                 onSave={handleSaveFile}
-                revealLine={pendingReveal?.path === activeTab.path ? pendingReveal.line : undefined}
+                revealLine={pendingReveal && pathHits(activeTab.path, pendingReveal.path) ? pendingReveal.line : undefined}
                 onRevealed={() => setPendingReveal(null)}
+                violationMarkers={violationMarkers}
               />
             </div>
           )

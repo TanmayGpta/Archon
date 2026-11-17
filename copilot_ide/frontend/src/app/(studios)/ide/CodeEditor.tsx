@@ -3,8 +3,10 @@ import React, { useEffect, useRef } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isolateHistory } from '@codemirror/commands';
-import { editorExtensions } from './codemirror';
+import { editorExtensions, setViolationsEffect, type LineAnnotation } from './codemirror';
 import { minimalChange } from '@/lib/textChange';
+import type { ViolationMarker } from './useIdeStore';
+import { pathHits } from './violationUtils';
 
 /* -- CodeMirror 6 editor for the active tab -------------------------
  * One EditorState per tab lives in `states`, so undo history, folds and the
@@ -20,6 +22,7 @@ export function CodeEditor({
   onSave,
   revealLine,
   onRevealed,
+  violationMarkers = [],
 }: {
   path: string;
   value: string;
@@ -30,6 +33,7 @@ export function CodeEditor({
   /** Move the cursor to this line (1-based) and scroll it into view, then call onRevealed */
   revealLine?: number;
   onRevealed?: () => void;
+  violationMarkers?: ViolationMarker[];
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -88,6 +92,23 @@ export function CodeEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, value]);
+
+  // Synchronize architectural violation & cycle squiggles + inline annotations
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const lineMarkers = new Map<number, LineAnnotation[]>();
+    if (violationMarkers && violationMarkers.length > 0) {
+      for (const m of violationMarkers) {
+        if (m.line && pathHits(path, m.path)) {
+          const list = lineMarkers.get(m.line) ?? [];
+          list.push({ kind: m.kind === 'cycle' ? 'cycle' : 'violation', text: m.message });
+          lineMarkers.set(m.line, list);
+        }
+      }
+    }
+    view.dispatch({ effects: setViolationsEffect.of(lineMarkers) });
+  }, [path, value, violationMarkers]);
 
   useEffect(() => {
     const view = viewRef.current;

@@ -7,6 +7,7 @@ import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { ApiKeysApi } from './useApiKeys';
 import type { EditorApi } from './useEditorActions';
+import { mapSessionMarkers, sessionMatchesProject } from './violationUtils';
 
 /* -- Workspace: open project, recent list, file tree, create/rename/delete, quick-open file list - */
 export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & EditorApi) {
@@ -47,11 +48,26 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
     showQuickOpen,
     setGithubRepoInfo,
     setIsGitHubWorkspace,
+    setViolationMarkers,
   } = ide;
 
   // Open Any Custom Folder / Project (with create_if_missing)
   // quiet: used when reopening a remembered folder on load; a failure just forgets it
   const serviceDown = `The orchestrator service (${apiBase}) isn't responding. Start it with: docker compose up -d orchestrator-service`;
+
+  const syncSessionMarkers = async (projectPath: string) => {
+    try {
+      const confRes = await fetch(`${apiBase}/api/conformance/session`);
+      if (confRes.ok) {
+        const confData = await confRes.json();
+        if (confData?.session && sessionMatchesProject(confData.session.targetPath, projectPath)) {
+          setViolationMarkers(mapSessionMarkers(confData.session));
+          return;
+        }
+      }
+    } catch {}
+    setViolationMarkers([]);
+  };
 
   const handleOpenProject = async (targetPath: string, shouldCreate: boolean = false, { quiet = false, openReadme = true } = {}) => {
     if (!targetPath.trim()) return;
@@ -98,6 +114,7 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
           const treeData = await treeRes.json();
           setWorkspaceTree(treeData.tree || []);
         }
+        await syncSessionMarkers(data.project_path);
 
         // Open README.md if present
         if (openReadme) setTimeout(async () => {
@@ -182,6 +199,8 @@ export function useProjectActions(ide: IdeProps & IdeStore & ApiKeysApi & Editor
             const treeData = await treeRes.json();
             setWorkspaceTree(treeData.tree || []);
           }
+
+          await syncSessionMarkers(projData.project_path || activePath);
         }
       }
     } catch (e) {

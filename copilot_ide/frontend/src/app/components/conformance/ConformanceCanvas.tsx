@@ -31,13 +31,13 @@ interface ConformanceCanvasProps {
   introBounds?: 'viewport' | 'container';
 }
 
-// Intro timings (ms), matching bl00d.money
-const INTRO_FILL = 1500;   // beads light up around the dial
-const INTRO_BURST = 1750;  // burst into the layout starts
-const INTRO_TWEEN = 2300;
-const INTRO_HOLD = 1650;   // full dial waits here if the layout is still settling
-// Slowest node lands at INTRO_BURST + 900 (max rank delay) + INTRO_TWEEN; hand back just after
-const INTRO_END = INTRO_BURST + 900 + INTRO_TWEEN + 150;
+// Intro timings (ms)
+const INTRO_FILL = 900;    // beads light up around the dial
+const INTRO_BURST = 1050;  // burst into the layout starts
+const INTRO_TWEEN = 1400;
+const INTRO_HOLD = 1000;   // full dial waits here if the layout is still settling
+// Slowest node lands at INTRO_BURST + 500 (max rank delay) + INTRO_TWEEN; hand back just after
+const INTRO_END = INTRO_BURST + 500 + INTRO_TWEEN + 100;
 const WRAPPER_CLASS = 'overflow-hidden select-none bg-[#080808]';
 const SLOT_WRAPPER_CLASS = 'relative w-full h-full';
 // Dependency cycles (Tarjan SCC edges/members); saturated violet so it stays distinct from the lavender Infrastructure layer
@@ -539,6 +539,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
     const anchorOf = (p: SimPt) => (p.node ? layerAnchors[p.node.layer] : undefined) || { x: 0, y: 0, r: 0 };
     const sim = forceSimulation<SimPt>([...realPts.values(), ...bendPts.values()])
+      .alphaDecay(0.035)
       .force('link', forceLink<SimPt, { source: SimPt; target: SimPt; d: number }>(simLinks).distance(l => l.d).strength(0.35))
       .force('charge', forceManyBody<SimPt>()
         .strength(p => p.kind === 'e' ? -110 - Math.min(40, p.node!.totalDegree) * 7 : -7)
@@ -547,10 +548,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       .force('x', forceX<SimPt>(p => anchorOf(p).x * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
       .force('y', forceY<SimPt>(p => anchorOf(p).y * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
       .stop();
-    // Same 320 ticks as before, spread across frames (~10ms per frame) so the main thread
-    // never blocks: the intro dial keeps animating while the layout settles.
+    // Spread simulation ticks via setTimeout(0) so rendering frames aren't starved
     let cancelled = false;
-    let rafId = 0;
     let ticks = 0;
     const settle = () => {
       newSimNodes.forEach(n => {
@@ -638,15 +637,20 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         hasFittedInitialCameraRef.current = false;
       }
     };
+    const totalTicks = 150;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
     const step = () => {
       if (cancelled) return;
       const t0 = performance.now();
-      while (ticks < 320 && performance.now() - t0 < 10) { sim.tick(); ticks++; }
-      if (ticks < 320) rafId = requestAnimationFrame(step);
+      while (ticks < totalTicks && performance.now() - t0 < 45) { sim.tick(); ticks++; }
+      if (ticks < totalTicks) timerId = setTimeout(step, 0);
       else settle();
     };
     step();
-    return () => { cancelled = true; cancelAnimationFrame(rafId); };
+    return () => {
+      cancelled = true;
+      if (timerId !== null) clearTimeout(timerId);
+    };
   }, [nodes, edges, filterLayers]);
 
   // Layout mode transition with smooth cubic easing (keeps camera position stable)
@@ -720,7 +724,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         let introFill = 0;
         let introDial = 0;
         if (intro) {
-          const dt = intro.last ? Math.min(50, now - intro.last) : 0;
+          const dt = intro.last ? Math.min(1000, now - intro.last) : 0;
           intro.last = now;
           if (!intro.born) intro.born = now;
 
@@ -728,12 +732,13 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
           // Lay the dial out for the current node set: first as soon as the nodes arrive (beads
           // start filling right away, provisional camera), then again once the layout has settled
-          // with the real camera. The ring sits at the same screen pixels both times.
-          // Waits for the full-screen layout to commit, with a fallback so it can never stall.
+          // with the real camera. Compare against documentElement clientWidth so scrollbars never stall isFull.
           if (!intro.placed && currentNodes.length > 0) {
             intro.wait++;
-            const isFull = cssWidth >= window.innerWidth - 2 && cssHeight >= window.innerHeight - 2;
-            if (isFull || intro.wait > 20) {
+            const vw = document.documentElement.clientWidth || window.innerWidth;
+            const vh = document.documentElement.clientHeight || window.innerHeight;
+            const isFull = cssWidth >= vw - 2 && cssHeight >= vh - 2;
+            if (isFull || intro.wait > 2) {
               const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
               // Frame the end state exactly as the default view of the canvas's slot in the
               // studio would, expressed in full-screen coordinates, so the hand-back is seamless
@@ -762,16 +767,16 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
               intro.cy = cy;
 
               const layerIdx = (l: string) => { const i = INTRO_LAYER_ORDER.indexOf(l); return i < 0 ? 99 : i; };
-            const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
-            intro.ring.clear();
-            order.forEach((n, i) => {
-              const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
-              intro.ring.set(n.id, { x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rw });
-              intro.at.set(n.id, (i / order.length) * INTRO_FILL);
-              if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
-            });
-            // currentNodes is sorted by degree, so its index is the rank
-              currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(900, rank * 7)));
+              const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
+              intro.ring.clear();
+              order.forEach((n, i) => {
+                const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
+                intro.ring.set(n.id, { x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rw });
+                intro.at.set(n.id, (i / order.length) * INTRO_FILL);
+                if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
+              });
+              // currentNodes is sorted by degree, so its index is the rank
+              currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(500, rank * 4)));
               intro.placed = true;
               intro.started = true;
             }
@@ -781,7 +786,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             // Data still loading: idle dial
             intro.spin += dt;
             introDial = 1;
-            if (now - intro.born > 20000) finishIntro(); // never trap the screen if the audit fails
+            if (now - intro.born > 18000) finishIntro(); // never trap the screen if the audit fails
           } else {
             intro.clock += dt;
             // Layout not settled yet: hold on the full dial until it is
@@ -791,7 +796,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             currentNodes.forEach(n => {
               const tg = c >= (intro.at.get(n.id) ?? 0) ? 1 : 0;
               const a = intro.al.get(n.id) ?? 0;
-              intro.al.set(n.id, a + (tg - a) * Math.min(1, dt * 0.004));
+              intro.al.set(n.id, a + (tg - a) * Math.min(1, dt * 0.006));
               const s = intro.ring.get(n.id);
               const t = intro.targets.get(n.id);
               if (s && t) {
@@ -804,11 +809,12 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
                 n.y = s.y;
               }
             });
-            introEdgeK = Math.max(0, Math.min(1, (burst - 250) / 1400));
+            introEdgeK = Math.max(0, Math.min(1, (burst - 150) / 900));
             introFill = Math.min(1, c / INTRO_FILL);
-            introDial = c < 1700 ? 1 : Math.max(0, 1 - (c - 1700) / 700);
-            // The studio UI comes back smoothly once the whole graph has formed
-            if (c >= INTRO_END) finishIntro();
+            const dialFadeStart = INTRO_BURST - 50;
+            introDial = c < dialFadeStart ? 1 : Math.max(0, 1 - (c - dialFadeStart) / 500);
+            // Hand back smoothly once the whole graph has formed (plus wall-clock safeguard)
+            if (c >= INTRO_END || (intro.targets.size > 0 && now - intro.born > 7000)) finishIntro();
           }
         }
         const introNow = introRef.current;
@@ -1320,9 +1326,14 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           // Draw Shape Based on Node Type
           const isViolation = n.violationsCount > 0;
 
-          // Vibrant Neon Glow on Nodes (radiating node's own layer color)
-          ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
-          ctx.shadowBlur = isViolation ? 10 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
+          // Neon Glow only for flagged/focused hubs or small graphs so software Canvas2D stays at 60 FPS during intro
+          const useGlow = isViolation || isHovered || isSelected || (!introNow && (n.totalDegree >= 14 || currentNodes.length <= 80));
+          if (useGlow) {
+            ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
+            ctx.shadowBlur = isViolation ? 10 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
+          } else {
+            ctx.shadowBlur = 0;
+          }
 
           if (isViolation) {
             // Solid red disc, slightly smaller than a normal node of the same degree
