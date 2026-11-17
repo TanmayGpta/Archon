@@ -1,6 +1,7 @@
 """Data contracts for the bias jury: rubric, juror verdicts, tallies and the decision trace."""
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Iterable, List, Literal, Optional, Set
@@ -11,7 +12,35 @@ CheckpointName = Literal["normalization", "architecture"]
 CiteKind = Literal["raw_lines", "requirements", "asrs", "nodes", "edges"]
 Route = Literal["normalize", "nodes", "edges", "pattern"]
 
+# fmt values:
+#   "json"       → model reliably emits bare JSON; use response_format: json_object on Groq
+#   "no_think"   → thinking/reasoning model (Qwen3, DeepSeek-R1); skip response_format, use /no_think prompt
+#   "text"       → plain text, no response_format (DeepSeek non-R1, etc.)
+FmtMode = Literal["json", "no_think", "text"]
+
 RUBRIC_PATH = Path(__file__).resolve().parent / "rubric.json"
+
+# Patterns in model names that identify non-text-generation models we must never seat as jurors.
+_DEFAULT_SKIP_PATTERNS = [
+    "whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip",
+]
+
+# Patterns that identify thinking/reasoning models → switch to no_think fmt automatically
+_THINKING_MODEL_PATTERNS = ["qwen3", "qwen/qwen3", "deepseek-r1", "r1-distill"]
+
+
+def _auto_fmt(model: str) -> FmtMode:
+    """Infer the right output format from the model name when not explicitly set in the rubric."""
+    m = model.lower()
+    for pat in _THINKING_MODEL_PATTERNS:
+        if pat in m:
+            return "no_think"
+    return "json"
+
+
+def _should_skip(model: str, never_seat_patterns: List[str]) -> bool:
+    m = model.lower()
+    return any(pat in m for pat in (never_seat_patterns or _DEFAULT_SKIP_PATTERNS))
 
 
 # --- Rubric (loaded from rubric.json) ---------------------------------------
@@ -34,11 +63,16 @@ class JurorSpec(BaseModel):
     model: str
     family: str
     prompt_suffix: str = ""
-    # False switches a thinking model's reasoning off at the Ollama API (think: false). A prompt hint
-    # like /no_think is not enough: qwen3 still reasons for thousands of tokens, overflows num_ctx
-    # and returns a truncated answer (the juror then abstains).
+    # fmt controls how the juror's LLM call is configured:
+    #   json      → response_format: json_object (default for well-behaved models)
+    #   no_think  → no response_format; /no_think appended; thinking tags stripped in post-processing
+    #   text      → no response_format; raw text goes through the full regex fallback parser
+    fmt: FmtMode = "json"
+    # think=False → pass reasoning_effort/think:false to the backend (Ollama only; Groq uses fmt)
     think: Optional[bool] = None
     provider: Optional[str] = None
+    # skip=True → never seat this model; used as a marker for auto-discovered models that fail the probe
+    skip: bool = False
 
 
 class OllamaSettings(BaseModel):
@@ -53,6 +87,7 @@ class Rubric(BaseModel):
     spares: List[JurorSpec] = Field(default_factory=list)
     cloud_jurors: List[JurorSpec] = Field(default_factory=list)
     cloud_spares: List[JurorSpec] = Field(default_factory=list)
+    never_seat_patterns: List[str] = Field(default_factory=lambda: list(_DEFAULT_SKIP_PATTERNS))
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     checkpoints: Dict[CheckpointName, Checkpoint]
     available_models: Optional[List[str]] = None
@@ -66,49 +101,78 @@ class Rubric(BaseModel):
         if not is_cloud:
             return self
         r = self.model_copy(deep=True)
+
+        # Normalize live models list
         if available_models:
             r.available_models = [m.lower() for m in available_models if m]
-        if self.cloud_jurors:
-            if available_providers is not None:
-                avail = {p.lower() for p in available_providers}
-                jurors = [j for j in self.cloud_jurors if not j.provider or j.provider.lower() in avail]
-                spares = [j for j in self.cloud_spares if not j.provider or j.provider.lower() in avail]
-            else:
-                jurors = self.cloud_jurors
-                spares = self.cloud_spares
 
-            # If live available models are specified, prioritize live models
-            if r.available_models:
-                avail_set = set(r.available_models)
-                valid_jurors = [
-                    j for j in jurors
-                    if j.model.lower() in avail_set or any(j.model.lower() in m or m in j.model.lower() for m in avail_set)
-                ]
-                valid_spares = [
-                    s for s in spares
-                    if s.model.lower() in avail_set or any(s.model.lower() in m or m in s.model.lower() for m in avail_set)
-                ]
-                from app.jury.roster import family_of
-                known = {j.model.lower() for j in valid_jurors} | {s.model.lower() for s in valid_spares}
-                for m in r.available_models:
-                    if m.lower() not in known and not any(x in m for x in ("whisper", "tts", "guard", "embed")):
-                        prov = next(iter(available_providers)) if (available_providers and len(available_providers) == 1) else "groq"
-                        valid_spares.append(JurorSpec(model=m, family=family_of(m), provider=prov))
-                        known.add(m.lower())
-                if valid_jurors:
-                    jurors = valid_jurors
-                if valid_spares:
-                    spares = valid_spares
+        if not self.cloud_jurors:
+            return r
 
-            r.jurors = jurors if jurors else self.cloud_jurors
-            r.spares = spares
+        # 1. Filter by provider availability
+        avail_providers: Optional[Set[str]] = None
+        if available_providers is not None:
+            avail_providers = {p.lower() for p in available_providers}
+
+        def _provider_ok(spec: JurorSpec) -> bool:
+            if avail_providers is None:
+                return True
+            return not spec.provider or spec.provider.lower() in avail_providers
+
+        jurors = [j for j in self.cloud_jurors if _provider_ok(j)]
+        spares = [s for s in self.cloud_spares if _provider_ok(s)]
+
+        # 2. Filter by live models if we have them
+        if r.available_models:
+            avail_set = set(r.available_models)
+
+            def _live(spec: JurorSpec) -> bool:
+                m = spec.model.lower()
+                # Exact match or substring match (e.g. "gpt-oss-120b" in "openai/gpt-oss-120b")
+                return m in avail_set or any(m in a or a in m for a in avail_set)
+
+            live_jurors = [j for j in jurors if _live(j)]
+            live_spares = [s for s in spares if _live(s)]
+
+            # 3. Auto-add any live models not already in the rubric, with auto-detected fmt
+            from app.jury.roster import family_of
+            known_models = {j.model.lower() for j in live_jurors} | {s.model.lower() for s in live_spares}
+            skip_patterns = r.never_seat_patterns or _DEFAULT_SKIP_PATTERNS
+            prov_name = next(iter(avail_providers)) if (avail_providers and len(avail_providers) == 1) else "groq"
+            for m in r.available_models:
+                if m in known_models:
+                    continue
+                if _should_skip(m, skip_patterns):
+                    continue
+                live_spares.append(JurorSpec(
+                    model=m,
+                    family=family_of(m),
+                    provider=prov_name,
+                    fmt=_auto_fmt(m),
+                    prompt_suffix="/no_think" if _auto_fmt(m) == "no_think" else "",
+                    think=False if _auto_fmt(m) == "no_think" else None,
+                ))
+                known_models.add(m)
+
+            jurors = live_jurors or jurors
+            spares = live_spares or spares
+
+        # 4. Remove models that match never_seat_patterns (TTS, embed, etc.)
+        skip_patterns = r.never_seat_patterns or _DEFAULT_SKIP_PATTERNS
+        jurors = [j for j in jurors if not _should_skip(j.model, skip_patterns)]
+        spares = [s for s in spares if not _should_skip(s.model, skip_patterns)]
+
+        r.jurors = jurors if jurors else self.cloud_jurors
+        r.spares = spares
         return r
 
 
 @lru_cache(maxsize=1)
-def load_rubric(path: Optional[str] = None) -> Rubric:
+def load_rubric(path: Optional[str] = None) -> "Rubric":
     data = json.loads(Path(path or RUBRIC_PATH).read_text(encoding="utf-8"))
-    data.pop("_comment", None)
+    # Strip comment-only keys before validation
+    for key in [k for k in list(data.keys()) if k.startswith("_")]:
+        data.pop(key, None)
     return Rubric.model_validate(data)
 
 

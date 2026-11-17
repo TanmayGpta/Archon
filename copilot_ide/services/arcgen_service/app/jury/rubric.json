@@ -1,30 +1,45 @@
 {
   "_comment": "Bias jury contract. Jurors answer yes/no per item and must cite IDs for every 'no'. Votes are combined in plain Python (app/jury/aggregate.py), never by an LLM.",
   "max_regenerations": 2,
+
+  "_model_notes": [
+    "fmt=json        → model reliably emits bare JSON; use response_format: json_object",
+    "fmt=text        → model returns plain text; skip response_format; clean_thinking strips tags",
+    "fmt=no_think    → thinking model (Qwen3, DeepSeek-R1); skip response_format; prompt includes /no_think",
+    "skip=true       → never seat this model (TTS, embed, non-English-only, guard models)",
+    "prompt_suffix   → appended verbatim after the case; use /no_think for Qwen3-family models"
+  ],
+
   "jurors": [
-    {"model": "qwen3:4b", "family": "qwen", "prompt_suffix": "/no_think", "think": false},
-    {"model": "llama3.2:3b", "family": "llama"},
-    {"model": "gemma3:4b", "family": "google"},
-    {"model": "phi4-mini", "family": "phi"},
-    {"model": "granite3.3:2b", "family": "granite"}
+    {"model": "qwen3:4b",      "family": "qwen",    "fmt": "no_think", "prompt_suffix": "/no_think", "think": false},
+    {"model": "llama3.2:3b",   "family": "llama",   "fmt": "json"},
+    {"model": "gemma3:4b",     "family": "google",  "fmt": "json"},
+    {"model": "phi4-mini",     "family": "phi",     "fmt": "json"},
+    {"model": "granite3.3:2b", "family": "granite", "fmt": "json"}
   ],
   "spares": [
-    {"model": "mistral:7b", "family": "mistral"}
+    {"model": "mistral:7b",    "family": "mistral", "fmt": "json"}
   ],
+
   "cloud_jurors": [
-    {"model": "llama-3.3-70b-versatile", "family": "llama", "provider": "groq"},
-    {"model": "qwen/qwen3.8-27b", "family": "qwen", "provider": "groq", "prompt_suffix": "/no_think", "think": false},
-    {"model": "openai/gpt-oss-120b", "family": "openai", "provider": "groq"},
-    {"model": "openai/gpt-oss-20b", "family": "openai", "provider": "groq"},
-    {"model": "deepseek-r1-distill-qwen-32b", "family": "deepseek", "provider": "groq"}
+    {"model": "llama-3.3-70b-versatile",         "family": "llama",   "provider": "groq", "fmt": "json"},
+    {"model": "qwen/qwen3.8-27b",                "family": "qwen",    "provider": "groq", "fmt": "no_think", "prompt_suffix": "/no_think", "think": false},
+    {"model": "openai/gpt-oss-120b",             "family": "openai",  "provider": "groq", "fmt": "json"},
+    {"model": "openai/gpt-oss-20b",              "family": "openai",  "provider": "groq", "fmt": "json"},
+    {"model": "deepseek-r1-distill-qwen-32b",    "family": "deepseek","provider": "groq", "fmt": "no_think"}
   ],
   "cloud_spares": [
-    {"model": "openai/gpt-oss-20b", "family": "openai", "provider": "groq"},
-    {"model": "qwen/qwen3.8-27b", "family": "qwen", "provider": "groq", "prompt_suffix": "/no_think", "think": false},
-    {"model": "llama-3.1-8b-instant", "family": "llama", "provider": "groq"},
-    {"model": "allam-2-7b", "family": "allam", "provider": "groq", "prompt_suffix": "\nIMPORTANT: Reply in English only. Output JSON only."},
-    {"model": "gemini-2.5-flash", "family": "google", "provider": "omnikey"}
+    {"model": "llama-3.1-8b-instant",            "family": "llama",   "provider": "groq", "fmt": "json"},
+    {"model": "allam-2-7b",                      "family": "allam",   "provider": "groq", "fmt": "json",
+     "prompt_suffix": "\nIMPORTANT: You MUST reply in English only. Output valid JSON only, no Arabic text."},
+    {"model": "gemini-2.5-flash",                "family": "google",  "provider": "omnikey", "fmt": "json"}
   ],
+
+  "_never_seat_patterns": [
+    "whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip"
+  ],
+  "never_seat_patterns": ["whisper", "tts", "guard", "embed", "audio", "orpheus", "arabic-saudi", "vision", "clip"],
+
   "ollama": {"num_ctx": 8192, "timeout_s": 600, "max_concurrent": 1},
   "checkpoints": {
     "normalization": {

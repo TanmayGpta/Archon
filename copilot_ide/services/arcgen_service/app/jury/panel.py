@@ -1,4 +1,4 @@
-"""The ADK jury: one LlmAgent per (juror, checkpoint) on local Ollama via LiteLlm.
+"""The ADK jury: one LlmAgent per (juror, checkpoint) on Groq Cloud or local Ollama via LiteLlm.
 
 Shape: ParallelAgent[ juror_1: SequentialAgent[cp_a, cp_b], juror_2: ..., ... ]
 
@@ -9,11 +9,13 @@ Independence:
   checkpoints;
 - a juror that errors or times out abstains (on_model_error_callback) instead of failing the panel.
 
-Model swaps: Ollama on a 6 GB GPU holds one small model at a time, and loading one costs far more
-than a verdict. So each juror judges *every* pending checkpoint back-to-back while its model is
-loaded, and a juror holds a semaphore (rubric.ollama.max_concurrent, default 1) for its whole
-sequence. One sitting therefore loads each juror model once. On bigger hardware raise
-max_concurrent and jurors really run side by side.
+Model configuration per JurorSpec.fmt:
+  "json"      → response_format: json_object  (clean JSON models: gpt-oss, llama, gemma, phi…)
+  "no_think"  → no response_format; reasoning_effort=none on Groq; /no_think suffix appended to prompt
+  "text"      → no response_format; relies on clean_thinking() + regex fallback parser
+
+One sitting therefore loads each juror model once. On bigger hardware raise
+rubric.ollama.max_concurrent and jurors really run side by side.
 """
 
 import asyncio
@@ -31,22 +33,22 @@ from pydantic import PrivateAttr
 
 from app.jury.aggregate import parse_verdict
 from app.jury.case import Case
-from app.jury.models import CheckpointName, JurorSpec, JurorVerdict, Rubric, load_rubric
-from app.llm import DEFAULT_OLLAMA_HOST, get_ollama_host
+from app.jury.models import CheckpointName, FmtMode, JurorSpec, JurorVerdict, Rubric, load_rubric
+from app.llm import DEFAULT_OLLAMA_HOST, clean_thinking, get_ollama_host
 
 JUROR_ERROR = "JUROR_ERROR:"
 logger = logging.getLogger(__name__)
 
 JUROR_INSTRUCTION = """You are an independent juror reviewing a software architecture generator's work.
 Judge ONLY from the case below. Be strict and literal. Do not assume facts that are not written.
-IMPORTANT: Respond in ENGLISH only. Do not use any other language.
+IMPORTANT: Reply in ENGLISH only. Do not output any text in other languages.
 
 For each question answer "yes" or "no".
 - "yes" means the check passes.
 - "no" means it fails, and you MUST list the IDs that prove it in "cite" (only IDs that appear in the case).
   A "no" without valid IDs is ignored.
 
-Reply with JSON only, no other text. Do not add thinking, reasoning, or commentary outside the JSON:
+Output ONLY valid JSON — no commentary, no preamble, no markdown fences:
 {"answers": [{"item": "<question id>", "verdict": "yes" | "no", "cite": ["<ID>", ...], "reason": "<one short sentence in English>"}]}
 
 === CASE ===
@@ -77,6 +79,61 @@ def _on_model_error(callback_context, llm_request, error) -> LlmResponse:
     logger.error(f"Juror model error: {type(error).__name__}: {error}", exc_info=True)
     msg = f"{JUROR_ERROR} {type(error).__name__}: {str(error)[:300]}"
     return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=msg)]))
+
+
+def _build_litellm(
+    model_name: str,
+    *,
+    api_key: Optional[str] = None,
+    timeout: int = 90,
+    fmt: FmtMode = "json",
+    force_no_fmt: bool = False,
+    num_ctx: Optional[int] = None,
+    api_base: Optional[str] = None,
+    reasoning_off: bool = False,
+    think_flag: Optional[bool] = None,
+) -> LiteLlm:
+    """Central factory for LiteLlm model objects so all configuration decisions live in one place.
+
+    Args:
+        model_name:    Full LiteLLM model route (e.g. "groq/qwen/qwen3.8-27b").
+        api_key:       Provider API key (None → let LiteLLM read from env).
+        timeout:       Request timeout in seconds.
+        fmt:           Output format hint from JurorSpec.
+        force_no_fmt:  Override: skip response_format even for "json" fmt models (retry path).
+        num_ctx:       Ollama context window.
+        api_base:      Ollama host URL.
+        reasoning_off: If True, pass extra_body={"reasoning_effort": "none"} to disable CoT on Groq.
+        think_flag:    If False, pass reasoning_effort="none" (Ollama: think:false) for thinking models.
+    """
+    kwargs: Dict = {}
+
+    if api_base is not None:
+        # Ollama path
+        kwargs["api_base"] = api_base
+        if num_ctx is not None:
+            kwargs["num_ctx"] = num_ctx
+        if think_flag is False:
+            kwargs["extra_body"] = {"reasoning_effort": "none"}
+        elif fmt == "no_think":
+            kwargs["extra_body"] = {"reasoning_effort": "none"}
+        kwargs["format"] = "json" if (fmt == "json" and not force_no_fmt) else None
+        if kwargs.get("format") is None:
+            kwargs.pop("format", None)
+    else:
+        # Cloud path (Groq / OmniKey / Gemini)
+        use_json_format = (fmt == "json") and not force_no_fmt
+        if use_json_format:
+            kwargs["response_format"] = {"type": "json_object"}
+
+        if reasoning_off or fmt == "no_think":
+            # Groq's correct parameter to disable Qwen3/DeepSeek-R1 thinking
+            kwargs["extra_body"] = {"reasoning_effort": "none"}
+
+    if api_key:
+        kwargs["api_key"] = api_key
+
+    return LiteLlm(model=model_name, timeout=timeout, **kwargs)
 
 
 class AdkJuryPanel:
@@ -127,54 +184,58 @@ class AdkJuryPanel:
             + f"\n\nAnswer EVERY question ({ids}), one entry each, in the JSON format above."
             + (f"\n{spec.prompt_suffix}" if spec.prompt_suffix else "")
         )
+
         if self.is_cloud or (spec.provider and spec.provider != "ollama"):
             prov = (spec.provider or "groq").lower()
+
             if prov == "groq":
                 key = (self.api_keys.get("groq") or os.getenv("GROQ_API_KEY") or os.getenv("groq") or "").strip().strip("\"'")
                 if key:
                     os.environ["GROQ_API_KEY"] = key
                 model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
-                # Deepseek R1 and Qwen thinking models reject or misuse response_format
-                is_deepseek_r1 = "deepseek" in spec.model.lower() and "r1" in spec.model.lower()
-                is_qwen = "qwen" in spec.model.lower()
-                skip_fmt = is_deepseek_r1 or is_qwen or force_no_fmt
-                fmt_kwargs = {} if skip_fmt else {"response_format": {"type": "json_object"}}
-                model = LiteLlm(
-                    model=model_name,
+                model = _build_litellm(
+                    model_name,
                     api_key=key or None,
                     timeout=90,
-                    **fmt_kwargs,
+                    fmt=spec.fmt,
+                    force_no_fmt=force_no_fmt,
+                    reasoning_off=(spec.fmt == "no_think"),
                 )
+
             elif prov in ("omnikey", "gemini"):
                 key = (self.api_keys.get("omnikey") or os.getenv("OMNIKEY_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("omnikey") or "").strip().strip("\"'")
                 if key:
                     os.environ["GEMINI_API_KEY"] = key
                 model_name = f"gemini/{spec.model}" if not spec.model.startswith("gemini/") else spec.model
-                fmt_kwargs = {} if force_no_fmt else {"response_format": {"type": "json_object"}}
-                model = LiteLlm(
-                    model=model_name,
+                model = _build_litellm(
+                    model_name,
                     api_key=key or None,
                     timeout=90,
-                    **fmt_kwargs,
+                    fmt=spec.fmt,
+                    force_no_fmt=force_no_fmt,
                 )
+
             else:
-                model_name = spec.model
-                fmt_kwargs = {} if force_no_fmt else {"response_format": {"type": "json_object"}}
-                model = LiteLlm(
-                    model=model_name,
+                # Unknown cloud provider — try bare model name, let LiteLLM route it
+                model = _build_litellm(
+                    spec.model,
                     timeout=90,
-                    **fmt_kwargs,
+                    fmt=spec.fmt,
+                    force_no_fmt=force_no_fmt,
                 )
+
         else:
-            extra = {"reasoning_effort": "none"} if spec.think is False else {}  # LiteLLM -> Ollama think: false
-            model = LiteLlm(
-                model=f"ollama_chat/{spec.model}",
-                api_base=self.host,
+            # Ollama (local)
+            model = _build_litellm(
+                f"ollama_chat/{spec.model}",
                 timeout=self.rubric.ollama.timeout_s,
+                fmt=spec.fmt,
+                force_no_fmt=force_no_fmt,
                 num_ctx=self.rubric.ollama.num_ctx,
-                format="json",
-                **extra,
+                api_base=self.host,
+                think_flag=spec.think,
             )
+
         return LlmAgent(
             name=f"juror_{idx}_{checkpoint}",
             model=model,
@@ -210,8 +271,6 @@ class AdkJuryPanel:
                         continue
                     checkpoint, (seat, spec, case) = by_name[agent.name]
                     cp = self.rubric.checkpoints[checkpoint]
-                    # Run each checkpoint agent independently so no conversation history leaks between checkpoints
-                    # and each checkpoint gets an authoritative final response event.
                     for attempt in range(2):
                         runner = InMemoryRunner(agent=agent, app_name="arcgen_jury")
                         t0 = time.monotonic()
@@ -224,20 +283,21 @@ class AdkJuryPanel:
                                 got_response = True
                                 seconds = round(time.monotonic() - t0, 1)
                                 parts = event.content.parts if event.content and event.content.parts else []
+                                # Prefer non-thought parts; fall back to all text parts
                                 text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
                                 if not text.strip():
                                     text = "".join(p.text for p in parts if p.text)
-                                from app.llm import clean_thinking
+                                # Strip thinking tags from reasoning models
                                 text = clean_thinking(text)
                                 if text.startswith(JUROR_ERROR):
                                     err_str = text[len(JUROR_ERROR):].strip()
-                                    # Rate limit retry
+                                    # Rate limit: wait then retry
                                     if attempt == 0 and any(k in err_str.lower() for k in ("429", "rate_limit", "tpm")):
-                                        logger.info(f"{agent.name} hit rate limit, waiting 6s before retry...")
-                                        await asyncio.sleep(6)
+                                        logger.info(f"{agent.name} hit rate limit, waiting 8s before retry...")
+                                        await asyncio.sleep(8)
                                         break
-                                    # Bad request / response_format retry
-                                    if attempt == 0 and any(k in err_str.lower() for k in ("400", "bad_request", "response_format", "json_object")):
+                                    # Bad request / response_format rejected: retry without it
+                                    if attempt == 0 and any(k in err_str.lower() for k in ("400", "bad_request", "response_format", "json_object", "unsupported")):
                                         logger.info(f"{agent.name} hit format error, retrying without response_format...")
                                         agent = self._agent(checkpoint, int(agent.name.split("_")[1]), spec, case, force_no_fmt=True)
                                         await asyncio.sleep(1)
@@ -283,4 +343,3 @@ class AdkJuryPanel:
 
 # Backwards compatibility alias
 AdkOllamaPanel = AdkJuryPanel
-

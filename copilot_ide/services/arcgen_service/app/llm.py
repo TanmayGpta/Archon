@@ -118,26 +118,49 @@ def ollama_default_model() -> str:
 
 
 def clean_thinking(text: str) -> str:
-    """Removes thinking/reasoning tags and preamble from reasoning models."""
+    """Removes thinking/reasoning tags and preamble from reasoning models.
+
+    Handles:
+    - <think>...</think>, <thought>...</thought>, <reasoning>...</reasoning> blocks
+    - Unclosed/truncated opening tags (tail is all thinking)
+    - Any plain-text preamble before the first { or [ (Groq Qwen3 stray lines)
+    - Groq reasoning_format="parsed" JSON envelope {"thinking": "...", "content": "..."}
+    """
     if not text:
         return ""
+
+    # Groq reasoning_format="parsed": whole response is a JSON envelope
+    # {"thinking": "...", "content": "actual answer"} — extract content field
+    stripped_check = text.strip()
+    if stripped_check.startswith("{") and '"thinking"' in stripped_check and '"content"' in stripped_check:
+        try:
+            import json as _json
+            parsed = _json.loads(stripped_check)
+            if isinstance(parsed, dict) and "content" in parsed:
+                text = str(parsed["content"])
+        except Exception:
+            pass
+
     # Remove <think>...</think>, <thought>...</thought>, <reasoning>...</reasoning>
     cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*?</\1>", "", text, flags=re.IGNORECASE)
     # Remove unclosed opening tag if truncated (whole tail is thinking)
-    if re.search(r"<(think|thought|reasoning)>", cleaned, re.IGNORECASE) and not re.search(r"</(think|thought|reasoning)>", cleaned, re.IGNORECASE):
+    if re.search(r"<(think|thought|reasoning)>", cleaned, re.IGNORECASE) and \
+       not re.search(r"</(think|thought|reasoning)>", cleaned, re.IGNORECASE):
         cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*$", "", cleaned, flags=re.IGNORECASE)
-    # Groq Qwen3: thinking tokens sometimes leak as "···\n...text before JSON\n···"
+
     # Strip any leading non-JSON preamble before the first { or [
+    # (Qwen3 on Groq sometimes emits a few lines of reasoning before the JSON block even with no_think)
     stripped = cleaned.strip()
     first_brace = min(
         (stripped.find(c) for c in ("{", "[") if stripped.find(c) != -1),
         default=-1,
     )
     if first_brace > 0:
-        # Only trim if what precedes is not actual content (no alphanumeric words forming JSON keys)
         preamble = stripped[:first_brace]
+        # Only trim if the preamble contains no JSON key patterns (not actual JSON content)
         if not re.search(r'"[^"]+"\s*:', preamble):
             stripped = stripped[first_brace:]
+
     return stripped.strip()
 
 

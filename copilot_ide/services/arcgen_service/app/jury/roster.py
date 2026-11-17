@@ -20,6 +20,7 @@ _FAMILY_KEYS = [
     ("allam", "allam"),
     ("canopy", "canopylabs"),
     ("minimax", "minimax"),
+    ("orpheus", "canopylabs"),
 ]
 
 
@@ -37,15 +38,22 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
     Jurors whose family produced any part of the generation are replaced by spares of an unused
     family, in order. If distinct families run out (e.g. single-provider cloud setup), spares of
     non-generator families fill the panel. If spares run out the panel is smaller; the aggregate flags it.
+
+    Models with skip=True are never seated regardless of family.
     """
     excluded = sorted({family_of(m) for m in generator_models if m})
-    panel = [j for j in rubric.jurors if j.family not in excluded]
+
+    # Only seat models that are not flagged skip=True
+    eligible_jurors = [j for j in rubric.jurors if not j.skip]
+    eligible_spares = [s for s in rubric.spares if not s.skip]
+
+    panel = [j for j in eligible_jurors if j.family not in excluded]
     seated_families = {j.family for j in panel}
     seated_models = {j.model for j in panel}
-    target_count = len(rubric.jurors) if rubric.jurors else 5
+    target_count = len(eligible_jurors) if eligible_jurors else 5
 
     # Pass 1: Try to seat spares with unused families
-    for spare in rubric.spares:
+    for spare in eligible_spares:
         if len(panel) >= target_count:
             break
         if spare.family not in excluded and spare.family not in seated_families and spare.model not in seated_models:
@@ -54,24 +62,25 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
             seated_models.add(spare.model)
 
     # Pass 2: If distinct families ran out (e.g. single-provider cloud setup), seat spares not in generator family
-    for spare in rubric.spares:
+    for spare in eligible_spares:
         if len(panel) >= target_count:
             break
         if spare.family not in excluded and spare.model not in seated_models:
             panel.append(spare)
             seated_models.add(spare.model)
 
-    # Pass 3: Emergency fallback ONLY if the panel is completely empty
+    # Pass 3: Emergency fallback if the panel is completely empty — seat a spare even from generator family,
+    # but never the exact generator model itself
     if not panel:
         gen_models = {m.lower() for m in generator_models if m}
-        for spare in rubric.spares:
+        for spare in eligible_spares:
             if spare.model.lower() not in gen_models and spare.model not in seated_models:
                 panel.append(spare)
                 seated_models.add(spare.model)
                 break
-        if not panel and rubric.spares:
-            panel.append(rubric.spares[0])
-        elif not panel and rubric.jurors:
-            panel.append(rubric.jurors[0])
+        if not panel and eligible_spares:
+            panel.append(eligible_spares[0])
+        elif not panel and eligible_jurors:
+            panel.append(eligible_jurors[0])
 
     return panel, excluded
