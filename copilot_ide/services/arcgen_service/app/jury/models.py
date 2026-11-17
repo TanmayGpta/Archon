@@ -55,21 +55,53 @@ class Rubric(BaseModel):
     cloud_spares: List[JurorSpec] = Field(default_factory=list)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     checkpoints: Dict[CheckpointName, Checkpoint]
+    available_models: Optional[List[str]] = None
 
-    def for_mode(self, is_cloud: bool, available_providers: Optional[Iterable[str]] = None) -> "Rubric":
+    def for_mode(
+        self,
+        is_cloud: bool,
+        available_providers: Optional[Iterable[str]] = None,
+        available_models: Optional[Iterable[str]] = None,
+    ) -> "Rubric":
         if not is_cloud:
             return self
         r = self.model_copy(deep=True)
+        if available_models:
+            r.available_models = [m.lower() for m in available_models if m]
         if self.cloud_jurors:
             if available_providers is not None:
                 avail = {p.lower() for p in available_providers}
                 jurors = [j for j in self.cloud_jurors if not j.provider or j.provider.lower() in avail]
                 spares = [j for j in self.cloud_spares if not j.provider or j.provider.lower() in avail]
-                r.jurors = jurors if jurors else self.cloud_jurors
-                r.spares = spares
             else:
-                r.jurors = self.cloud_jurors
-                r.spares = self.cloud_spares
+                jurors = self.cloud_jurors
+                spares = self.cloud_spares
+
+            # If live available models are specified, prioritize live models
+            if r.available_models:
+                avail_set = set(r.available_models)
+                valid_jurors = [
+                    j for j in jurors
+                    if j.model.lower() in avail_set or any(j.model.lower() in m or m in j.model.lower() for m in avail_set)
+                ]
+                valid_spares = [
+                    s for s in spares
+                    if s.model.lower() in avail_set or any(s.model.lower() in m or m in s.model.lower() for m in avail_set)
+                ]
+                from app.jury.roster import family_of
+                known = {j.model.lower() for j in valid_jurors} | {s.model.lower() for s in valid_spares}
+                for m in r.available_models:
+                    if m.lower() not in known and not any(x in m for x in ("whisper", "tts", "guard", "embed")):
+                        prov = next(iter(available_providers)) if (available_providers and len(available_providers) == 1) else "groq"
+                        valid_spares.append(JurorSpec(model=m, family=family_of(m), provider=prov))
+                        known.add(m.lower())
+                if valid_jurors:
+                    jurors = valid_jurors
+                if valid_spares:
+                    spares = valid_spares
+
+            r.jurors = jurors if jurors else self.cloud_jurors
+            r.spares = spares
         return r
 
 

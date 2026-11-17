@@ -117,8 +117,21 @@ def ollama_default_model() -> str:
     return model
 
 
+def clean_thinking(text: str) -> str:
+    """Removes thinking/reasoning tags and preamble from reasoning models."""
+    if not text:
+        return ""
+    # Remove <think>...</think>, <thought>...</thought>, <reasoning>...</reasoning>
+    cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*?</\1>", "", text, flags=re.IGNORECASE)
+    # Remove unclosed opening tag if truncated
+    if re.search(r"<(think|thought|reasoning)>", cleaned, re.IGNORECASE) and not re.search(r"</(think|thought|reasoning)>", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"<(think|thought|reasoning)>[\s\S]*$", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
 def safe_parse_json(content: str) -> Any:
     """Parses JSON with automatic extraction and repair for conversational preambles, unescaped quotes, or truncated syntax."""
+    content = clean_thinking(content or "")
     if not content:
         raise ValueError("Received empty content to parse as JSON.")
 

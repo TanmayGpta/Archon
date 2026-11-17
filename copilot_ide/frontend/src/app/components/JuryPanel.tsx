@@ -126,13 +126,16 @@ function voteOf(v: JurorVerdict | undefined, itemId: string): Vote {
 /** Explain an abstention in words a user can act on. */
 function abstainHint(error: string): string {
   const e = (error || '').toLowerCase();
-  if (e.includes('not found') || e.includes('pull')) return 'model is not installed in Ollama';
+  if (e.includes('not found') || e.includes('does not exist') || e.includes('not have access') || e.includes('model_not_found') || e.includes('pull')) {
+    return 'model not available on this API key or server';
+  }
   if (e.includes('timeout') || e.includes('timed out')) return 'took too long to answer';
-  if (e.includes('connect') || e.includes('econnrefused')) return "couldn't reach Ollama / API";
+  if (e.includes('connect') || e.includes('econnrefused')) return "couldn't reach LLM endpoint";
   if (e.includes('rate_limit') || e.includes('429') || e.includes('quota') || e.includes('tpm') || e.includes('rpm')) return 'API rate limit reached';
   if (e.includes('auth') || e.includes('api_key') || e.includes('api key') || e.includes('401') || e.includes('403') || e.includes('invalid_argument')) return 'API key is missing or invalid';
   if (e.includes('bad_request') || e.includes('badrequest') || e.includes('400')) return 'API request format error';
   if (e.includes('no response')) return 'never answered';
+  if (e.includes('unparseable') || e.includes('no usable answers')) return 'output was not valid JSON';
   return 'gave an answer that could not be read';
 }
 

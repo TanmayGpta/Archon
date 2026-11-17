@@ -114,7 +114,9 @@ class AdkJuryPanel:
         # Called from the pipeline's worker thread, which has no running event loop.
         return asyncio.run(self._judge_many(sittings, on_verdict))
 
-    def _agent(self, checkpoint: CheckpointName, idx: int, spec: JurorSpec, case: Case) -> LlmAgent:
+    def _agent(
+        self, checkpoint: CheckpointName, idx: int, spec: JurorSpec, case: Case, force_no_fmt: bool = False
+    ) -> LlmAgent:
         ids = ", ".join(it.id for it in self.rubric.checkpoints[checkpoint].items)
         prompt = (
             JUROR_INSTRUCTION + case.text
@@ -128,9 +130,9 @@ class AdkJuryPanel:
                 if key:
                     os.environ["GROQ_API_KEY"] = key
                 model_name = f"groq/{spec.model}" if not spec.model.startswith("groq/") else spec.model
-                # Groq returns 400 BadRequest if response_format json_object is passed to reasoning/thinking models
-                is_reasoning = any(x in spec.model.lower() for x in ("deepseek", "qwen", "qwq", "reasoner", "thinking"))
-                fmt_kwargs = {} if is_reasoning else {"response_format": {"type": "json_object"}}
+                # Only deepseek R1 models on Groq reject response_format
+                is_deepseek_r1 = "deepseek" in spec.model.lower() and "r1" in spec.model.lower()
+                fmt_kwargs = {} if (is_deepseek_r1 or force_no_fmt) else {"response_format": {"type": "json_object"}}
                 model = LiteLlm(
                     model=model_name,
                     api_key=key or None,
@@ -142,18 +144,20 @@ class AdkJuryPanel:
                 if key:
                     os.environ["GEMINI_API_KEY"] = key
                 model_name = f"gemini/{spec.model}" if not spec.model.startswith("gemini/") else spec.model
+                fmt_kwargs = {} if force_no_fmt else {"response_format": {"type": "json_object"}}
                 model = LiteLlm(
                     model=model_name,
                     api_key=key or None,
                     timeout=90,
-                    response_format={"type": "json_object"},
+                    **fmt_kwargs,
                 )
             else:
                 model_name = spec.model
+                fmt_kwargs = {} if force_no_fmt else {"response_format": {"type": "json_object"}}
                 model = LiteLlm(
                     model=model_name,
                     timeout=90,
-                    response_format={"type": "json_object"},
+                    **fmt_kwargs,
                 )
         else:
             extra = {"reasoning_effort": "none"} if spec.think is False else {}  # LiteLLM -> Ollama think: false
@@ -217,12 +221,20 @@ class AdkJuryPanel:
                                 text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
                                 if not text.strip():
                                     text = "".join(p.text for p in parts if p.text)
+                                from app.llm import clean_thinking
+                                text = clean_thinking(text)
                                 if text.startswith(JUROR_ERROR):
                                     err_str = text[len(JUROR_ERROR):].strip()
                                     # Rate limit retry
                                     if attempt == 0 and any(k in err_str.lower() for k in ("429", "rate_limit", "tpm")):
                                         logger.info(f"{agent.name} hit rate limit, waiting 6s before retry...")
                                         await asyncio.sleep(6)
+                                        break
+                                    # Bad request / response_format retry
+                                    if attempt == 0 and any(k in err_str.lower() for k in ("400", "bad_request", "response_format", "json_object")):
+                                        logger.info(f"{agent.name} hit format error, retrying without response_format...")
+                                        agent = self._agent(checkpoint, int(agent.name.split("_")[1]), spec, case, force_no_fmt=True)
+                                        await asyncio.sleep(1)
                                         break
                                     v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
                                                      error=err_str, seconds=seconds)

@@ -78,6 +78,19 @@ class TestParseVerdict(unittest.TestCase):
         v = parse_verdict(json.dumps({"N1": "yes", "N2": {"verdict": "no", "cite": ["FR-002"]}}), self.cp, self.case, "J", SPEC)
         self.assertEqual({a.item_id: a.passed for a in v.answers}, {"N1": True, "N2": False})
 
+    def test_thinking_tags_stripped_successfully(self):
+        raw = "<think>Let me evaluate this carefully: {\"random\": 123}</think>\n```json\n" + _answers(N1="yes", N2=("no", ["FR-002"])) + "\n```"
+        v = parse_verdict(raw, self.cp, self.case, "J", SPEC)
+        self.assertTrue(v.ok)
+        self.assertEqual({a.item_id: a.passed for a in v.answers}, {"N1": True, "N2": False})
+
+    def test_regex_fallback_for_plain_text_answers(self):
+        raw = "Reviewer assessment:\n* N1: yes - covered in full\n* N2: no - unsupported requirement (FR-002)\n* N3: yes"
+        v = parse_verdict(raw, self.cp, self.case, "J", SPEC)
+        self.assertTrue(v.ok)
+        self.assertEqual(len(v.answers), 3)
+        self.assertEqual({a.item_id: a.passed for a in v.answers}, {"N1": True, "N2": False, "N3": True})
+
 
 class TestAggregate(unittest.TestCase):
     def setUp(self):
@@ -320,6 +333,23 @@ class TestCloudJury(unittest.TestCase):
         # All jurors are distinct models
         models = [j.model for j in panel]
         self.assertEqual(len(models), len(set(models)))
+
+    def test_cloud_jury_live_models_filtering(self):
+        live = ["allam-2-7b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        rubric = load_rubric().for_mode(is_cloud=True, available_providers={"groq"}, available_models=live)
+        # Verify dead models are filtered out
+        all_models = {j.model for j in rubric.jurors} | {s.model for s in rubric.spares}
+        self.assertNotIn("llama-3.3-70b-versatile", all_models)
+        self.assertNotIn("deepseek-r1-distill-qwen-32b", all_models)
+        self.assertIn("qwen/qwen3.8-27b", all_models)
+        self.assertIn("allam-2-7b", all_models)
+        # Test panel selection with generator = openai/gpt-oss-120b
+        panel, excluded = select_panel(rubric, ["openai/gpt-oss-120b"])
+        self.assertIn("openai", excluded)
+        self.assertTrue(len(panel) >= 2)
+        # All seated models are live models
+        for j in panel:
+            self.assertIn(j.model, live)
 
 
 

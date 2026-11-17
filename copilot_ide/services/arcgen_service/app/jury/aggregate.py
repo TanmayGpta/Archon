@@ -10,6 +10,7 @@ Rules (agreed design):
 """
 
 from collections import Counter
+import re
 from typing import List, Optional
 
 from app.jury.case import Case, raw_lines
@@ -22,17 +23,17 @@ from app.jury.models import (
     JurorSpec,
     JurorVerdict,
 )
-from app.llm import safe_parse_json
+from app.llm import clean_thinking, safe_parse_json
 
 ROUTE_ORDER = ["normalize", "pattern", "nodes", "edges"]
-_YES = {"yes", "y", "true", "pass", "passed", "ok"}
-_NO = {"no", "n", "false", "fail", "failed"}
+_YES = {"yes", "y", "true", "pass", "passed", "ok", "correct", "passedcheck"}
+_NO = {"no", "n", "false", "fail", "failed", "incorrect", "problem", "issue", "failedcheck"}
 
 
 def _as_bool(v) -> Optional[bool]:
     if isinstance(v, bool):
         return v
-    s = str(v or "").strip().lower()
+    s = re.sub(r"[^a-z]", "", str(v or "").lower())
     if s in _YES:
         return True
     if s in _NO:
@@ -53,50 +54,90 @@ def _as_list(v) -> List[str]:
 def parse_verdict(
     raw: str, checkpoint: Checkpoint, case: Case, seat: str, spec: JurorSpec, seconds: float = 0.0
 ) -> JurorVerdict:
-    """Parses one juror's JSON answer. Anything unusable becomes ok=False (the juror abstains)."""
+    """Parses one juror's JSON or formatted answer. Anything unusable becomes ok=False (the juror abstains)."""
     base = dict(juror=seat, model=spec.model, family=spec.family, seconds=round(seconds, 1))
+    cleaned_raw = clean_thinking(raw or "").strip()
+    data = None
     try:
-        data = safe_parse_json(raw)
-    except Exception as e:  # noqa: BLE001 - any parse failure means the juror abstains
-        return JurorVerdict(**base, ok=False, error=f"unparseable output: {e}")
+        data = safe_parse_json(cleaned_raw)
+    except Exception:
+        data = None
 
-    rows = data.get("answers") if isinstance(data, dict) else data
-    if isinstance(data, dict) and rows is None:
-        # Tolerate {"N1": {...}, "N2": {...}} or {"N1": "yes", ...}
-        rows = [dict(v, item=k) if isinstance(v, dict) else {"item": k, "verdict": v} for k, v in data.items()]
-    if not isinstance(rows, list):
-        return JurorVerdict(**base, ok=False, error=f"no answers list in: {raw[:160]!r}")
+    rows = None
+    if isinstance(data, dict):
+        rows = data.get("answers")
+        if rows is None:
+            # Tolerate {"N1": {...}, "N2": {...}} or {"N1": "yes", ...}
+            rows = [dict(v, item=k) if isinstance(v, dict) else {"item": k, "verdict": v} for k, v in data.items()]
+    elif isinstance(data, list):
+        rows = data
 
     items = {it.id: it for it in checkpoint.items}
     answers: List[ItemAnswer] = []
     seen = set()
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        item_id = str(row.get("item") or row.get("id") or row.get("item_id") or "").strip().upper()
-        if item_id not in items or item_id in seen:
-            continue
-        passed = _as_bool(row.get("verdict", row.get("answer", row.get("passed"))))
-        if passed is None:
-            continue
-        seen.add(item_id)
-        cites = [c.upper() for c in _as_list(row.get("cite", row.get("cited", row.get("ids"))))]
-        valid = case.valid_ids.get(items[item_id].cite, set())
-        good = list(dict.fromkeys(c for c in cites if c in valid))
-        bad = [c for c in cites if c not in valid]
-        shotgun = len(good) > 2 and len(good) * 2 > len(valid)
-        answers.append(
-            ItemAnswer(
-                item_id=item_id,
-                passed=passed,
-                cited=good,
-                rejected_cites=bad,
-                reason=str(row.get("reason", ""))[:400],
-                counted=passed or (bool(good) and not shotgun),
+
+    if isinstance(rows, list):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            item_id = str(row.get("item") or row.get("id") or row.get("item_id") or row.get("question") or "").strip().upper()
+            if item_id not in items or item_id in seen:
+                continue
+            passed = _as_bool(row.get("verdict", row.get("answer", row.get("passed", row.get("result")))))
+            if passed is None:
+                continue
+            seen.add(item_id)
+            cites = [c.upper() for c in _as_list(row.get("cite", row.get("cited", row.get("ids"))))]
+            valid = case.valid_ids.get(items[item_id].cite, set())
+            good = list(dict.fromkeys(c for c in cites if c in valid))
+            bad = [c for c in cites if c not in valid]
+            shotgun = len(good) > 2 and len(good) * 2 > len(valid)
+            answers.append(
+                ItemAnswer(
+                    item_id=item_id,
+                    passed=passed,
+                    cited=good,
+                    rejected_cites=bad,
+                    reason=str(row.get("reason", ""))[:400],
+                    counted=passed or (bool(good) and not shotgun),
+                )
             )
-        )
+
+    # Regex fallback if structured parsing failed or returned no items
     if not answers:
-        return JurorVerdict(**base, ok=False, error=f"no usable answers in: {raw[:160]!r}")
+        for item_id, it in items.items():
+            if item_id in seen:
+                continue
+            m = re.search(
+                rf"(?:\b|\*){item_id}(?:\b|\*)[\s\S]*?[:\-]\s*(\b(?:yes|no|pass|fail|true|false)\b)([\s\S]*?)(?=(?:\b|\*)[NA][1-9]|\Z)",
+                cleaned_raw,
+                re.IGNORECASE,
+            )
+            if not m:
+                continue
+            passed = _as_bool(m.group(1))
+            if passed is None:
+                continue
+            seen.add(item_id)
+            snippet = m.group(2).strip()
+            cites = [c.upper() for c in re.findall(r"\b[A-Za-z0-9_\-]+(?:-[0-9]+)?\b", snippet)]
+            valid = case.valid_ids.get(it.cite, set())
+            good = list(dict.fromkeys(c for c in cites if c in valid))
+            bad = [c for c in cites if c not in valid]
+            shotgun = len(good) > 2 and len(good) * 2 > len(valid)
+            answers.append(
+                ItemAnswer(
+                    item_id=item_id,
+                    passed=passed,
+                    cited=good,
+                    rejected_cites=bad,
+                    reason=snippet[:400],
+                    counted=passed or (bool(good) and not shotgun),
+                )
+            )
+
+    if not answers:
+        return JurorVerdict(**base, ok=False, error=f"no usable answers in: {cleaned_raw[:160]!r}")
     return JurorVerdict(**base, answers=answers)
 
 

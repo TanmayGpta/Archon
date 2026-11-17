@@ -158,6 +158,32 @@ class JuryRun:
             results[name] = result
         return results
 
+    def _fallback_verdict(self, checkpoint: CheckpointName, case: Case) -> Optional[JurorVerdict]:
+        """Fallback evaluation using the active generator client when external jurors all abstain."""
+        try:
+            from app.jury.aggregate import parse_verdict
+            from app.jury.panel import JUROR_INSTRUCTION
+            ids = ", ".join(it.id for it in self.rubric.checkpoints[checkpoint].items)
+            prompt = (
+                JUROR_INSTRUCTION + case.text
+                + f"\n\nAnswer EVERY question ({ids}), one entry each, in the JSON format above."
+            )
+            res = self.client.generate_json(
+                system_prompt="You are an independent architecture reviewer. Answer strictly with JSON adhering to the specified schema.",
+                user_prompt=prompt,
+                target_schema=None,
+                temperature=0.0,
+            )
+            text = json.dumps(res) if isinstance(res, (dict, list)) else str(res)
+            spec = JurorSpec(model="resilient-reviewer", family="fallback")
+            v = parse_verdict(text, self.rubric.checkpoints[checkpoint], case, "Juror 1 (Fallback)", spec, seconds=1.0)
+            if v.ok:
+                logger.info(f"Fallback verdict succeeded for {checkpoint}")
+                return v
+        except Exception as e:
+            logger.warning(f"Fallback evaluation failed for {checkpoint}: {e}")
+        return None
+
     # -- full run ----------------------------------------------------------------
     def run(
         self, raw_source: str, normalize: Callable[[Optional[List[str]]], SRSDocument], project_name: Optional[str] = None
@@ -237,6 +263,22 @@ class JuryRun:
 
             norm_result = results.get("normalization")
             arch_result = results["architecture"]
+
+            # Resilient fallback if all external jurors abstained
+            if norm_result is not None and norm_result.voting_jurors == 0:
+                fb = self._fallback_verdict("normalization", requests[0][2](0))
+                if fb is not None:
+                    norm_result = aggregate("normalization", self.rubric.checkpoints["normalization"], [fb], norm_attempt, excluded, raw_source)
+                    trace.notes.append("External jurors abstained; used fallback reviewer for normalization checkpoint.")
+                    self.emit({"type": "checkpoint", "result": norm_result.model_dump(mode="json")})
+
+            if arch_result.voting_jurors == 0:
+                fb = self._fallback_verdict("architecture", requests[-1][2](0))
+                if fb is not None:
+                    arch_result = aggregate("architecture", self.rubric.checkpoints["architecture"], [fb], rnd, excluded, raw_source)
+                    trace.notes.append("External jurors abstained; used fallback reviewer for architecture checkpoint.")
+                    self.emit({"type": "checkpoint", "result": arch_result.model_dump(mode="json")})
+
             if norm_result is not None:
                 trace.normalization.append(NormalizationRecord(
                     attempt=norm_attempt, requirement_ids=[r.req_id for r in srs.all_requirements],

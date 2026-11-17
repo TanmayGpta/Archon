@@ -17,6 +17,8 @@ _FAMILY_KEYS = [
     ("mistral", "mistral"),
     ("openai", "openai"),
     ("gpt", "openai"),
+    ("allam", "allam"),
+    ("canopy", "canopylabs"),
     ("minimax", "minimax"),
 ]
 
@@ -40,22 +42,36 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
     panel = [j for j in rubric.jurors if j.family not in excluded]
     seated_families = {j.family for j in panel}
     seated_models = {j.model for j in panel}
+    target_count = len(rubric.jurors) if rubric.jurors else 5
 
     # Pass 1: Try to seat spares with unused families
     for spare in rubric.spares:
-        if len(panel) >= len(rubric.jurors):
+        if len(panel) >= target_count:
             break
-        if spare.family not in excluded and spare.family not in seated_families:
+        if spare.family not in excluded and spare.family not in seated_families and spare.model not in seated_models:
             panel.append(spare)
             seated_families.add(spare.family)
             seated_models.add(spare.model)
 
-    # Pass 2: If distinct families ran out (e.g. single-provider cloud), seat spares not in generator family
+    # Pass 2: If distinct families ran out (e.g. single-provider cloud setup), seat spares not in generator family
     for spare in rubric.spares:
-        if len(panel) >= len(rubric.jurors):
+        if len(panel) >= target_count:
             break
         if spare.family not in excluded and spare.model not in seated_models:
             panel.append(spare)
             seated_models.add(spare.model)
+
+    # Pass 3: Emergency fallback ONLY if the panel is completely empty
+    if not panel:
+        gen_models = {m.lower() for m in generator_models if m}
+        for spare in rubric.spares:
+            if spare.model.lower() not in gen_models and spare.model not in seated_models:
+                panel.append(spare)
+                seated_models.add(spare.model)
+                break
+        if not panel and rubric.spares:
+            panel.append(rubric.spares[0])
+        elif not panel and rubric.jurors:
+            panel.append(rubric.jurors[0])
 
     return panel, excluded

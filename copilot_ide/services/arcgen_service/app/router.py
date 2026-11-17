@@ -480,8 +480,23 @@ def _start_job(req: GenerateArchitectureRequest) -> jobs.Job:
                     api_keys = {}
                 else:
                     available_providers = {k.lower() for k, v in api_keys.items() if v}
-                panel = AdkJuryPanel(is_cloud=is_cloud, api_keys=api_keys)
-                rubric = load_rubric().for_mode(is_cloud, available_providers=available_providers)
+
+                live_models = []
+                for p in available_providers:
+                    try:
+                        from app.llm_router import _list_models
+                        m_list = _list_models(p, api_key=api_keys.get(p))
+                        if m_list:
+                            live_models.extend(m_list)
+                    except Exception as err:
+                        logger.warning(f"Could not list live models for {p}: {err}")
+
+                rubric = load_rubric().for_mode(
+                    is_cloud,
+                    available_providers=available_providers,
+                    available_models=live_models or None,
+                )
+                panel = AdkJuryPanel(rubric=rubric, is_cloud=is_cloud, api_keys=api_keys)
                 run = JuryRun(client=client, panel=panel, emit=job.emit, rubric=rubric)
                 graph, table, report, _, trace = run.run(raw_source, normalize, project_name=_project_name(req))
                 payload = _architecture_payload(graph, table, report)
