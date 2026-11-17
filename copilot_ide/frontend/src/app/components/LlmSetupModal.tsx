@@ -118,6 +118,7 @@ export function LlmSetupModal({ apiBase, forceOpen, onClose }: LlmSetupModalProp
   // Groq / OmniKey key inputs
   const [groqKey, setGroqKey] = useState("");
   const [omniKey, setOmniKey] = useState("");
+  const [saveStatus, setSaveStatus] = useState<Record<string, string>>({});
 
   // Test results per provider
   const [testGroq, setTestGroq] = useState<TestResult | null>(null);
@@ -133,8 +134,37 @@ export function LlmSetupModal({ apiBase, forceOpen, onClose }: LlmSetupModalProp
   useEffect(() => {
     if (!open) return;
     setError("");
+
+    // Read stored keys from browser localStorage
+    let storedGroq = "";
+    let storedOmni = "";
+    try {
+      storedGroq = localStorage.getItem("archon:key:groq") || "";
+      storedOmni = localStorage.getItem("archon:key:omnikey") || "";
+      if (storedGroq) setGroqKey(storedGroq);
+      if (storedOmni) setOmniKey(storedOmni);
+    } catch {}
+
     apiFetch<LlmStatus>(base)
-      .then(s => {
+      .then(async s => {
+        // If keys exist in localStorage but not on server (e.g. after container restart), auto-restore
+        if (storedGroq && !s.providers.groq.configured) {
+          try {
+            s = await apiFetch<LlmStatus>(`${base}/keys/groq`, {
+              method: "PUT",
+              body: JSON.stringify({ api_key: storedGroq.trim() }),
+            });
+          } catch {}
+        }
+        if (storedOmni && !s.providers.omnikey.configured) {
+          try {
+            s = await apiFetch<LlmStatus>(`${base}/keys/omnikey`, {
+              method: "PUT",
+              body: JSON.stringify({ api_key: storedOmni.trim() }),
+            });
+          } catch {}
+        }
+
         setStatus(s);
         // Pre-detect mode from saved provider
         if (s.provider === "ollama") setMode("local");
@@ -156,8 +186,25 @@ export function LlmSetupModal({ apiBase, forceOpen, onClose }: LlmSetupModalProp
       method: "PUT",
       body: JSON.stringify({ api_key: key.trim() }),
     });
+    try {
+      localStorage.setItem(`archon:key:${provider}`, key.trim());
+    } catch {}
     setStatus(s);
   };
+
+  const handleSaveGroq = () => run(async () => {
+    if (!groqKey.trim()) return;
+    await saveKey("groq", groqKey);
+    setSaveStatus(prev => ({ ...prev, groq: "Saved!" }));
+    setTimeout(() => setSaveStatus(prev => ({ ...prev, groq: "" })), 3000);
+  });
+
+  const handleSaveOmni = () => run(async () => {
+    if (!omniKey.trim()) return;
+    await saveKey("omnikey", omniKey);
+    setSaveStatus(prev => ({ ...prev, omnikey: "Saved!" }));
+    setTimeout(() => setSaveStatus(prev => ({ ...prev, omnikey: "" })), 3000);
+  });
 
   /** Set active provider and reload status */
   const setProvider = async (provider: Choice) => {
@@ -292,10 +339,13 @@ export function LlmSetupModal({ apiBase, forceOpen, onClose }: LlmSetupModalProp
               testGroq={testGroq}
               testOmni={testOmni}
               busy={busy}
+              saveStatus={saveStatus}
               onGroqKeyChange={setGroqKey}
               onOmniKeyChange={setOmniKey}
               onTestGroq={handleTestGroq}
               onTestOmni={handleTestOmni}
+              onSaveGroq={handleSaveGroq}
+              onSaveOmni={handleSaveOmni}
               onBack={() => setMode(null)}
             />
           )}
@@ -473,8 +523,8 @@ function LocalPanel({
 // ── ApiPanel ──────────────────────────────────────────────────────────────────
 
 function ApiPanel({
-  status, groqKey, omniKey, testGroq, testOmni, busy,
-  onGroqKeyChange, onOmniKeyChange, onTestGroq, onTestOmni, onBack,
+  status, groqKey, omniKey, testGroq, testOmni, busy, saveStatus,
+  onGroqKeyChange, onOmniKeyChange, onTestGroq, onTestOmni, onSaveGroq, onSaveOmni, onBack,
 }: {
   status: LlmStatus | null;
   groqKey: string;
@@ -482,10 +532,13 @@ function ApiPanel({
   testGroq: TestResult | null;
   testOmni: TestResult | null;
   busy: boolean;
+  saveStatus?: Record<string, string>;
   onGroqKeyChange: (v: string) => void;
   onOmniKeyChange: (v: string) => void;
   onTestGroq: () => void;
   onTestOmni: () => void;
+  onSaveGroq?: () => void;
+  onSaveOmni?: () => void;
   onBack: () => void;
 }) {
   const groqConfigured = status?.providers?.groq?.configured;
@@ -515,8 +568,10 @@ function ApiPanel({
         value={groqKey}
         testResult={testGroq}
         busy={busy}
+        savedLabel={saveStatus?.groq}
         onChange={onGroqKeyChange}
         onTest={onTestGroq}
+        onSave={onSaveGroq}
       />
 
       {/* OmniKey card */}
@@ -532,8 +587,10 @@ function ApiPanel({
         value={omniKey}
         testResult={testOmni}
         busy={busy}
+        savedLabel={saveStatus?.omnikey}
         onChange={onOmniKeyChange}
         onTest={onTestOmni}
+        onSave={onSaveOmni}
       />
 
       <div className="bg-info/5 border border-info/20 rounded-panel px-3 py-2 text-xs text-fg-muted">
@@ -547,13 +604,13 @@ function ApiPanel({
 
 function ApiKeyCard({
   label, badge, badgeColor, helpUrl, helpText,
-  placeholder, configured, maskedKey, value, testResult, busy,
-  onChange, onTest,
+  placeholder, configured, maskedKey, value, testResult, busy, savedLabel,
+  onChange, onTest, onSave,
 }: {
   label: string; badge: string; badgeColor: string; helpUrl: string; helpText: string;
   placeholder: string; configured: boolean; maskedKey?: string;
-  value: string; testResult: TestResult | null; busy: boolean;
-  onChange: (v: string) => void; onTest: () => void;
+  value: string; testResult: TestResult | null; busy: boolean; savedLabel?: string;
+  onChange: (v: string) => void; onTest: () => void; onSave?: () => void;
 }) {
   return (
     <div className="border border-line-strong rounded-panel p-3 flex flex-col gap-2 bg-raised">
@@ -589,7 +646,23 @@ function ApiKeyCard({
           {busy && <span className="w-2.5 h-2.5 border-2 border-fg-subtle/40 border-t-fg-subtle rounded-full animate-spin" />}
           Test
         </button>
+        {onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={busy || !value.trim()}
+            className="px-3 py-1.5 rounded-control bg-info-strong text-white text-xs font-semibold hover:brightness-110 cursor-pointer disabled:opacity-40 flex items-center gap-1"
+          >
+            {savedLabel || "Save"}
+          </button>
+        )}
       </div>
+
+      {savedLabel && (
+        <div className="text-xs font-mono text-success-fg flex items-center gap-1">
+          <span>✓</span> Key saved securely to server and browser!
+        </div>
+      )}
 
       {testResult && (
         <div className={`text-xs font-mono flex items-center gap-1.5 ${testResult.ok ? "text-success-fg" : "text-warning-fg"}`}>

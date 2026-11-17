@@ -194,6 +194,9 @@ function ProviderCard({ id, base, p, disabled, onSaved, onError }: {
     let s: LlmStatus | null = null;
     if (key.trim()) {
       s = await call<LlmStatus>(`${base}/keys/${id}`, { method: 'PUT', body: JSON.stringify({ api_key: key.trim() }) });
+      try {
+        localStorage.setItem(`archon:key:${id}`, key.trim());
+      } catch {}
       setKey('');
       setModels(null);
     }
@@ -208,6 +211,9 @@ function ProviderCard({ id, base, p, disabled, onSaved, onError }: {
 
   const clearKey = () => act(async () => {
     onSaved(await call<LlmStatus>(`${base}/keys/${id}`, { method: 'DELETE' }));
+    try {
+      localStorage.removeItem(`archon:key:${id}`);
+    } catch {}
     setModels(null);
     setTest(null);
   });

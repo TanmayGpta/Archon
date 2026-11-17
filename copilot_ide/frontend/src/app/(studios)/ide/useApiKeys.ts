@@ -22,6 +22,19 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
       if (res.ok) {
         const data = await res.json();
         setApiKeys(data.providers || {});
+        // Auto-sync stored keys from browser if server restarted
+        for (const prov of ['openai', 'anthropic', 'gemini', 'groq']) {
+          try {
+            const stored = localStorage.getItem(`archon:key:${prov}`);
+            if (stored && !data.providers?.[prov]?.configured) {
+              await fetch(`${apiBase}/api/cloud/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider: prov, api_key: stored })
+              });
+            }
+          } catch {}
+        }
       }
     } catch (e) {}
   };
@@ -36,6 +49,7 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
         body: JSON.stringify({ provider, api_key: key })
       });
       if (res.ok) {
+        try { localStorage.setItem(`archon:key:${provider}`, key); } catch {}
         setApiKeySaveStatus(prev => ({ ...prev, [provider]: 'Saved' }));
         setApiKeyInputs(prev => ({ ...prev, [provider]: '' }));
         fetchApiKeyStatus();
@@ -62,6 +76,7 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
         body: JSON.stringify({ provider })
       });
       if (res.ok) {
+        try { localStorage.removeItem(`archon:key:${provider}`); } catch {}
         fetchApiKeyStatus();
         // Refresh models
         try {
