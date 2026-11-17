@@ -276,6 +276,12 @@ async def answer_elicitation(req: ElicitAnswerRequest):
                 suggested_options=[],
             )
             agent.process_answer(dummy_q, req.answer, tracker)
+            if not tracker.slots[target_dim].filled:
+                tracker.record_slot(
+                    dimension=target_dim,
+                    raw_text=req.answer.strip(),
+                    value=req.answer.strip(),
+                )
         else:
             # Record explicit user skip in tracker
             tracker.record_slot(

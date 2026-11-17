@@ -32,7 +32,7 @@ from pydantic import PrivateAttr
 from app.jury.aggregate import parse_verdict
 from app.jury.case import Case
 from app.jury.models import CheckpointName, JurorSpec, JurorVerdict, Rubric, load_rubric
-from app.llm import DEFAULT_OLLAMA_HOST
+from app.llm import DEFAULT_OLLAMA_HOST, get_ollama_host
 
 JUROR_ERROR = "JUROR_ERROR:"
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class AdkJuryPanel:
         self.is_cloud = is_cloud
         raw_rubric = rubric or load_rubric()
         self.rubric = raw_rubric.for_mode(is_cloud) if hasattr(raw_rubric, "for_mode") else raw_rubric
-        self.host = ollama_host or DEFAULT_OLLAMA_HOST
+        self.host = ollama_host or get_ollama_host()
         self.api_keys = api_keys or {}
 
     def judge(

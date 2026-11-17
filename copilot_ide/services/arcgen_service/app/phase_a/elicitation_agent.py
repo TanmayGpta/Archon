@@ -335,10 +335,33 @@ OUTPUT MUST BE A JSON OBJECT:
                     unit=asr.unit,
                 )
                 return asr
+            else:
+                asr = ExtractedASR(
+                    dimension=question.target_dimension,
+                    raw_text=user_response,
+                    value=user_response,
+                    confidence=1.0,
+                )
+                tracker.record_slot(
+                    dimension=question.target_dimension,
+                    raw_text=user_response,
+                    value=user_response,
+                )
+                return asr
         except Exception as e:
-            logger.warning(f"Answer processing failed: {e}")
-
-        return None
+            logger.warning(f"Answer processing failed ({e}); recording raw answer directly.")
+            asr = ExtractedASR(
+                dimension=question.target_dimension,
+                raw_text=user_response,
+                value=user_response,
+                confidence=1.0,
+            )
+            tracker.record_slot(
+                dimension=question.target_dimension,
+                raw_text=user_response,
+                value=user_response,
+            )
+            return asr
 
     def synthesize_srs(
         self, initial_prompt: str, tracker: ASRTracker, feedback: Optional[List[str]] = None

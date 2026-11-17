@@ -524,17 +524,24 @@ class GroqClient(BaseLLMClient):
 class OllamaClient(BaseLLMClient):
     """Local or self-hosted Ollama client with structured JSON schema support."""
 
-    def __init__(self, model: Optional[str] = None, host: str = DEFAULT_OLLAMA_HOST):
-        import ollama
+    def __init__(self, model: Optional[str] = None, host: Optional[str] = None):
         self.model = model or ollama_default_model()
-        self.host = host
-        self.client = ollama.Client(host=self.host)
+        self._host = host
+
+    @property
+    def host(self) -> str:
+        return self._host or get_ollama_host()
+
+    @property
+    def client(self):
+        import ollama
+        return ollama.Client(host=self.host)
 
     def is_available(self) -> bool:
         """Check if Ollama server is responding."""
         try:
-            self.client.list()
-            return True
+            r = requests.get(f"{self.host.rstrip('/')}/api/tags", timeout=3)
+            return r.status_code == 200
         except Exception:
             return False
 
