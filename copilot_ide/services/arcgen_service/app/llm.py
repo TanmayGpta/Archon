@@ -63,7 +63,31 @@ FALLBACK_OMNIKEY_MODELS = [
 ]
 DEFAULT_OMNIKEY_BASE = os.getenv("OMNIKEY_BASE_URL", "https://omnikey-ai-unified-key-manager.onrender.com/v1beta")
 DEFAULT_GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-FALLBACK_GROQ_MODELS = ["qwen/qwen3.8-27b"]
+FALLBACK_GROQ_MODELS = [
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "qwen/qwen3.8-27b",
+]
+
+# Models reported as blocked/decommissioned/missing at runtime for the active key
+BLOCKED_MODELS: set[str] = set()
+
+
+def mark_model_blocked(model: str) -> None:
+    """Record a cloud model as blocked/unavailable so subsequent calls skip it."""
+    if model:
+        clean = model.strip().lower().removeprefix("groq/").removeprefix("gemini/")
+        BLOCKED_MODELS.add(clean)
+
+
+def is_model_blocked(model: str) -> bool:
+    """Return True if a cloud model was previously reported blocked or unavailable."""
+    if not model:
+        return False
+    clean = model.strip().lower().removeprefix("groq/").removeprefix("gemini/")
+    return clean in BLOCKED_MODELS
 _OLLAMA_MODEL_ENV = os.getenv("OLLAMA_MODEL") or os.getenv("DEFAULT_MODEL")
 DEFAULT_OLLAMA_MODEL = _OLLAMA_MODEL_ENV or "qwen2.5-coder:32b"
 def _normalize_ollama_host(raw: str) -> str:
@@ -302,6 +326,14 @@ class GroqClient(BaseLLMClient):
         except Exception:
             return False
 
+    def _next_fallback_model(self, current_model: str, exclude: Optional[set[str]] = None) -> Optional[str]:
+        """Return the next unblocked Groq model candidate distinct from current_model."""
+        excluded = exclude or set()
+        for candidate in [self.model, *FALLBACK_GROQ_MODELS]:
+            if candidate != current_model and candidate not in excluded and not is_model_blocked(candidate):
+                return candidate
+        return None
+
     def _post_with_retry(
         self,
         payload: Dict[str, Any],
@@ -309,13 +341,20 @@ class GroqClient(BaseLLMClient):
         max_retries: int = 8,
         on_400: Optional[Callable[[Any, int], Any]] = None,
     ) -> Any:
-        """POST with 429 handling (retry-after / quota model failover). Returns the 200 response.
+        """POST with 429/403/404 handling (retry-after / blocked & quota model failover). Returns the 200 response.
 
         on_400(response, attempt) may return _Early(value) to short-circuit, _RETRY to retry,
         or None to fail. Mutates payload["model"] and self.active_model on failover.
         """
+        if is_model_blocked(payload.get("model", "")):
+            nxt = self._next_fallback_model(payload["model"])
+            if nxt:
+                payload["model"] = nxt
+                self.active_model = nxt
+
         response = None
         attempt = 0
+        tried_429: set[str] = set()
         while attempt < max_retries:
             response = requests.post(self.endpoint, headers=headers, json=payload, timeout=None)
             if response.status_code == 429:
@@ -337,27 +376,49 @@ class GroqClient(BaseLLMClient):
                     except Exception:
                         pass
 
-                # If wait time is excessive (> 60s, e.g. Daily Token Limit TPD reached), failover seamlessly
-                if wait_time > 60.0:
-                    switched = False
-                    for fallback in FALLBACK_GROQ_MODELS:
-                        if fallback != payload["model"]:
-                            print(
-                                f"\n[Groq Quota Failover] Daily limit/extended pause reached for '{payload['model']}' "
-                                f"(wait: {wait_time:.1f}s). Seamlessly switching to '{fallback}'..."
-                            )
-                            payload["model"] = fallback
-                            self.active_model = fallback
-                            switched = True
-                            time.sleep(1)
-                            break
-                    if switched:
+                # If wait time is excessive (> 12s, e.g. TPM/TPD limit reached), failover seamlessly
+                if wait_time > 12.0:
+                    tried_429.add(payload["model"])
+                    fallback = self._next_fallback_model(payload["model"], exclude=tried_429)
+                    if fallback:
+                        print(
+                            f"\n[Groq Quota Failover] Extended pause reached for '{payload['model']}' "
+                            f"(wait: {wait_time:.1f}s). Seamlessly switching to '{fallback}'..."
+                        )
+                        payload["model"] = fallback
+                        self.active_model = fallback
+                        time.sleep(1)
+                        attempt += 1
                         continue
 
                 print(f"\n[Groq TPM Window] Token bucket filling, pausing {wait_time:.1f}s before resuming...")
                 time.sleep(wait_time)
+                tried_429.clear()
                 attempt += 1
                 continue
+
+            is_blocked_or_missing = response.status_code in (403, 404) or (
+                response.status_code == 400
+                and any(
+                    k in response.text.lower()
+                    for k in ("model_decommissioned", "model_not_found", "model_permission_blocked_org")
+                )
+            )
+            if is_blocked_or_missing:
+                mark_model_blocked(payload["model"])
+                fallback = self._next_fallback_model(payload["model"])
+                if fallback and attempt < max_retries - 1:
+                    logger.warning(
+                        f"Groq model '{payload['model']}' blocked/unavailable ({response.status_code}); "
+                        f"switching to '{fallback}'."
+                    )
+                    payload["model"] = fallback
+                    self.active_model = fallback
+                    attempt += 1
+                    continue
+                raise RuntimeError(
+                    f"Groq API Error (Status {response.status_code}): {response.text}"
+                )
             elif response.status_code == 400 and on_400 is not None and attempt < max_retries - 1:
                 handled = on_400(response, attempt)
                 if isinstance(handled, _Early):

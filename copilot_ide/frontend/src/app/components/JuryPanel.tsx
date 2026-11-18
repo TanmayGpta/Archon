@@ -129,6 +129,9 @@ function abstainHint(error: string): string {
   if (e.includes('blocked') || e.includes('permission') || e.includes('model_permission_blocked_org')) {
     return 'model is blocked in your organization API settings';
   }
+  if (e.includes('decommissioned')) {
+    return 'model was decommissioned by provider';
+  }
   if (e.includes('not found') || e.includes('does not exist') || e.includes('not have access') || e.includes('model_not_found') || e.includes('pull')) {
     return 'model not available on this API key or server';
   }
@@ -174,6 +177,22 @@ function reviewLabel(sittings: Sitting[], keys: string[]): string {
   return `Review: ${parts.join(' + ')}`;
 }
 
+function syncSeatsWithVerdicts(jurors: Seat[], verdicts: JurorVerdict[]): Seat[] {
+  const bySeat = new Map(verdicts.map(v => [v.juror, v]));
+  const updated = jurors.map(j => {
+    const v = bySeat.get(j.seat);
+    return v ? { seat: j.seat, model: v.model, family: v.family } : j;
+  });
+  const known = new Set(updated.map(j => j.seat));
+  for (const v of verdicts) {
+    if (!known.has(v.juror)) {
+      updated.push({ seat: v.juror, model: v.model, family: v.family });
+      known.add(v.juror);
+    }
+  }
+  return updated;
+}
+
 export function juryReducer(s: JuryState, e: JuryEvent): JuryState {
   switch (e.type) {
     case 'stage': {
@@ -194,11 +213,24 @@ export function juryReducer(s: JuryState, e: JuryEvent): JuryState {
       }
       return { ...s, stage: 'Reviewers are checking the work', steps, sittings };
     }
-    case 'verdict':
-      return { ...s, sittings: s.sittings.map(x => x.key === `${e.checkpoint}-${e.attempt}` ? { ...x, verdicts: [...x.verdicts, e.verdict] } : x) };
+    case 'verdict': {
+      const key = `${e.checkpoint}-${e.attempt}`;
+      return {
+        ...s,
+        sittings: s.sittings.map(x => {
+          if (x.key !== key) return x;
+          const verdicts = [...x.verdicts.filter(v => v.juror !== e.verdict.juror), e.verdict];
+          return { ...x, verdicts, jurors: syncSeatsWithVerdicts(x.jurors, verdicts) };
+        }),
+      };
+    }
     case 'checkpoint': {
       const key = `${e.result.checkpoint}-${e.result.attempt}`;
-      const sittings = s.sittings.map(x => x.key === key ? { ...x, result: e.result } : x);
+      const sittings = s.sittings.map(x => {
+        if (x.key !== key) return x;
+        const verdicts = e.result.verdicts?.length ? e.result.verdicts : x.verdicts;
+        return { ...x, result: e.result, verdicts, jurors: syncSeatsWithVerdicts(x.jurors, verdicts) };
+      });
       const now = Date.now();
       const steps = s.steps.map(st => {
         const keys = keysOf(st);
@@ -387,7 +419,7 @@ function Reviewers({ state }: { state: JuryState }) {
       <h3 className="text-xs font-semibold text-fg-strong mb-2">The reviewers</h3>
       <div className="flex flex-wrap gap-2">
         {latest.jurors.map(j => {
-          const answers = state.sittings.flatMap(s => s.verdicts.filter(v => v.juror === j.seat && v.model === j.model));
+          const answers = state.sittings.flatMap(s => s.verdicts.filter(v => v.juror === j.seat));
           const failed = answers.filter(v => !v.ok);
           const silent = answers.length > 0 && failed.length === answers.length;
           return (

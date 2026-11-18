@@ -43,9 +43,14 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
     """
     excluded = sorted({family_of(m) for m in generator_models if m})
 
-    # Only seat models that are not flagged skip=True
-    eligible_jurors = [j for j in rubric.jurors if not j.skip]
-    eligible_spares = [s for s in rubric.spares if not s.skip]
+    from app.llm import is_model_blocked
+
+    # Only seat models that are not flagged skip=True or runtime-blocked
+    eligible_jurors = [j for j in rubric.jurors if not j.skip and not is_model_blocked(j.model)]
+    eligible_spares = [s for s in rubric.spares if not s.skip and not is_model_blocked(s.model)]
+    if not eligible_jurors and not eligible_spares:
+        eligible_jurors = [j for j in rubric.jurors if not j.skip]
+        eligible_spares = [s for s in rubric.spares if not s.skip]
 
     panel = [j for j in eligible_jurors if j.family not in excluded]
     seated_families = {j.family for j in panel}
@@ -69,18 +74,25 @@ def select_panel(rubric: Rubric, generator_models: Iterable[str]) -> Tuple[List[
             panel.append(spare)
             seated_models.add(spare.model)
 
-    # Pass 3: Emergency fallback if the panel is completely empty — seat a spare even from generator family,
-    # but never the exact generator model itself
-    if not panel:
+    # Pass 3: If fewer than 3 jurors are seated (e.g. single-provider cloud with few non-generator
+    # families), fill up to 3 distinct models other than the exact generator model; only fall back
+    # to the generator model itself if the panel is completely empty.
+    if len(panel) < 3:
         gen_models = {m.lower() for m in generator_models if m}
-        for spare in eligible_spares:
-            if spare.model.lower() not in gen_models and spare.model not in seated_models:
-                panel.append(spare)
-                seated_models.add(spare.model)
+        cap = min(max(target_count, 1), 3)
+        candidates = list(eligible_spares) + list(eligible_jurors)
+        for cand in candidates:
+            if len(panel) >= cap:
                 break
-        if not panel and eligible_spares:
-            panel.append(eligible_spares[0])
-        elif not panel and eligible_jurors:
-            panel.append(eligible_jurors[0])
+            if cand.model.lower() not in gen_models and cand.model not in seated_models:
+                panel.append(cand)
+                seated_models.add(cand.model)
+        if not panel:
+            for cand in candidates:
+                if len(panel) >= cap:
+                    break
+                if cand.model not in seated_models:
+                    panel.append(cand)
+                    seated_models.add(cand.model)
 
     return panel, excluded

@@ -110,6 +110,7 @@ class Rubric(BaseModel):
             return r
 
         # 1. Filter by provider availability
+        from app.llm import is_model_blocked
         avail_providers: Optional[Set[str]] = None
         if available_providers is not None:
             avail_providers = {p.lower() for p in available_providers}
@@ -119,8 +120,8 @@ class Rubric(BaseModel):
                 return True
             return not spec.provider or spec.provider.lower() in avail_providers
 
-        jurors = [j for j in self.cloud_jurors if _provider_ok(j)]
-        spares = [s for s in self.cloud_spares if _provider_ok(s)]
+        jurors = [j for j in self.cloud_jurors if _provider_ok(j) and not is_model_blocked(j.model)]
+        spares = [s for s in self.cloud_spares if _provider_ok(s) and not is_model_blocked(s.model)]
 
         # 2. Filter by live models if we have them
         if r.available_models:
@@ -142,7 +143,7 @@ class Rubric(BaseModel):
             for m in r.available_models:
                 if m in known_models:
                     continue
-                if _should_skip(m, skip_patterns):
+                if _should_skip(m, skip_patterns) or is_model_blocked(m):
                     continue
                 live_spares.append(JurorSpec(
                     model=m,
@@ -154,15 +155,16 @@ class Rubric(BaseModel):
                 ))
                 known_models.add(m)
 
-            jurors = live_jurors or jurors
-            spares = live_spares or spares
+            if live_jurors or live_spares:
+                jurors = live_jurors
+                spares = live_spares
 
-        # 4. Remove models that match never_seat_patterns (TTS, embed, etc.)
+        # 4. Remove models that match never_seat_patterns (TTS, embed, etc.) or are blocked
         skip_patterns = r.never_seat_patterns or _DEFAULT_SKIP_PATTERNS
-        jurors = [j for j in jurors if not _should_skip(j.model, skip_patterns)]
-        spares = [s for s in spares if not _should_skip(s.model, skip_patterns)]
+        jurors = [j for j in jurors if not _should_skip(j.model, skip_patterns) and not is_model_blocked(j.model)]
+        spares = [s for s in spares if not _should_skip(s.model, skip_patterns) and not is_model_blocked(s.model)]
 
-        r.jurors = jurors if jurors else self.cloud_jurors
+        r.jurors = jurors if (jurors or spares) else self.cloud_jurors
         r.spares = spares
         return r
 

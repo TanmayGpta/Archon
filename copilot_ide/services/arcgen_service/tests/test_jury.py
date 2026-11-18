@@ -91,6 +91,36 @@ class TestParseVerdict(unittest.TestCase):
         self.assertEqual(len(v.answers), 3)
         self.assertEqual({a.item_id: a.passed for a in v.answers}, {"N1": True, "N2": False, "N3": True})
 
+    def test_prefixed_item_ids_and_question_text_resolved(self):
+        norm_payload = json.dumps({
+            "answers": [
+                {"item": "N1. Is every requirement stated in the RAW SRS represented?", "verdict": "yes", "cite": [], "reason": "ok"},
+                {"item": "N2. Is every NORMALIZED REQUIREMENT supported?", "verdict": "no", "cite": ["FR-002"], "reason": "missing"},
+                {"item": "N3. Is every requirement marked ASR backed?", "verdict": "yes", "cite": [], "reason": "ok"},
+            ]
+        })
+        v1 = parse_verdict(norm_payload, self.cp, self.case, "J", SPEC)
+        self.assertTrue(v1.ok)
+        self.assertEqual({a.item_id: a.passed for a in v1.answers}, {"N1": True, "N2": False, "N3": True})
+        self.assertTrue(v1.answers[1].counted)
+
+        arch_cp = self.rubric.checkpoints["architecture"]
+        arch_case = architecture_case(_srs(), _graph(), arch_cp, seed=1)
+        arch_payload = json.dumps({
+            "answers": [
+                {"question": "Is every ASR actually realized by at least one COMPONENT in the architecture?", "verdict": "yes", "cite": [], "reason": "ok"},
+                {"question": "Is the chosen ARCHITECTURAL STYLE compatible with every ASR? (no)", "verdict": "no", "cite": ["ASR-001"], "reason": "conflict"},
+                {"question": "Is every technology component (message broker, cache, queue, gateway, orchestrator, search engine) required by a requirement?", "verdict": "yes", "cite": [], "reason": "ok"},
+                {"question": "Are the number and granularity of COMPONENTS proportionate to the scale?", "verdict": "yes", "cite": [], "reason": "ok"},
+                {"question": "Does every CONNECTION represent a real call or data flow that a requirement needs?", "verdict": "yes", "cite": [], "reason": "ok"},
+            ]
+        })
+        v2 = parse_verdict(arch_payload, arch_cp, arch_case, "J", SPEC)
+        self.assertTrue(v2.ok)
+        self.assertEqual({a.item_id: a.passed for a in v2.answers}, {"A1": True, "A2": False, "A3": True, "A4": True, "A5": True})
+        self.assertEqual(v2.answers[1].cited, ["ASR-001"])
+        self.assertTrue(v2.answers[1].counted)
+
 
 class TestAggregate(unittest.TestCase):
     def setUp(self):
@@ -351,6 +381,102 @@ class TestCloudJury(unittest.TestCase):
         for j in panel:
             self.assertIn(j.model, live)
 
+    def test_blocked_models_filtered_and_panel_falls_back_to_unblocked_models(self):
+        from app.llm import BLOCKED_MODELS, mark_model_blocked
+
+        BLOCKED_MODELS.clear()
+        try:
+            mark_model_blocked("qwen/qwen3.8-27b")
+            mark_model_blocked("allam-2-7b")
+            live = ["allam-2-7b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+            rubric = load_rubric().for_mode(is_cloud=True, available_providers={"groq"}, available_models=live)
+            all_models = {j.model for j in rubric.jurors} | {s.model for s in rubric.spares}
+            self.assertNotIn("qwen/qwen3.8-27b", all_models)
+            self.assertNotIn("allam-2-7b", all_models)
+            self.assertIn("openai/gpt-oss-20b", all_models)
+            self.assertIn("openai/gpt-oss-120b", all_models)
+
+            panel, excluded = select_panel(rubric, ["openai/gpt-oss-120b"])
+            self.assertIn("openai", excluded)
+            seated = [j.model for j in panel]
+            self.assertEqual(seated, ["openai/gpt-oss-20b"])
+
+            # If even 20b is blocked, fall back to the remaining live model rather than empty panel
+            mark_model_blocked("openai/gpt-oss-20b")
+            rubric_last = load_rubric().for_mode(is_cloud=True, available_providers={"groq"}, available_models=live)
+            panel_last, _ = select_panel(rubric_last, ["openai/gpt-oss-120b"])
+            self.assertEqual([j.model for j in panel_last], ["openai/gpt-oss-120b"])
+        finally:
+            BLOCKED_MODELS.clear()
+
+    def test_three_jurors_seated_when_few_non_generator_families_exist(self):
+        live = ["allam-2-7b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        rubric = load_rubric().for_mode(is_cloud=True, available_providers={"groq"}, available_models=live)
+        panel, excluded = select_panel(rubric, ["openai/gpt-oss-120b"])
+        self.assertIn("openai", excluded)
+        seated = [j.model for j in panel]
+        self.assertEqual(len(seated), 3)
+        self.assertEqual(set(seated), {"qwen/qwen3.8-27b", "allam-2-7b", "openai/gpt-oss-20b"})
+        self.assertNotIn("openai/gpt-oss-120b", seated)
+
+    def test_adk_panel_swaps_blocked_models_and_falls_back_to_groq(self):
+        try:
+            from app.jury.panel import JUROR_ERROR, AdkJuryPanel
+        except ImportError:
+            self.skipTest("google-adk not installed in this environment")
+        from unittest.mock import MagicMock
+        from app.llm import BLOCKED_MODELS
+
+        BLOCKED_MODELS.clear()
+        try:
+            live = ["allam-2-7b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+            rubric = load_rubric().for_mode(is_cloud=True, available_providers={"groq"}, available_models=live)
+            panel = AdkJuryPanel(rubric=rubric, is_cloud=True, api_keys={"groq": "gsk_test"})
+            cp = rubric.checkpoints["normalization"]
+            case = normalization_case(RAW, _srs(), cp, seed=1)
+            seats = [
+                ("Juror 1", JurorSpec(model="qwen/qwen3.8-27b", family="qwen", provider="groq", fmt="no_think"), case),
+                ("Juror 2", JurorSpec(model="allam-2-7b", family="allam", provider="groq", fmt="json"), case),
+            ]
+
+            class _FakeEvent:
+                def __init__(self, text):
+                    part = type("P", (), {"text": text, "thought": False})()
+                    self.content = type("C", (), {"parts": [part]})()
+
+                def is_final_response(self):
+                    return True
+
+            class _FakeRunner:
+                def __init__(self, agent, app_name=None):
+                    self.agent = agent
+                    self.session_service = MagicMock()
+
+                    async def _create_session(**kw):
+                        return type("S", (), {"id": "sess-1"})()
+
+                    self.session_service.create_session = _create_session
+
+                async def run_async(self, **kw):
+                    m = self.agent.model.model
+                    if "qwen3.8" in m or "allam" in m:
+                        yield _FakeEvent(f'{JUROR_ERROR} APIError: 403 model_permission_blocked_org')
+                    else:
+                        yield _FakeEvent(_answers(N1="yes", N2="yes", N3="yes"))
+
+                async def close(self):
+                    return None
+
+            emitted = []
+            with patch("app.jury.panel.InMemoryRunner", _FakeRunner):
+                res = panel.judge_many([("normalization", seats)], lambda c, v: emitted.append(v))
+            verdicts = res["normalization"]
+            self.assertEqual(len(verdicts), 2)
+            self.assertTrue(all(v.ok for v in verdicts))
+            self.assertEqual({v.model for v in verdicts}, {"openai/gpt-oss-20b", "openai/gpt-oss-120b"})
+            self.assertEqual(len(emitted), 2)
+        finally:
+            BLOCKED_MODELS.clear()
 
 
 if __name__ == "__main__":

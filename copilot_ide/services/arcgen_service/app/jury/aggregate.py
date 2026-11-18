@@ -10,6 +10,7 @@ Rules (agreed design):
 """
 
 from collections import Counter
+import json
 import re
 from typing import List, Optional
 
@@ -33,11 +34,43 @@ _NO = {"no", "n", "false", "fail", "failed", "incorrect", "problem", "issue", "f
 def _as_bool(v) -> Optional[bool]:
     if isinstance(v, bool):
         return v
-    s = re.sub(r"[^a-z]", "", str(v or "").lower())
+    raw = str(v or "").lower()
+    s = re.sub(r"[^a-z]", "", raw)
     if s in _YES:
         return True
     if s in _NO:
         return False
+    m = re.match(r"^\s*([a-z]+)", raw)
+    if m:
+        word = m.group(1)
+        if word in _YES:
+            return True
+        if word in _NO:
+            return False
+    return None
+
+
+def _resolve_item_id(
+    raw_id: str, idx: int, checkpoint: Checkpoint, items: dict, seen: set
+) -> Optional[str]:
+    """Resolve bare IDs ('N1'), prefixed IDs ('N1. Is every...'), or question text to a checkpoint item ID."""
+    text = (raw_id or "").strip()
+    up = text.upper()
+    if up in items:
+        return up
+    m = re.search(r"\b([NA][1-9])\b", text, re.IGNORECASE)
+    if m and m.group(1).upper() in items:
+        return m.group(1).upper()
+    if text:
+        norm_text = re.sub(r"\s+", " ", text).lower()
+        for it in checkpoint.items:
+            norm_q = re.sub(r"\s+", " ", it.question).lower()
+            if norm_q[:25] in norm_text or (len(norm_text) >= 15 and norm_text[:25] in norm_q):
+                return it.id
+    if idx < len(checkpoint.items):
+        cand = checkpoint.items[idx].id
+        if cand not in seen and (not text or len(text) >= 8):
+            return cand
     return None
 
 
@@ -78,12 +111,13 @@ def parse_verdict(
     answers: List[ItemAnswer] = []
     seen = set()
 
-    if isinstance(rows, list):
-        for row in rows:
+    def _collect_rows(row_list: list) -> None:
+        for idx, row in enumerate(row_list):
             if not isinstance(row, dict):
                 continue
-            item_id = str(row.get("item") or row.get("id") or row.get("item_id") or row.get("question") or "").strip().upper()
-            if item_id not in items or item_id in seen:
+            raw_id = str(row.get("item") or row.get("id") or row.get("item_id") or row.get("question") or "")
+            item_id = _resolve_item_id(raw_id, idx, checkpoint, items, seen)
+            if not item_id or item_id in seen:
                 continue
             passed = _as_bool(row.get("verdict", row.get("answer", row.get("passed", row.get("result")))))
             if passed is None:
@@ -104,6 +138,22 @@ def parse_verdict(
                     counted=passed or (bool(good) and not shotgun),
                 )
             )
+
+    if isinstance(rows, list):
+        _collect_rows(rows)
+
+    # Salvage completed JSON answer objects from truncated JSON responses before plain-text regex fallback
+    if not answers and "{" in cleaned_raw:
+        salvaged = []
+        for match in re.finditer(r"\{[^{}]+\}", cleaned_raw):
+            try:
+                obj = json.loads(match.group(0))
+                if isinstance(obj, dict):
+                    salvaged.append(obj)
+            except Exception:
+                continue
+        if salvaged:
+            _collect_rows(salvaged)
 
     # Regex fallback if structured parsing failed or returned no items
     if not answers:

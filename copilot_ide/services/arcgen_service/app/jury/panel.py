@@ -19,10 +19,11 @@ rubric.ollama.max_concurrent and jurors really run side by side.
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
-from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
+from typing import AsyncGenerator, Callable, Dict, List, Optional, Set, Tuple
 
 from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -34,7 +35,16 @@ from pydantic import PrivateAttr
 from app.jury.aggregate import parse_verdict
 from app.jury.case import Case
 from app.jury.models import CheckpointName, FmtMode, JurorSpec, JurorVerdict, Rubric, load_rubric
-from app.llm import DEFAULT_OLLAMA_HOST, clean_thinking, get_ollama_host
+from app.jury.roster import family_of
+from app.llm import (
+    BLOCKED_MODELS,
+    DEFAULT_OLLAMA_HOST,
+    GroqClient,
+    clean_thinking,
+    get_ollama_host,
+    is_model_blocked,
+    mark_model_blocked,
+)
 
 JUROR_ERROR = "JUROR_ERROR:"
 logger = logging.getLogger(__name__)
@@ -122,6 +132,7 @@ def _build_litellm(
             kwargs.pop("format", None)
     else:
         # Cloud path (Groq / OmniKey / Gemini)
+        kwargs["max_tokens"] = 4096
         use_json_format = (fmt == "json") and not force_no_fmt
         if use_json_format:
             kwargs["response_format"] = {"type": "json_object"}
@@ -129,6 +140,8 @@ def _build_litellm(
         if reasoning_off or fmt == "no_think":
             # Groq's correct parameter to disable Qwen3/DeepSeek-R1 thinking
             kwargs["extra_body"] = {"reasoning_effort": "none"}
+        elif "gpt-oss" in model_name.lower():
+            kwargs["extra_body"] = {"reasoning_effort": "low"}
 
     if api_key:
         kwargs["api_key"] = api_key
@@ -262,19 +275,107 @@ class AdkJuryPanel:
                 order[checkpoint].append(agent.name)
 
         verdicts: Dict[str, JurorVerdict] = {}
-        blocked_models: Set[str] = set()
+        blocked_models: Set[str] = set(BLOCKED_MODELS)
+        used_replacements: Set[str] = set()
         message = types.Content(role="user", parts=[types.Part(text="Deliver your verdict as JSON.")])
+
+        def _pick_replacement(cur_model: str, prefer_unused: bool = True) -> Optional[JurorSpec]:
+            candidates = list(self.rubric.spares or []) + list(self.rubric.jurors or [])
+            if self.is_cloud:
+                candidates.extend([
+                    JurorSpec(model="openai/gpt-oss-20b", family="openai", provider="groq", fmt="json"),
+                    JurorSpec(model="openai/gpt-oss-120b", family="openai", provider="groq", fmt="json"),
+                ])
+            cur_low = cur_model.lower()
+            eligible = [
+                cand for cand in candidates
+                if not cand.skip and not is_model_blocked(cand.model) and cand.model.lower() not in blocked_models
+            ]
+            if prefer_unused:
+                for cand in eligible:
+                    low = cand.model.lower()
+                    if low != cur_low and low not in used_replacements:
+                        return cand
+            for cand in eligible:
+                if cand.model.lower() != cur_low:
+                    return cand
+            return eligible[0] if eligible else None
+
+        async def _direct_cloud_fallback(
+            checkpoint: CheckpointName, seat: str, spec: JurorSpec, case: Case
+        ) -> Optional[JurorVerdict]:
+            if not self.is_cloud:
+                return None
+            prov = (spec.provider or "groq").lower()
+            groq_key = (
+                self.api_keys.get("groq")
+                or os.getenv("GROQ_API_KEY")
+                or os.getenv("groq")
+                or ""
+            ).strip().strip("\"'")
+            if prov != "groq" or not groq_key:
+                return None
+            model_id = spec.model
+            if is_model_blocked(model_id) or model_id.lower() in blocked_models:
+                rep = _pick_replacement(model_id)
+                model_id = rep.model if rep else "openai/gpt-oss-20b"
+            model_id = model_id.removeprefix("groq/")
+            cp = self.rubric.checkpoints[checkpoint]
+            ids = ", ".join(it.id for it in cp.items)
+            prompt = (
+                JUROR_INSTRUCTION + case.text
+                + f"\n\nAnswer EVERY question ({ids}), one entry each, in the JSON format above."
+            )
+            t1 = time.monotonic()
+            try:
+                gc = GroqClient(api_key=groq_key, model=model_id)
+                res = await asyncio.to_thread(
+                    gc.generate_json,
+                    system_prompt="You are an independent architecture reviewer. Output valid JSON only.",
+                    user_prompt=prompt,
+                    target_schema=None,
+                    temperature=0.0,
+                    max_tokens=4096,
+                )
+                raw_json = json.dumps(res) if isinstance(res, (dict, list)) else str(res)
+                used_model = gc.active_model
+                used_spec = JurorSpec(
+                    model=used_model,
+                    family=family_of(used_model),
+                    provider="groq",
+                    fmt="json",
+                )
+                v = parse_verdict(raw_json, cp, case, seat, used_spec, seconds=round(time.monotonic() - t1, 1))
+                return v if v.ok else None
+            except Exception as fb_err:
+                logger.warning(f"{checkpoint}: {seat} direct GroqClient fallback failed: {fb_err}")
+                return None
 
         async def _run_juror(n: int, model_name: str, agents: List[LlmAgent]) -> None:
             async with gate:
+                current_spec: Optional[JurorSpec] = None
                 for agent in agents:
                     if agent.name in verdicts:
                         continue
                     checkpoint, (seat, spec, case) = by_name[agent.name]
                     cp = self.rubric.checkpoints[checkpoint]
-                    for attempt in range(2):
+                    idx = int(agent.name.split("_")[1])
+                    force_no_fmt = False
+                    if current_spec is not None and current_spec.model != spec.model:
+                        spec = current_spec
+                        agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=force_no_fmt)
+                    elif is_model_blocked(spec.model) or spec.model.lower() in blocked_models:
+                        replacement = _pick_replacement(spec.model)
+                        if replacement:
+                            current_spec = spec = replacement
+                            used_replacements.add(replacement.model.lower())
+                            agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=force_no_fmt)
+
+                    last_failed_verdict: Optional[JurorVerdict] = None
+                    for attempt in range(4):
                         runner = InMemoryRunner(agent=agent, app_name="arcgen_jury")
                         t0 = time.monotonic()
+                        retry = False
                         try:
                             session = await runner.session_service.create_session(app_name="arcgen_jury", user_id="arcgen")
                             got_response = False
@@ -288,55 +389,109 @@ class AdkJuryPanel:
                                 text = "".join(p.text for p in parts if p.text and not getattr(p, "thought", False))
                                 if not text.strip():
                                     text = "".join(p.text for p in parts if p.text)
+                                if not text.strip() and getattr(event, "error_message", None):
+                                    text = f"{JUROR_ERROR} {event.error_message}"
                                 # Strip thinking tags from reasoning models
                                 text = clean_thinking(text)
                                 if text.startswith(JUROR_ERROR):
                                     err_str = text[len(JUROR_ERROR):].strip()
-                                    # Rate limit: wait then retry
-                                    if attempt == 0 and any(k in err_str.lower() for k in ("429", "rate_limit", "tpm")):
-                                        logger.info(f"{agent.name} hit rate limit, waiting 8s before retry...")
-                                        await asyncio.sleep(8)
-                                        break
-                                    # Blocked model / permission error / 403 / 404: swap to available spare immediately
-                                    if attempt == 0 and any(k in err_str.lower() for k in ("blocked", "permission", "403", "not_found", "404", "model_permission_blocked_org")):
+                                    err_low = err_str.lower()
+                                    # Blocked / decommissioned / 403 / 404: mark blocked and swap immediately
+                                    if any(k in err_low for k in (
+                                        "blocked", "permission", "403", "not_found", "404",
+                                        "model_permission_blocked_org", "model_decommissioned", "decommissioned",
+                                    )):
+                                        mark_model_blocked(spec.model)
                                         blocked_models.add(spec.model.lower())
-                                        logger.warning(f"{agent.name} ({spec.model}) blocked or unavailable ({err_str[:100]}); swapping to available spare...")
-                                        replacement = None
-                                        candidates = list(self.rubric.spares or []) + list(self.rubric.jurors or [])
-                                        for cand in candidates:
-                                            if cand.model.lower() not in blocked_models and not cand.skip:
-                                                replacement = cand
+                                        if attempt < 3:
+                                            replacement = _pick_replacement(spec.model)
+                                            if replacement:
+                                                logger.warning(
+                                                    f"{agent.name} ({spec.model}) blocked/unavailable ({err_str[:100]}); "
+                                                    f"swapping to {replacement.model}..."
+                                                )
+                                                current_spec = spec = replacement
+                                                used_replacements.add(replacement.model.lower())
+                                                force_no_fmt = False
+                                                agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=force_no_fmt)
+                                                await asyncio.sleep(0.5)
+                                                retry = True
                                                 break
-                                        if not replacement and self.is_cloud:
-                                            replacement = JurorSpec(model="openai/gpt-oss-20b", family="openai", provider="groq", fmt="json")
-                                        if replacement:
-                                            spec = replacement
-                                            agent = self._agent(checkpoint, int(agent.name.split("_")[1]), replacement, case)
+                                    # Rate limit: swap to an unblocked spare or back off and retry
+                                    if attempt < 3 and any(k in err_low for k in ("429", "rate_limit", "tpm", "rpm")):
+                                        replacement = _pick_replacement(spec.model)
+                                        if replacement and replacement.model.lower() != spec.model.lower():
+                                            logger.info(f"{agent.name} ({spec.model}) hit rate limit; swapping to {replacement.model}...")
+                                            current_spec = spec = replacement
+                                            used_replacements.add(replacement.model.lower())
+                                            force_no_fmt = False
+                                            agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=force_no_fmt)
                                             await asyncio.sleep(0.5)
-                                            break
-                                    # Bad request / response_format rejected: retry without it
-                                    if attempt == 0 and any(k in err_str.lower() for k in ("400", "bad_request", "response_format", "json_object", "unsupported")):
-                                        logger.info(f"{agent.name} hit format error, retrying without response_format...")
-                                        agent = self._agent(checkpoint, int(agent.name.split("_")[1]), spec, case, force_no_fmt=True)
-                                        await asyncio.sleep(1)
+                                        else:
+                                            logger.info(f"{agent.name} hit rate limit, waiting 5s before retry...")
+                                            await asyncio.sleep(5)
+                                        retry = True
                                         break
-                                    v = JurorVerdict(juror=seat, model=spec.model, family=spec.family, ok=False,
-                                                     error=err_str, seconds=seconds)
-                                else:
-                                    v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
-                                if not v.ok:
-                                    logger.warning(f"{checkpoint}: {seat} ({spec.model}) abstained: {v.error}")
-                                verdicts[agent.name] = v
-                                on_verdict(checkpoint, v)
+                                    # Bad request / response_format rejected: retry without it
+                                    if attempt < 3 and not force_no_fmt and any(k in err_low for k in (
+                                        "400", "bad_request", "response_format", "json_object", "json_validate_failed", "unsupported",
+                                    )):
+                                        logger.info(f"{agent.name} hit format error, retrying without response_format...")
+                                        force_no_fmt = True
+                                        agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=True)
+                                        await asyncio.sleep(0.5)
+                                        retry = True
+                                        break
+                                    last_failed_verdict = JurorVerdict(
+                                        juror=seat, model=spec.model, family=spec.family,
+                                        ok=False, error=err_str, seconds=seconds,
+                                    )
+                                    break
+
+                                v = parse_verdict(text, cp, case, seat, spec, seconds=seconds)
+                                if v.ok:
+                                    verdicts[agent.name] = v
+                                    on_verdict(checkpoint, v)
+                                    break
+                                if not force_no_fmt and attempt < 3:
+                                    logger.info(f"{agent.name} ({spec.model}) returned unparseable output; retrying without response_format...")
+                                    force_no_fmt = True
+                                    agent = self._agent(checkpoint, idx, spec, case, force_no_fmt=True)
+                                    await asyncio.sleep(0.5)
+                                    retry = True
+                                    break
+                                last_failed_verdict = v
                                 break
-                            if got_response and agent.name in verdicts:
+
+                            if agent.name in verdicts or not retry:
+                                if not got_response and attempt < 3 and agent.name not in verdicts and last_failed_verdict is None:
+                                    await asyncio.sleep(1)
+                                    continue
                                 break
                         except Exception as e:
                             logger.error(f"Juror {n} ({model_name}) agent {agent.name} failed: {e}", exc_info=True)
-                            if attempt == 0:
+                            last_failed_verdict = JurorVerdict(
+                                juror=seat, model=spec.model, family=spec.family,
+                                ok=False, error=str(e)[:300], seconds=round(time.monotonic() - t0, 1),
+                            )
+                            if attempt < 3:
                                 await asyncio.sleep(2)
                         finally:
                             await runner.close()
+
+                    if agent.name not in verdicts:
+                        fb_v = await _direct_cloud_fallback(checkpoint, seat, spec, case)
+                        if fb_v is not None:
+                            current_spec = JurorSpec(
+                                model=fb_v.model, family=fb_v.family, provider="groq", fmt="json"
+                            )
+                            used_replacements.add(fb_v.model.lower())
+                            verdicts[agent.name] = fb_v
+                            on_verdict(checkpoint, fb_v)
+                        elif last_failed_verdict is not None:
+                            logger.warning(f"{checkpoint}: {seat} ({last_failed_verdict.model}) abstained: {last_failed_verdict.error}")
+                            verdicts[agent.name] = last_failed_verdict
+                            on_verdict(checkpoint, last_failed_verdict)
 
         tasks = [
             _run_juror(n, model, agents)

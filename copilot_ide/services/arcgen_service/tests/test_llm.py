@@ -174,6 +174,32 @@ Hope this helps!"""
         tier2.generate_json.assert_called_once()
         tier3.generate_json.assert_called_once()
 
+    def test_groq_client_failover_on_403_and_429(self):
+        from app.llm import BLOCKED_MODELS, is_model_blocked
+
+        BLOCKED_MODELS.clear()
+        try:
+            client = GroqClient(api_key="mock_key", model="qwen/qwen3.8-27b")
+            resp_403 = MagicMock()
+            resp_403.status_code = 403
+            resp_403.text = '{"error":{"code":"model_permission_blocked_org"}}'
+
+            resp_200 = MagicMock()
+            resp_200.status_code = 200
+            resp_200.json.return_value = {
+                "choices": [{"message": {"content": '{"name": "ok_service", "count": 7}'}}]
+            }
+
+            with patch("requests.post", side_effect=[resp_403, resp_200]) as mock_post:
+                res = client.generate_json("sys", "usr", target_schema=SampleSchema)
+                self.assertEqual(res.name, "ok_service")
+                self.assertEqual(res.count, 7)
+                self.assertEqual(client.active_model, "openai/gpt-oss-20b")
+                self.assertTrue(is_model_blocked("qwen/qwen3.8-27b"))
+                self.assertEqual(mock_post.call_count, 2)
+        finally:
+            BLOCKED_MODELS.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -168,7 +168,7 @@ def _list_models(provider: str, api_key: Optional[str] = None) -> List[str]:
         r = requests.get("https://api.groq.com/openai/v1/models",
                          headers={"Authorization": f"Bearer {key}"}, timeout=TIMEOUT)
         r.raise_for_status()
-        skip = ("whisper", "tts", "guard", "prompt-guard")
+        skip = ("whisper", "tts", "guard", "prompt-guard", "orpheus", "arabic-saudi", "embed", "audio", "vision", "clip")
         return sorted(m["id"] for m in r.json().get("data", []) if not any(x in m["id"] for x in skip))
     base = (os.getenv("OMNIKEY_BASE_URL") or DEFAULT_OMNIKEY_BASE).rstrip("/")
     r = requests.get(f"{base}/models", params={"key": key}, headers={"x-goog-api-key": key}, timeout=TIMEOUT)
