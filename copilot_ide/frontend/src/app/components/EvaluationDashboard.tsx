@@ -14,6 +14,7 @@ import { AblationTab } from './evaluation/AblationTab';
 import { ClassifierBenchmarkTab } from './evaluation/ClassifierBenchmarkTab';
 import { ConformanceEngineTab } from './evaluation/ConformanceEngineTab';
 import { JuryEvaluationTab } from './evaluation/JuryEvaluationTab';
+import { ArchonGuardTab } from './evaluation/ArchonGuardTab';
 
 export function EvaluationDashboard() {
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -32,6 +33,7 @@ export function EvaluationDashboard() {
     { id: 8, label: 'Layer classifier', sub: 'Kev vs Groq vs Laya', icon: 'network' as GlyphName },
     { id: 9, label: 'Conformance engine', sub: 'AST → graph → Tarjan → rules', icon: 'search' as GlyphName },
     { id: 10, label: 'Bias jury', sub: '5 local jurors · majority vote', icon: 'scale' as GlyphName },
+    { id: 11, label: 'Archon Guard', sub: 'ADK + CrewAI · A2A · MCP · 5-layer safety', icon: 'shield' as GlyphName },
   ];
 
   return (
@@ -126,6 +128,7 @@ export function EvaluationDashboard() {
         {activeTab === 8 && <ClassifierBenchmarkTab />}
         {activeTab === 9 && <ConformanceEngineTab />}
         {activeTab === 10 && <JuryEvaluationTab />}
+        {activeTab === 11 && <ArchonGuardTab onNavigateTab={setActiveTab} />}
       </main>
 
       {/* Raw JSON Explorer Modal */}

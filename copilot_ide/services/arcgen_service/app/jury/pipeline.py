@@ -23,9 +23,10 @@ the full trace.
 import json
 import logging
 import re
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 
 from app.generator import rank_macro_patterns, select_companions
 from app.jury.aggregate import aggregate
@@ -123,13 +124,48 @@ class JuryRun:
         self.panel = panel
         self.emit = emit
         self.rubric = rubric or load_rubric()
+        self._t0 = time.perf_counter()
+
+    def _trace(
+        self,
+        channel: str,
+        agent: str,
+        hook: str,
+        message: str,
+        *,
+        level: str = "info",
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+        tool: Optional[Dict[str, Any]] = None,
+        state: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        payload: Dict[str, Any] = {
+            "type": "trace",
+            "offset_ms": int((time.perf_counter() - self._t0) * 1000),
+            "channel": channel,
+            "agent": agent,
+            "hook": hook,
+            "message": message,
+            "level": level,
+        }
+        if agent_id:
+            payload["agent_id"] = agent_id
+        if status:
+            payload["status"] = status
+        if tool:
+            payload["tool"] = tool
+        if state:
+            payload["state"] = state
+        self.emit(payload)
 
     # -- one jury sitting over one or more checkpoints ----------------------------
     def _sit(self, requests: List[Tuple[CheckpointName, int, Callable[[int], Case]]], raw_source: str) -> Dict[CheckpointName, CheckpointResult]:
+        t_roster = time.perf_counter()
         jurors, excluded = select_panel(self.rubric, generator_models(self.client))
         out = [j for j in self.rubric.jurors if j.family in excluded]
         spares_in = [j for j in jurors if j in self.rubric.spares]
         replaced = [{"model": o.model, "family": o.family, "by": s.model} for o, s in zip(out, spares_in)]
+        roster_ms = int((time.perf_counter() - t_roster) * 1000)
 
         attempts = {name: attempt for name, attempt, _ in requests}
         sittings: List[Tuple[CheckpointName, List[Seat]]] = []
@@ -140,6 +176,23 @@ class JuryRun:
                 "type": "panel", "checkpoint": name, "attempt": attempt, "excluded_families": excluded, "replaced": replaced,
                 "jurors": [{"seat": s, "model": j.model, "family": j.family} for s, j, _ in seats],
             })
+
+        seat_models = ", ".join(j.model for j in jurors) or "none"
+        cp_names = ", ".join(name for name, _, _ in requests)
+        self._trace(
+            "ADK_JURY", "ADK ParallelAgent", "jury.select_panel",
+            f"Seated {len(jurors)} juror(s) for [{cp_names}]: {seat_models} (excluded families: {', '.join(excluded) or 'none'}).",
+            agent_id="jury", status="running",
+            tool={
+                "name": "select_panel",
+                "kind": "Deterministic Roster",
+                "caller": "ADK ParallelAgent",
+                "args": f"checkpoints=[{cp_names}], excluded={excluded}",
+                "latency_ms": roster_ms,
+                "summary": f"{len(jurors)} jurors seated · {len(replaced)} spare(s) swapped",
+            },
+            state={"excluded_families": ", ".join(excluded) or "none"},
+        )
 
         def on_verdict(name: CheckpointName, v: JurorVerdict):
             self.emit({"type": "verdict", "checkpoint": name, "attempt": attempts[name], "verdict": v.model_dump(mode="json")})
@@ -153,8 +206,29 @@ class JuryRun:
 
         results = {}
         for name, attempt, _ in requests:
+            t_agg = time.perf_counter()
             result = aggregate(name, self.rubric.checkpoints[name], verdicts.get(name, []), attempt, excluded, raw_source)
+            agg_ms = int((time.perf_counter() - t_agg) * 1000)
             self.emit({"type": "checkpoint", "result": result.model_dump(mode="json")})
+            failed_items = [t.item_id for t in result.tallies if t.failed]
+            self._trace(
+                "TALLY", "Deterministic Tally", "jury.aggregate",
+                f"Checkpoint '{name}' (attempt {attempt}) {'PASSED' if result.passed else 'FAILED'}: "
+                f"{result.voting_jurors} voting juror(s)" + (f", failed items: {', '.join(failed_items)}" if failed_items else ", all rubric items passed") + ".",
+                level="success" if result.passed else "warn",
+                agent_id="tally", status="passed" if result.passed else "retrying",
+                tool={
+                    "name": "aggregate",
+                    "kind": "Deterministic Tally",
+                    "caller": "JuryRun",
+                    "args": f"checkpoint={name}, verdicts={len(verdicts.get(name, []))}",
+                    "latency_ms": agg_ms,
+                    "summary": f"{'PASS' if result.passed else 'FAIL'} · {result.voting_jurors} voters · routes={result.routes or ['none']}",
+                },
+                state={
+                    "cp1" if name == "normalization" else "cp2": f"{'PASS' if result.passed else 'FAIL'} ({result.voting_jurors} voters)",
+                },
+            )
             results[name] = result
         return results
 
@@ -262,28 +336,139 @@ class JuryRun:
                 norm_attempt += 1
                 msg = "Normalizing requirements" if norm_feedback is None else f"Re-normalizing with {len(norm_feedback)} jury finding(s)"
                 self.emit({"type": "stage", "message": msg})
+                self._trace(
+                    "PHASE_B", "Normalizer", "phase_b.normalize_srs", msg,
+                    agent_id="normalizer", status="running",
+                    state={"round": rnd, "generator_models": generator_models(self.client)},
+                )
+                t_step = time.perf_counter()
                 srs = normalize(norm_feedback)
+                norm_ms = int((time.perf_counter() - t_step) * 1000)
                 if project_name:
                     srs.project_name = project_name
                 if trace is None:
                     trace = JuryTrace(project_name=srs.project_name)
+                fr_cnt = len(srs.functional_requirements)
+                asr_cnt = len(srs.asrs)
+                self._trace(
+                    "PHASE_B", "Normalizer", "phase_b.normalize_srs",
+                    f"Extracted {fr_cnt} FR(s) and {asr_cnt} ASR(s) for '{srs.project_name}' in {norm_ms} ms.",
+                    level="success", agent_id="normalizer", status="done",
+                    state={
+                        "project_name": srs.project_name,
+                        "requirements": f"{fr_cnt} FRs · {asr_cnt} ASRs",
+                        "generator_models": generator_models(self.client),
+                    },
+                )
 
                 # Deterministic pattern ranking, redone for every new SRS
                 self.emit({"type": "stage", "message": "Scoring architecture patterns (ATAM)"})
+                self._trace(
+                    "TOOL", "ATAM Pattern Matcher", "phase_b.match_patterns",
+                    "Scoring 20 architecture patterns deterministically against extracted ASRs.",
+                    agent_id="atam", status="tool_call",
+                )
+                t_step = time.perf_counter()
                 catalog = get_catalog()
                 evaluations = match_patterns(srs, catalog=catalog)
                 ranked = rank_macro_patterns(evaluations, catalog)
                 companions = select_companions(evaluations, catalog)
                 tradeoff_table = format_tradeoff_table(evaluations, srs, top_k=4)
+                atam_ms = int((time.perf_counter() - t_step) * 1000)
+                top_names = ", ".join(p.name for p in ranked[:3]) if ranked else "none"
+                comp_names = ", ".join(p.name for p in companions) if companions else "none"
+                self._trace(
+                    "TOOL", "ATAM Pattern Matcher", "phase_b.match_patterns",
+                    f"Deterministic ATAM ranked top macro patterns: {top_names} (companions: {comp_names}) in {atam_ms} ms.",
+                    level="success", agent_id="atam", status="passed",
+                    tool={
+                        "name": "match_patterns",
+                        "kind": "Deterministic Engine",
+                        "caller": "ATAM Pattern Matcher",
+                        "args": f"asrs={asr_cnt}, catalog_patterns=20",
+                        "latency_ms": atam_ms,
+                        "summary": f"Top: {top_names}",
+                    },
+                )
                 regen_nodes = True  # the architecture must be rebuilt on the new SRS
 
             pattern = next((p for p in ranked if p.name not in rejected_styles), ranked[0])
             if regen_nodes:
                 self.emit({"type": "stage", "message": f"v{rnd}: generating components ({pattern.name})"})
+                self._trace(
+                    "PHASE_B", "Node Generator", "phase_b.generate_nodes",
+                    f"Pass 1 (v{rnd}): synthesizing components for style '{pattern.name}'.",
+                    agent_id="nodes", status="running",
+                    state={"round": rnd, "style": pattern.name},
+                )
+                t_step = time.perf_counter()
                 nodes = generate_nodes(srs=srs, primary_pattern=pattern, companion_patterns=companions, client=self.client, feedback=node_feedback)
+                node_ms = int((time.perf_counter() - t_step) * 1000)
+                self._trace(
+                    "PHASE_B", "Node Generator", "phase_b.generate_nodes",
+                    f"Pass 1 complete: generated {len(nodes)} component(s) in {node_ms} ms.",
+                    level="success", agent_id="nodes", status="done",
+                    state={"nodes": len(nodes), "generator_models": generator_models(self.client)},
+                )
             self.emit({"type": "stage", "message": f"v{rnd}: generating connections"})
-            raw_edges = generate_edges(nodes=nodes, srs=srs, primary_pattern=pattern, client=self.client, feedback=edge_feedback)
+            self._trace(
+                "PHASE_B", "Edge Generator", "phase_b.generate_edges",
+                f"Pass 2 (v{rnd}): tracing directed connections and citations across {len(nodes)} component(s).",
+                agent_id="edges", status="running",
+            )
+
+            def _on_edge_tool_event(ev: Dict[str, Any]) -> None:
+                ev_type = ev.get("type") or ev.get("event") or "tool"
+                tname = ev.get("tool") or ev.get("name") or str(ev_type)
+                self._trace(
+                    "TOOL", "Edge Generator", f"tool.{tname}",
+                    f"Edge tool call '{tname}' executed: {str(ev)[:220]}",
+                    agent_id="edges", status="tool_call",
+                    tool={
+                        "name": tname,
+                        "kind": "ToolRegistry",
+                        "caller": "Edge Generator",
+                        "args": str(ev.get("args", ""))[:120] or "draft_edges",
+                        "latency_ms": int(ev.get("latency_ms", 0) or 0),
+                        "summary": str(ev.get("result", ev.get("summary", "executed")))[:160],
+                    },
+                )
+
+            t_step = time.perf_counter()
+            raw_edges = generate_edges(
+                nodes=nodes, srs=srs, primary_pattern=pattern, client=self.client,
+                feedback=edge_feedback, on_event=_on_edge_tool_event,
+            )
+            edge_ms = int((time.perf_counter() - t_step) * 1000)
+            self._trace(
+                "PHASE_B", "Edge Generator", "phase_b.generate_edges",
+                f"Pass 2 complete: synthesized {len(raw_edges)} candidate connection(s) in {edge_ms} ms.",
+                level="success", agent_id="edges", status="done",
+            )
+
+            t_val = time.perf_counter()
             valid_edges, report = validate_architecture(nodes=nodes, edges=raw_edges, srs=srs)
+            val_ms = int((time.perf_counter() - t_val) * 1000)
+            self._trace(
+                "VALIDATOR", "Graph Validator", "phase_b.validate_architecture",
+                f"Deterministic validation: {report.valid_edges_count}/{report.total_edges} edges valid, "
+                f"{len(report.orphan_nodes)} orphan(s), {round(report.requirement_coverage_pct)}% req coverage ({val_ms} ms).",
+                level="success" if report.is_valid else "warn",
+                agent_id="validator", status="passed" if report.is_valid else "retrying",
+                tool={
+                    "name": "validate_architecture",
+                    "kind": "Deterministic Engine",
+                    "caller": "Graph Validator",
+                    "args": f"nodes={len(nodes)}, raw_edges={len(raw_edges)}",
+                    "latency_ms": val_ms,
+                    "summary": f"valid={report.valid_edges_count}/{report.total_edges} · orphans={len(report.orphan_nodes)} · cov={round(report.requirement_coverage_pct)}%",
+                },
+                state={
+                    "edges": len(valid_edges),
+                    "orphans": len(report.orphan_nodes),
+                    "coverage_pct": f"{round(report.requirement_coverage_pct)}%",
+                },
+            )
             graph = ArchitectureGraph(project_name=srs.project_name, style=pattern.name, nodes=nodes, edges=valid_edges)
             graph.plantuml = graph.to_plantuml()
 
@@ -391,6 +576,13 @@ class JuryRun:
             last_arch = trace.iterations[-1].result
             trace.verdict = "PASS" if (last_norm and last_norm.passed and last_arch and last_arch.passed) else "FAIL"
         self._save(trace)
+        self._trace(
+            "ROUTER", "JuryRun", "jury.complete",
+            f"Run finished with verdict={trace.verdict} across {len(trace.iterations)} iteration(s) (generator: {', '.join(trace.generator_models)}).",
+            level="success" if trace.verdict == "PASS" else "warn",
+            agent_id="jury", status="passed" if trace.verdict == "PASS" else "done",
+            state={"verdict": trace.verdict},
+        )
         return graph, tradeoff_table, report, srs, trace
 
     def _save(self, trace: JuryTrace) -> None:
@@ -400,5 +592,10 @@ class JuryRun:
             path = TRACE_DIR / f"{slug}_{datetime.now():%Y%m%d_%H%M%S}.json"
             path.write_text(json.dumps(trace.model_dump(mode="json"), indent=2), encoding="utf-8")
             trace.notes.append(f"Trace saved to {path}")
+            self._trace(
+                "SYSTEM", "TraceStore", "jury.save_trace",
+                f"Saved full jury trace JSON to {path.name}",
+                state={"trace_path": path.name},
+            )
         except OSError as e:
             logger.warning(f"Could not save jury trace: {e}")

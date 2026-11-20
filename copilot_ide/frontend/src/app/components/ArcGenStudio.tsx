@@ -8,6 +8,13 @@ import { ArchitectureDiagramViewer, type DiagramChanges } from './ArchitectureDi
 import { QualitativeAnalysisView } from './QualitativeAnalysisView';
 import { AtamTradeoffMatrixView } from './AtamTradeoffMatrixView';
 import { JuryPanel, JuryResultBanner, VerdictBadge, juryReducer, initialJuryState, type IterationRecord, type JuryEvent, type JuryState } from './JuryPanel';
+import { AgentObservabilityPanel } from './AgentObservabilityPanel';
+import {
+  initialLiveObservability,
+  liveObservabilityReducer,
+  type LiveObservabilityState,
+  type StreamEvent,
+} from '@/lib/archonObservability';
 import { ErrorState, Skeleton } from './StateViews';
 import { ArcGenLlmSettings } from './ArcGenLlmSettings';
 import { LlmSetupModal } from './LlmSetupModal';
@@ -130,9 +137,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
   // LLM Setup Modal: shown on first visit; can be forced open via ⚙ button
   const [llmModalOpen, setLlmModalOpen] = useState(false);
   // Architecture Output Sub-tab
-  const [activeOutputTab, setActiveOutputTab] = useState<'diagram' | 'components' | 'couplings' | 'atam_tradeoffs' | 'validation' | 'jury'>(
+  const [activeOutputTab, setActiveOutputTab] = useState<'diagram' | 'components' | 'couplings' | 'atam_tradeoffs' | 'validation' | 'jury' | 'observability'>(
     initialView === 'atam' ? 'atam_tradeoffs' : initialView ?? 'diagram',
   );
+  const [obsState, setObsState] = useState<LiveObservabilityState | null>(null);
   useEffect(() => {
     if (syncUrl) replaceQuery({ view: activeOutputTab === 'atam_tradeoffs' ? 'atam' : activeOutputTab === 'diagram' ? undefined : activeOutputTab });
   }, [syncUrl, activeOutputTab]);
@@ -410,7 +418,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     if (res.status === 404) throw new JobGone();
     if (!res.ok || !res.body) throw new Error(errorDetail(await res.text()));
     let state = initialJuryState();
+    let liveObs = initialLiveObservability(job.id, job.kind);
     if (job.kind === 'jury') setJury(state);
+    setObsState(liveObs);
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -423,7 +433,10 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       for (const chunk of chunks) {
         const line = chunk.split('\n').find(l => l.startsWith('data: '));
         if (!line) continue;
-        const event = JSON.parse(line.slice(6)) as JuryEvent;
+        const event = JSON.parse(line.slice(6)) as StreamEvent;
+        liveObs = liveObservabilityReducer(liveObs, event);
+        setObsState(liveObs);
+        if (event.type === 'trace') continue;
         if (event.type === 'error') throw new JobFailed(event.detail);
         if (job.kind === 'plain') {
           if (event.type === 'stage') setStatusMsg(`Generating architecture: ${event.message}...`);
@@ -435,20 +448,16 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
           }
           continue;
         }
-        state = juryReducer(state, event);
+        state = juryReducer(state, event as JuryEvent);
         setJury(state);
         if (event.type === 'iteration') {
-          // Show each version as soon as it exists, while the jury deliberates. Open the review once,
-          // on the first draft; later drafts don't pull the user away from where they are.
+          // Show each version as soon as it exists, while the jury deliberates.
           setGeneratedArch(prev => ({ ...(prev ?? {}), ...event.record.graph }));
-          if (event.record.version === 1) setActiveOutputTab('jury');
         } else if (event.type === 'complete') {
           setGeneratedArch(event.result);
           // Final version: highlight what the last regeneration changed (nothing for a first-time pass)
           const versions = event.result?.jury?.iterations ?? [];
           setDiagramChanges(versions.length > 1 ? changesOf(versions[versions.length - 1]) : null);
-          // Done: land on the result. The banner above the diagram summarises the review.
-          setActiveOutputTab('diagram');
           const verdict = event.result?.jury?.verdict;
           setStatusMsg(verdict === 'PASS' ? "Architecture generated and approved by the reviewers."
             : verdict === 'NO_JURY' ? "Architecture generated, but no reviewer model answered (check API key or Ollama connection)."
@@ -481,10 +490,12 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
         }
       }
     } catch (err) {
-      setStatusMsg(err instanceof JobGone
+      const msg = err instanceof JobGone
         ? "The running generation was lost because the ArcGen service restarted. Generate again."
-        : `Generation error: ${errorMessage(err)}`);
+        : `Generation error: ${errorMessage(err)}`;
+      setStatusMsg(msg);
       setJury(j => (j && j.running ? { ...j, running: false, error: errorMessage(err) } : j));
+      setObsState(o => (o && o.running ? liveObservabilityReducer(o, { type: 'error', detail: msg }) : o));
     }
     setActiveJob(null);
     setIsGenerating(false);
@@ -498,13 +509,13 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Generate Architecture (Phase B): starts a job on the service, then follows it
+  // Generate Architecture (Phase B): starts a real job on the ArcGen service and streams live observability
   const handleGenerateArchitecture = async () => {
-    if (activeJob) return;
+    if (activeJob || isGenerating) return;
     setIsGenerating(true);
     setDiagramChanges(null);
     setStatusMsg(juryEnabled
-      ? "Bias jury in session: 5 local models judge the requirements, then each architecture version..."
+      ? "Starting ArcGen + ADK Bias Jury job on backend service…"
       : "Generating architecture: pattern scoring, components, connections, validation...");
     const payload: Record<string, unknown> = { jury: juryEnabled };
     if (studioMode === 'elicitation' && sessionId) payload.session_id = sessionId;
@@ -522,12 +533,15 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
       job = { id: info.job_id, kind: info.kind };
     } catch (err) {
       console.error(err);
-      setStatusMsg(err instanceof TypeError ? `Generation error: the ArcGen service (${effectiveApiBase}) isn't responding.` : `Generation error: ${errorMessage(err)}`);
+      setStatusMsg(err instanceof TypeError
+        ? `Generation error: the ArcGen service (${effectiveApiBase}) isn't responding.`
+        : `Generation error: ${errorMessage(err)}`);
       setIsGenerating(false);
       return;
     }
     if (job.kind === 'jury') setGeneratedArch(null);
     else setJury(null);
+    setActiveOutputTab('observability');
     setActiveJob(job);
     await runJob(job);
   };
@@ -868,6 +882,18 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                       {isEliciting ? "Extracting Drivers..." : "Start Interactive ASR Elicitation (Phase A)"}
                     </button>
                   )}
+                  <div className="mt-3 pt-3 border-t border-line-strong/80">
+                    {juryToggle}
+                    <button
+                      onClick={handleGenerateArchitecture}
+                      disabled={isGenerating || (!prompt.trim() && !sessionId)}
+                      className="mt-2 w-full py-2.5 px-4 rounded-control bg-success text-white text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isGenerating
+                        ? "Running ArcGen + ADK Jury..."
+                        : <><Glyph name="zap" /> {juryEnabled ? "Generate with Jury (Live Observability)" : "Generate Architecture (Phase B)"}</>}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -904,7 +930,9 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                     disabled={isGenerating || !srsText.trim()}
                     className="mt-2 w-full py-2.5 px-4 rounded-control bg-success text-white text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    {isGenerating ? "Synthesizing Architecture..." : <><Glyph name="zap" /> Generate Architecture Directly (Phase B)</>}
+                    {isGenerating
+                      ? "Running ArcGen + ADK Jury..."
+                      : <><Glyph name="zap" /> {juryEnabled ? "Generate with Jury (Live Observability)" : "Generate Architecture Directly (Phase B)"}</>}
                   </button>
                 </div>
               )}
@@ -1215,8 +1243,14 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 </div>
 
                 {/* Sub-Tabs Selector */}
-                <div className="flex items-center border-b border-line-strong gap-2 pb-2">
+                <div className="flex flex-wrap items-center border-b border-line-strong gap-2 pb-2">
                   {[
+                    ...(obsState ? [{
+                      id: 'observability',
+                      label: obsState.running
+                        ? `● Live Observability (${obsState.logs.length})`
+                        : `Observability (${obsState.logs.length} logs · ${obsState.tools.length} tools)`,
+                    }] : []),
                     { id: 'diagram', label: 'Graph & Diagram' },
                     { id: 'components', label: `Components (${generatedArch.nodes.length})` },
                     { id: 'couplings', label: `Connections (${generatedArch.edges.length})` },
@@ -1349,6 +1383,15 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 )}
 
 
+                {/* TAB 0: LIVE BACKEND OBSERVABILITY */}
+                {activeOutputTab === 'observability' && obsState && (
+                  <AgentObservabilityPanel
+                    state={obsState}
+                    onOpenJury={jury ? () => setActiveOutputTab('jury') : undefined}
+                    onOpenDiagram={() => setActiveOutputTab('diagram')}
+                  />
+                )}
+
                 {/* TAB 6: BIAS JURY (votes, findings, iteration timeline) */}
                 {activeOutputTab === 'jury' && jury && (
                   <JuryPanel
@@ -1418,9 +1461,44 @@ export function ArcGenStudio({ apiBase, onOpenInIDE, initialView, syncUrl = fals
                 )}
 
               </div>
-            ) : jury ? (
-              /* Jury in session before the first architecture version exists (checkpoint 1) */
-              <JuryPanel state={jury} />
+            ) : obsState || jury ? (
+              /* Pipeline in session before the first architecture version exists */
+              <div className="flex-1 flex flex-col gap-3 min-h-0">
+                {obsState && jury && (
+                  <div className="flex items-center border-b border-line-strong gap-2 pb-2">
+                    <button
+                      onClick={() => setActiveOutputTab('observability')}
+                      className={`px-3 py-1.5 rounded-control text-xs font-mono font-medium transition-all cursor-pointer ${
+                        activeOutputTab !== 'jury'
+                          ? 'bg-selected text-info font-semibold border border-info/40'
+                          : 'text-fg-subtle hover:text-fg-soft'
+                      }`}
+                    >
+                      {obsState.running ? `● Live Observability (${obsState.logs.length})` : `Observability (${obsState.logs.length})`}
+                    </button>
+                    <button
+                      onClick={() => setActiveOutputTab('jury')}
+                      className={`px-3 py-1.5 rounded-control text-xs font-mono font-medium transition-all cursor-pointer ${
+                        activeOutputTab === 'jury'
+                          ? 'bg-selected text-info font-semibold border border-info/40'
+                          : 'text-fg-subtle hover:text-fg-soft'
+                      }`}
+                    >
+                      Review (Bias Jury)
+                    </button>
+                  </div>
+                )}
+                {activeOutputTab === 'jury' && jury ? (
+                  <JuryPanel state={jury} />
+                ) : obsState ? (
+                  <AgentObservabilityPanel
+                    state={obsState}
+                    onOpenJury={jury ? () => setActiveOutputTab('jury') : undefined}
+                  />
+                ) : jury ? (
+                  <JuryPanel state={jury} />
+                ) : null}
+              </div>
             ) : (
               /* Empty state before generation */
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-line-strong rounded-panel">

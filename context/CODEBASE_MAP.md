@@ -245,6 +245,7 @@ Components (`src/app/components/`):
 |---|---|
 | `ArcGenStudio.tsx` | ArcGen UI: elicitation chat + generate + save (calls `/api/arcgen/*`). |
 | `JuryPanel.tsx` | Bias Jury tab in ArcGenStudio: SSE event reducer, juror x rubric vote grid, findings, iteration timeline with graph diffs. Jury toggle (default on) lives in ArcGenStudio. |
+| `AgentObservabilityPanel.tsx` | Live backend observability console in ArcGenStudio: real SSE stage/juror state cards, chronological event logs, ToolRegistry & deterministic check calls, and live job state (`src/lib/archonObservability.ts`). |
 | `ArchitectureDiagramViewer.tsx` | Renders `ArchNode` / `ArchEdge` graph. |
 | `AtamTradeoffMatrixView.tsx` | ATAM tradeoff matrix with score rationales. |
 | `conformance/ConformanceStudio.tsx` | Conformance UI; calls `/api/conformance/audit`. |
@@ -259,6 +260,7 @@ Components (`src/app/components/`):
 | `QualitativeAnalysisView.tsx` | R2ABench benchmark table in ArcGen "Qualitative Analysis" tab. Data hardcoded in `QUALITATIVE_BENCHMARK_DATA`; header hover tooltips come from `METRIC_INFO` (definitions taken from `R2ABENCH/Evaluation/`). |
 | `evaluation/ExecutiveOverview.tsx`, `Exercise1Models` to `Exercise6MultiHop.tsx` | Lab 4 evaluation sections. |
 | `evaluation/AblationTab.tsx` | SCIP ablation runner (direct calls to `localhost:8003`). |
+| `evaluation/ArchonGuardTab.tsx` | Archon Guard multi-agent architecture & evaluation tab (ADK + CrewAI, A2A, MCP, 5-layer safety, benchmark results). |
 | `evaluation/HallucinationExplainer.tsx`, `JsonDataModal.tsx` | Helpers. |
 | `evaluation/evaluationData.ts`, `ablationReportData.{ts,json}` | Static evaluation data. |
 
