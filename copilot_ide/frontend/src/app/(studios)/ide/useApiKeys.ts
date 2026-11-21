@@ -7,7 +7,10 @@ import { errorMessage } from '@/lib/api';
 export function useApiKeys(ide: IdeProps & IdeStore) {
   const {
     apiBase,
+    apiKeys,
     apiKeyInputs,
+    selectedModel,
+    setSelectedModel,
     setApiKeyInputs,
     setApiKeySaveStatus,
     setApiKeyTestStatus,
@@ -21,33 +24,70 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
       const res = await fetch(`${apiBase}/api/cloud/keys`);
       if (res.ok) {
         const data = await res.json();
-        setApiKeys(data.providers || {});
+        const providers = data.providers || {};
+        setApiKeys(providers);
+        const fl = providers.freellmapi;
+        if (fl) {
+          setApiKeyInputs(prev => ({
+            ...prev,
+            freellmapi_base_url: fl.base_url || prev.freellmapi_base_url || 'http://host.docker.internal:31415/v1',
+            freellmapi_model: fl.model || prev.freellmapi_model || 'auto',
+          }));
+        }
+      }
+    } catch (e) {}
+  };
+
+  const refreshModels = async (preferModel?: string) => {
+    try {
+      const modelsRes = await fetch(`${apiBase}/api/models`);
+      if (modelsRes.ok) {
+        const modelsData = await modelsRes.json();
+        const nextModels: string[] = modelsData.models || [];
+        if (setModels) setModels(nextModels);
+        if (setSelectedModel && nextModels.length > 0) {
+          if (preferModel && nextModels.includes(preferModel)) {
+            setSelectedModel(preferModel);
+          } else if (selectedModel && !nextModels.includes(selectedModel)) {
+            setSelectedModel(nextModels[0]);
+          }
+        }
       }
     } catch (e) {}
   };
 
   const handleSaveApiKey = async (provider: string) => {
-    const key = apiKeyInputs[provider]?.trim();
-    if (!key) return;
+    const key = apiKeyInputs[provider]?.trim() || '';
+    if (provider !== 'freellmapi' && !key) return;
+    if (provider === 'freellmapi' && !key && !apiKeys?.freellmapi?.configured) return;
+
+    const payload =
+      provider === 'freellmapi'
+        ? {
+            provider,
+            api_key: key || undefined,
+            base_url: apiKeyInputs.freellmapi_base_url?.trim() || '',
+            model: apiKeyInputs.freellmapi_model?.trim() || 'auto',
+          }
+        : { provider, api_key: key };
+
     try {
       const res = await fetch(`${apiBase}/api/cloud/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, api_key: key })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
+        const saved = await res.json().catch(() => ({}));
         setApiKeySaveStatus(prev => ({ ...prev, [provider]: 'Saved' }));
         setApiKeyInputs(prev => ({ ...prev, [provider]: '' }));
-        fetchApiKeyStatus();
-        // Refresh models list to include cloud models
-        try {
-          const modelsRes = await fetch(`${apiBase}/api/models`);
-          if (modelsRes.ok) {
-            const modelsData = await modelsRes.json();
-            if (setModels) setModels(modelsData.models || []);
-          }
-        } catch (e) {}
+        await fetchApiKeyStatus();
+        await refreshModels(
+          provider === 'freellmapi' ? `freellmapi:${saved.model || apiKeyInputs.freellmapi_model?.trim() || 'auto'}` : undefined
+        );
         setTimeout(() => setApiKeySaveStatus(prev => ({ ...prev, [provider]: '' })), 2000);
+      } else {
+        setApiKeySaveStatus(prev => ({ ...prev, [provider]: 'Error' }));
       }
     } catch (e) {
       setApiKeySaveStatus(prev => ({ ...prev, [provider]: 'Error' }));
@@ -62,30 +102,35 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
         body: JSON.stringify({ provider })
       });
       if (res.ok) {
-        fetchApiKeyStatus();
-        // Refresh models
-        try {
-          const modelsRes = await fetch(`${apiBase}/api/models`);
-          if (modelsRes.ok) {
-            const modelsData = await modelsRes.json();
-            if (setModels) setModels(modelsData.models || []);
-          }
-        } catch (e) {}
+        await fetchApiKeyStatus();
+        await refreshModels();
       }
     } catch (e) {}
   };
 
   const handleTestApiKey = async (provider: string) => {
     setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'testing' } }));
+    const payload =
+      provider === 'freellmapi'
+        ? {
+            provider,
+            api_key: apiKeyInputs.freellmapi?.trim() || undefined,
+            base_url: apiKeyInputs.freellmapi_base_url?.trim() || undefined,
+            model: apiKeyInputs.freellmapi_model?.trim() || undefined,
+          }
+        : { provider, api_key: apiKeyInputs[provider] || undefined };
     try {
       const res = await fetch(`${apiBase}/api/cloud/keys/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, api_key: apiKeyInputs[provider] || undefined })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok && data.status === 'ok') {
-        setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'ok', latency: data.latency_ms } }));
+        setApiKeyTestStatus(prev => ({
+          ...prev,
+          [provider]: { status: 'ok', latency: data.latency_ms, model: data.model }
+        }));
       } else {
         setApiKeyTestStatus(prev => ({ ...prev, [provider]: { status: 'error', message: data.message || 'Connection failed' } }));
       }

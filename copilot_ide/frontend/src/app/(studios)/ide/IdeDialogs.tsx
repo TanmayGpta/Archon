@@ -243,10 +243,78 @@ export function IdeDialogs() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto custom-scrollbar">
+            <div className="p-4 space-y-4 max-h-[540px] overflow-y-auto custom-scrollbar">
               <p className="text-xs font-mono text-fg-subtle leading-relaxed">
                 Configure API keys for cloud LLM providers. Keys are stored persistently on the server and remain until manually cleared.
               </p>
+
+              {/* FreeLLMAPI Multi-Provider Router */}
+              <div className="border border-accent/40 rounded-panel p-3 bg-canvas space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="1.75"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    <span className="text-sm font-mono font-bold text-fg">FreeLLMAPI</span>
+                    <span className="text-xs font-mono text-fg-subtle truncate">auto router across providers</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {apiKeyTestStatus.freellmapi?.status === 'ok' && (
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-control max-w-[200px] truncate" title={apiKeyTestStatus.freellmapi.model || 'auto'}>
+                        Connected ({apiKeyTestStatus.freellmapi.latency}ms{apiKeyTestStatus.freellmapi.model ? ` · ${apiKeyTestStatus.freellmapi.model}` : ''})
+                      </span>
+                    )}
+                    {apiKeyTestStatus.freellmapi?.status === 'error' && (
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded-control max-w-[180px] truncate" title={apiKeyTestStatus.freellmapi.message}>{apiKeyTestStatus.freellmapi.message}</span>
+                    )}
+                    {apiKeys.freellmapi?.configured && !apiKeyTestStatus.freellmapi?.status && (
+                      <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-control">Active: {apiKeys.freellmapi.masked_key}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={apiKeyInputs.freellmapi || ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi: e.target.value }))}
+                    placeholder={apiKeys.freellmapi?.configured ? 'Key configured — enter new to replace' : 'freellmapi-...'}
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                  <button
+                    onClick={() => handleSaveApiKey('freellmapi')}
+                    disabled={!apiKeyInputs.freellmapi?.trim() && !apiKeys.freellmapi?.configured}
+                    className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white disabled:opacity-40 px-3 py-1.5 rounded-control border border-accent/40 cursor-pointer transition-colors"
+                  >
+                    {apiKeySaveStatus.freellmapi || 'Save'}
+                  </button>
+                  <button
+                    onClick={() => handleTestApiKey('freellmapi')}
+                    disabled={apiKeyTestStatus.freellmapi?.status === 'testing' || (!apiKeys.freellmapi?.configured && !apiKeyInputs.freellmapi?.trim())}
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded-control border border-line cursor-pointer transition-colors"
+                  >
+                    {apiKeyTestStatus.freellmapi?.status === 'testing' ? 'Testing...' : 'Test'}
+                  </button>
+                  {apiKeys.freellmapi?.configured && apiKeys.freellmapi?.source !== 'env' && (
+                    <button onClick={() => handleClearApiKey('freellmapi')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded-control border border-danger/30 cursor-pointer transition-colors">Clear</button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={apiKeyInputs.freellmapi_base_url ?? ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi_base_url: e.target.value }))}
+                    placeholder="http://host.docker.internal:31415/v1"
+                    title="FreeLLMAPI OpenAI-compatible Base URL"
+                    className="col-span-2 bg-raised text-[11px] font-mono text-fg-soft px-2.5 py-1 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                  <input
+                    type="text"
+                    value={apiKeyInputs.freellmapi_model ?? ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi_model: e.target.value }))}
+                    placeholder="auto"
+                    title="Routing model (auto, auto:smart, auto:fast, or explicit model)"
+                    className="bg-raised text-[11px] font-mono text-fg-soft px-2.5 py-1 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                </div>
+              </div>
 
               {/* OpenAI */}
               <div className="border border-line rounded-panel p-3 bg-canvas space-y-2">

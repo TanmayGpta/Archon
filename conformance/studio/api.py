@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 # Ensure Archon root is in sys.path
@@ -212,3 +212,60 @@ def get_workspace_info():
             }
         ]
     }
+
+
+# ── Phase 4: LangGraph Architectural Healing (IDE only) ──────────────────────
+
+class HealDecisionRequest(BaseModel):
+    approved: bool
+    applied_files: List[str] = Field(default_factory=list)
+
+
+@router.post("/heal/jobs")
+def start_heal(req: Dict[str, Any]):
+    """Start a background LangGraph healing job; lazy-imports langgraph so audits never break if absent."""
+    try:
+        import langgraph  # noqa: F401
+        from conformance.healing.jobs import start_heal_job
+        from conformance.healing.schemas import HealJobRequest
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Healing engine unavailable ({e}). Rebuild orchestrator-service to install langgraph.",
+        )
+    try:
+        parsed = HealJobRequest.model_validate(req)
+        job = start_heal_job(parsed)
+        return {"status": "started", "job_id": job.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/heal/jobs/{job_id}")
+def get_heal_status(job_id: str):
+    """Return current status and verified diff previews for a healing job."""
+    from conformance.healing.jobs import get_heal_job
+    job = get_heal_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Heal job '{job_id}' not found")
+    return job.info()
+
+
+@router.get("/heal/jobs/{job_id}/stream")
+async def stream_heal_job(job_id: str, start: int = 0):
+    """Stream SSE events from a healing job (supports resuming from `start` seq index)."""
+    from conformance.healing.jobs import follow_heal_job, get_heal_job
+    job = get_heal_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Heal job '{job_id}' not found")
+    return StreamingResponse(follow_heal_job(job, start=start), media_type="text/event-stream")
+
+
+@router.post("/heal/jobs/{job_id}/decision")
+def decide_heal_job(job_id: str, req: HealDecisionRequest):
+    """Record approval or rejection on the paused LangGraph healing job."""
+    from conformance.healing.jobs import resolve_heal_job
+    try:
+        return resolve_heal_job(job_id, approved=req.approved, applied_files=req.applied_files)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))

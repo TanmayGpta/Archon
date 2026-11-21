@@ -42,8 +42,26 @@ export interface PendingEdit {
   before: string;
   after: string;
   summary: string;
+  /** Optional custom handler (used by multi-file healing diff reviews). */
+  onDecision?: (keptText: string, accepted: boolean) => void | Promise<void>;
 }
 
 export interface AgentEdit extends PendingEdit {
   reverted?: boolean;
+}
+
+export interface PendingHealPatch {
+  path: string;
+  name: string;
+  operation: 'modify' | 'create';
+  before: string;
+  after: string;
+  summary: string;
+  status: 'pending' | 'applied' | 'rejected' | 'reverted';
+}
+
+export interface HealReviewActions {
+  acceptFile: (path: string, keptText?: string) => Promise<void>;
+  rejectFile: (path: string) => Promise<void>;
+  acceptAll: () => Promise<void>;
 }

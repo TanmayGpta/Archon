@@ -5,7 +5,7 @@ import type { GitHubRepoInfo } from '../../components/GitHubOpenModal';
 import type { ContextFileItem, SuggestedFileItem } from '../../components/ContextFileChips';
 import type { TreeNode } from './FileTree';
 import type { EditorState } from '@codemirror/state';
-import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit } from './types';
+import type { TerminalTab, AgentMessage, PendingEdit, AgentEdit, PendingHealPatch, HealReviewActions } from './types';
 import { WELCOME_MESSAGE } from './chatHistory';
 import { useGitHubAuth } from '../../components/useRunner';
 
@@ -68,10 +68,17 @@ export function useIdeStore() {
   const [currentGitHubBranch, setCurrentGitHubBranch] = useState('main');
   const [remoteFileShas, setRemoteFileShas] = useState<Record<string, string>>({});
 
-  const [apiKeys, setApiKeys] = useState<{[provider: string]: {configured: boolean; masked_key: string}}>({});
-  const [apiKeyInputs, setApiKeyInputs] = useState<{[provider: string]: string}>({openai: '', anthropic: '', gemini: ''});
+  const [apiKeys, setApiKeys] = useState<{[provider: string]: {configured: boolean; masked_key: string; base_url?: string; model?: string; source?: string}}>({});
+  const [apiKeyInputs, setApiKeyInputs] = useState<{[provider: string]: string}>({
+    openai: '',
+    anthropic: '',
+    gemini: '',
+    freellmapi: '',
+    freellmapi_base_url: 'http://host.docker.internal:31415/v1',
+    freellmapi_model: 'auto',
+  });
   const [apiKeySaveStatus, setApiKeySaveStatus] = useState<{[provider: string]: string}>({});
-  const [apiKeyTestStatus, setApiKeyTestStatus] = useState<{[provider: string]: {status: 'testing'|'ok'|'error'; latency?: number; message?: string}}>({});
+  const [apiKeyTestStatus, setApiKeyTestStatus] = useState<{[provider: string]: {status: 'testing'|'ok'|'error'; latency?: number; model?: string; message?: string}}>({});
   const [projectPathInput, setProjectPathInput] = useState('');
   
   // File Explorer State
@@ -106,11 +113,17 @@ export function useIdeStore() {
   // Agent edits: one waiting for review, and those applied this session
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
   const [agentEdits, setAgentEdits] = useState<AgentEdit[]>([]);
+
+  // Phase 4 heal patch review queue synced across Conformance panel, Explorer, and open file pages
+  const [pendingHealPatches, setPendingHealPatches] = useState<PendingHealPatch[]>([]);
+  const [healApplying, setHealApplying] = useState<boolean>(false);
+  const [dismissedHealPreviewPaths, setDismissedHealPreviewPaths] = useState<string[]>([]);
+  const healActionsRef = useRef<HealReviewActions | null>(null);
   
 
   // Layout & Activity State
   const [activeActivity, setActiveActivity] = useState<'explorer' | 'search' | 'copilot' | 'diagnostics'>('explorer');
-  const [rightPanelTab, setRightPanelTab] = useState<'agent' | 'conformance'>('agent');
+  const [rightPanelTab, setRightPanelTab] = useState<'agent' | 'conformance'>('conformance');
   const [violationMarkers, setViolationMarkers] = useState<ViolationMarker[]>([]);
   const [showBottomPanel, setShowBottomPanel] = useState<boolean>(true);
   const [bottomTab, setBottomTab] = useState<'terminal' | 'output' | 'diagnostics'>('terminal');
@@ -252,6 +265,13 @@ export function useIdeStore() {
     setPendingEdit,
     agentEdits,
     setAgentEdits,
+    pendingHealPatches,
+    setPendingHealPatches,
+    healApplying,
+    setHealApplying,
+    dismissedHealPreviewPaths,
+    setDismissedHealPreviewPaths,
+    healActionsRef,
     activeActivity,
     setActiveActivity,
     rightPanelTab,

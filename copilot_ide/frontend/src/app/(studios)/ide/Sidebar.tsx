@@ -1,11 +1,54 @@
 "use client";
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Icons, Glyph } from '../../components/Icons';
-import { FileTree, InlineNameInput, type InlineNameEdit, type TreeProblemFlag } from './FileTree';
+import { FileTree, InlineNameInput, type InlineNameEdit, type TreeNode, type TreeProblemFlag } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 import { ErrorState, Skeleton } from '../../components/StateViews';
+import type { PendingHealPatch } from './types';
 import { normPath, pathHits } from './violationUtils';
+
+function mergePendingCreateNodes(tree: TreeNode[], pending: PendingHealPatch[]): TreeNode[] {
+  const creates = (pending || []).filter(p => p.status === 'pending' && p.operation === 'create');
+  if (!creates.length) return tree;
+
+  const cloneNodes = (list: TreeNode[]): TreeNode[] =>
+    list.map(n => (n.children ? { ...n, children: cloneNodes(n.children) } : { ...n }));
+  const rootList = cloneNodes(tree);
+
+  const sortNodes = (list: TreeNode[]) =>
+    list.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1));
+
+  for (const patch of creates) {
+    const parts = normPath(patch.path).split('/').filter(Boolean);
+    if (!parts.length) continue;
+    let level = rootList;
+    let prefix = '';
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i];
+      prefix = prefix ? `${prefix}/${seg}` : seg;
+      const isLeaf = i === parts.length - 1;
+      if (isLeaf) {
+        const exists = level.some(n => n.type === 'file' && (n.name === seg || pathHits(n.path, prefix)));
+        if (!exists) {
+          level.push({ name: seg, path: prefix, type: 'file', virtual: true });
+          sortNodes(level);
+        }
+      } else {
+        let dir = level.find(n => n.type === 'directory' && (n.name === seg || pathHits(n.path, prefix)));
+        if (!dir) {
+          dir = { name: seg, path: prefix, type: 'directory', children: [], virtual: true };
+          level.push(dir);
+          sortNodes(level);
+        } else if (!dir.children) {
+          dir.children = [];
+        }
+        level = dir.children!;
+      }
+    }
+  }
+  return rootList;
+}
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -44,30 +87,61 @@ export function Sidebar() {
     setShowQuickOpen,
     workspaceTree,
     violationMarkers,
+    pendingHealPatches,
+    setDismissedHealPreviewPaths,
+    openScratchTab,
   } = useIde();
 
+  const displayTree = useMemo(
+    () => mergePendingCreateNodes(workspaceTree, pendingHealPatches),
+    [workspaceTree, pendingHealPatches],
+  );
+
   const flagPath = useCallback((path: string, isDir: boolean): TreeProblemFlag | null => {
-    if (!violationMarkers || violationMarkers.length === 0) return null;
-    const hits = violationMarkers.filter(m => isDir
-      ? normPath(m.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')))
-      : pathHits(path, m.path));
-    if (!hits.length) return null;
-    const hasViolation = hits.some(m => m.kind !== 'cycle');
-    const hasCycle = hits.some(m => m.kind === 'cycle');
-    const vCount = hits.filter(m => m.kind !== 'cycle').length;
-    const cCount = hits.filter(m => m.kind === 'cycle').length;
+    const patches = pendingHealPatches || [];
+    const appliedPatches = patches.filter(p => p.status === 'applied');
+    const pendingCreates = patches.filter(p => p.status === 'pending' && p.operation === 'create');
+    const healHits = appliedPatches.filter(p => isDir
+      ? normPath(p.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')))
+      : pathHits(path, p.path));
+    const pendingCreateHits = !isDir ? pendingCreates.filter(p => pathHits(path, p.path)) : [];
+    const markerHits = (violationMarkers || []).filter(m => {
+      if (isDir) {
+        if (appliedPatches.some(hp => pathHits(hp.path, m.path))) return false;
+        return normPath(m.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')));
+      }
+      return pathHits(path, m.path);
+    });
+    if (!markerHits.length && !healHits.length && !pendingCreateHits.length) return null;
+
+    const hasHeal = healHits.length > 0;
+    const hasPendingCreate = !hasHeal && pendingCreateHits.length > 0;
+    // Accepted/healed files show only the green dot; unaccepted pending files keep their violation state until accepted.
+    const hasViolation = isDir || !hasHeal ? markerHits.some(m => m.kind !== 'cycle') : false;
+    const hasCycle = isDir || !hasHeal ? markerHits.some(m => m.kind === 'cycle') : false;
+    const healKind = !isDir && healHits.some(h => h.operation === 'create') ? 'create' : 'modify';
+    const vCount = hasViolation ? markerHits.filter(m => m.kind !== 'cycle').length : 0;
+    const cCount = hasCycle ? markerHits.filter(m => m.kind === 'cycle').length : 0;
     const summaryParts = [
+      hasHeal ? `${healHits.length} healed file(s)` : '',
       vCount > 0 ? `${vCount} violation(s)` : '',
       cCount > 0 ? `${cCount} cycle hop(s)` : '',
     ].filter(Boolean);
     return {
       hasViolation,
       hasCycle,
+      hasHeal,
+      hasPendingCreate,
+      healKind,
       tooltip: isDir
         ? `${summaryParts.join(', ')} inside`
-        : hits.map(m => `${m.line ? `L${m.line}: ` : ''}${m.message}`).join('\n'),
+        : [
+            ...healHits.map(h => `Healed & saved: ${h.summary || h.operation}`),
+            ...pendingCreateHits.map(h => `Pending new file preview (not accepted yet): ${h.summary || h.path}`),
+            ...(!hasHeal ? markerHits.map(m => `${m.line ? `L${m.line}: ` : ''}${m.message}`) : []),
+          ].join('\n'),
     };
-  }, [violationMarkers]);
+  }, [pendingHealPatches, violationMarkers]);
   const inlineEdit: InlineNameEdit | null = renameTarget
     ? {
         mode: 'rename',
@@ -262,12 +336,22 @@ export function Sidebar() {
             <ErrorState compact title="Couldn't load the workspace" detail={workspaceError} onRetry={fetchProjectsAndTree} />
           ) : loadingTree && workspaceTree.length === 0 ? (
             <Skeleton rows={9} indent label="Loading files" />
-          ) : workspaceTree.length > 0 ? (
+          ) : displayTree.length > 0 ? (
             <FileTree
-                nodes={workspaceTree}
+                nodes={displayTree}
                 activePath={activeTabPath}
                 inlineEdit={inlineEdit}
-                onSelectFile={handleOpenFile}
+                onSelectFile={p => {
+                  setDismissedHealPreviewPaths(prev => prev.filter(x => !pathHits(x, p)));
+                  const pendingCreate = (pendingHealPatches || []).find(
+                    h => h.status === 'pending' && h.operation === 'create' && pathHits(h.path, p),
+                  );
+                  if (pendingCreate) {
+                    openScratchTab(pendingCreate.path, pendingCreate.name, pendingCreate.before);
+                    return;
+                  }
+                  void handleOpenFile(p);
+                }}
                 onDelete={handleDeleteItem}
                 onRename={handleRenameItem}
                 onNewFileInDir={p => startCreate(p, false)}

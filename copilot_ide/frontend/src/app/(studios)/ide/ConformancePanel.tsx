@@ -1,10 +1,12 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useIde } from './IdeContext';
-import { API_BASE } from '@/lib/api';
+import { API_BASE, errorDetail, errorMessage } from '@/lib/api';
 import { Icons, Glyph } from '../../components/Icons';
-import { edgeSourceFile, mapSessionMarkers, sessionMatchesProject, type RawCycleEdge } from './violationUtils';
+import { edgeSourceFile, mapSessionMarkers, pathHits, sessionMatchesProject, type RawCycleEdge } from './violationUtils';
+import { HealJobCard, type HealPreview, type HealReport, type PreviewStatus } from './HealJobCard';
+import type { HealTraceEvent } from './HealTraceView';
 
 interface ViolationItem {
   source_module: string;
@@ -30,6 +32,8 @@ interface AuditSessionData {
   savedAt?: number;
   targetPath?: string;
   blueprint?: { id: string; name: string; description: string };
+  customRuleset?: Record<string, unknown> | null;
+  availableBlueprints?: Array<{ id: string; name: string; description?: string; source?: string }>;
   metrics?: {
     healthScore: number;
     coverage?: number;
@@ -44,12 +48,51 @@ interface AuditSessionData {
 }
 
 export function ConformancePanel() {
-  const { currentProjectPath, handleOpenFile, setPendingReveal, setViolationMarkers } = useIde();
+  const {
+    currentProjectPath,
+    selectedModel,
+    handleOpenFile,
+    handleCloseTab,
+    openScratchTab,
+    applyPersistedEdit,
+    revertPersistedChanges,
+    fetchProjectsAndTree,
+    healApplying,
+    setHealApplying,
+    setPendingHealPatches,
+    setDismissedHealPreviewPaths,
+    healActionsRef,
+    setPendingReveal,
+    setViolationMarkers,
+  } = useIde();
   const [session, setSession] = useState<AuditSessionData | null>(null);
   const [loading, setLoading] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [expandedCycles, setExpandedCycles] = useState<Set<number>>(new Set());
+
+  // Healing state (LangGraph sandbox loop + multi-file diff queue synced to EditorPane)
+  const [healActive, setHealActive] = useState(false);
+  const [healCollapsed, setHealCollapsed] = useState(false);
+  const [healRunning, setHealRunning] = useState(false);
+  const [healPhase, setHealPhase] = useState<string>('gather');
+  const [healEvents, setHealEvents] = useState<HealTraceEvent[]>([]);
+  const [healError, setHealError] = useState<string | null>(null);
+  const [healReport, setHealReport] = useState<HealReport | null>(null);
+  const [previewStatuses, setPreviewStatuses] = useState<Record<string, PreviewStatus>>({});
+  const [healTargets, setHealTargets] = useState<{ mode: 'single' | 'all'; violationId?: string } | null>(null);
+
+  const healJobIdRef = useRef<string | null>(null);
+  const healReportRef = useRef<HealReport | null>(null);
+  const statusesRef = useRef<Record<string, PreviewStatus>>({});
+  const streamAbortRef = useRef<AbortController | null>(null);
+
+  const updateStatuses = useCallback((next: Record<string, PreviewStatus>) => {
+    statusesRef.current = next;
+    setPreviewStatuses(next);
+    const previews = healReportRef.current?.previews || [];
+    setPendingHealPatches(previews.map(p => ({ ...p, status: next[p.path] || 'pending' })));
+  }, [setPendingHealPatches]);
 
   const applySession = useCallback((next: AuditSessionData | null) => {
     setSession(next);
@@ -66,28 +109,7 @@ export function ConformancePanel() {
     }
   }, [setViolationMarkers]);
 
-  // Fetch the latest session recorded by orchestrator, only applying if it matches current workspace
-  const fetchSession = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE}/api/conformance/session`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.session && sessionMatchesProject(data.session.targetPath, currentProjectPath)) {
-          applySession(data.session);
-        } else {
-          applySession(null);
-        }
-      }
-    } catch {
-      // offline
-    } finally {
-      setLoading(false);
-    }
-  }, [applySession, currentProjectPath]);
-
-  // Re-audit current project
-  const runReaudit = async () => {
+  const runAuditForBlueprint = useCallback(async (bpId?: string, customRs?: Record<string, unknown> | null) => {
     setAuditing(true);
     try {
       const res = await fetch(`${API_BASE}/api/conformance/audit`, {
@@ -95,12 +117,13 @@ export function ConformancePanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           target_path: currentProjectPath || undefined,
-        })
+          blueprint_id: bpId || undefined,
+          custom_ruleset: bpId === 'custom' && customRs ? customRs : undefined,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         applySession(data);
-        // Notify other tabs (e.g. Conformance Studio graph page)
         try {
           localStorage.setItem('archon.conformance.updated', String(Date.now()));
         } catch {}
@@ -110,11 +133,325 @@ export function ConformancePanel() {
     } finally {
       setAuditing(false);
     }
-  };
+  }, [applySession, currentProjectPath]);
+
+  // Fetch the latest session recorded by orchestrator, only applying if it matches current workspace
+  const fetchSession = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/api/conformance/session`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session && sessionMatchesProject(data.session.targetPath, currentProjectPath)) {
+          // Recover automatically if an ad-hoc 'custom' session was saved without its ruleset JSON (e.g. test artifact).
+          const isStaleCustom =
+            data.session.blueprint?.id === 'custom' &&
+            !data.session.customRuleset &&
+            currentProjectPath?.toLowerCase().includes('ecommerce_platform');
+          if (isStaleCustom) {
+            await runAuditForBlueprint('clean_architecture');
+          } else {
+            applySession(data.session);
+          }
+        } else {
+          applySession(null);
+        }
+      }
+    } catch {
+      // offline
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession, currentProjectPath, runAuditForBlueprint]);
+
+  const defaultBlueprintForPath = useMemo(() => {
+    if (session?.blueprint?.id === 'custom' && !session.customRuleset) {
+      return currentProjectPath?.toLowerCase().includes('ecommerce_platform') ? 'clean_architecture' : 'archon_architecture';
+    }
+    if (session?.blueprint?.id) return session.blueprint.id;
+    return currentProjectPath?.toLowerCase().includes('ecommerce_platform') ? 'clean_architecture' : undefined;
+  }, [currentProjectPath, session?.blueprint?.id, session?.customRuleset]);
+
+  // Re-audit current project (preserving active blueprint)
+  const runReaudit = useCallback(async () => {
+    await runAuditForBlueprint(
+      defaultBlueprintForPath,
+      defaultBlueprintForPath === 'custom' ? session?.customRuleset : undefined,
+    );
+  }, [defaultBlueprintForPath, runAuditForBlueprint, session?.customRuleset]);
+
+  useEffect(() => {
+    setHealActive(false);
+    setHealCollapsed(false);
+    setHealTargets(null);
+    setPendingHealPatches([]);
+    setDismissedHealPreviewPaths([]);
+  }, [currentProjectPath, setDismissedHealPreviewPaths, setPendingHealPatches]);
 
   useEffect(() => {
     fetchSession();
+    return () => {
+      streamAbortRef.current?.abort();
+    };
   }, [fetchSession]);
+
+  const finalizeDecision = useCallback(
+    async (statusesMap: Record<string, PreviewStatus>) => {
+      const report = healReportRef.current;
+      const jobId = healJobIdRef.current;
+      const appliedFiles = (report?.previews || [])
+        .filter(p => statusesMap[p.path] === 'applied')
+        .map(p => p.path);
+      if (jobId) {
+        try {
+          await fetch(`${API_BASE}/api/conformance/heal/jobs/${jobId}/decision`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved: appliedFiles.length > 0, applied_files: appliedFiles }),
+          });
+        } catch {}
+      }
+      if (appliedFiles.length > 0) {
+        await fetchProjectsAndTree();
+        await runReaudit();
+      }
+    },
+    [fetchProjectsAndTree, runReaudit],
+  );
+
+  const focusHealFile = useCallback(async (preview: HealPreview) => {
+    setDismissedHealPreviewPaths(prev => prev.filter(x => !pathHits(x, preview.path)));
+    if (preview.operation === 'modify') {
+      const opened = await handleOpenFile(preview.path);
+      if (opened) return;
+    }
+    openScratchTab(preview.path, preview.name, preview.before);
+  }, [handleOpenFile, openScratchTab, setDismissedHealPreviewPaths]);
+
+  const handleAcceptOne = useCallback(async (preview: HealPreview, keptText?: string) => {
+    setHealApplying(true);
+    const ok = await applyPersistedEdit(
+      preview.path,
+      preview.name,
+      preview.before,
+      keptText ?? preview.after,
+      preview.summary || 'Architectural heal patch',
+    );
+    setHealApplying(false);
+    if (!ok) return;
+    const nextMap = { ...statusesRef.current, [preview.path]: 'applied' as PreviewStatus };
+    updateStatuses(nextMap);
+    // Drop stale pre-heal violation markers for the accepted file before refreshing the audit.
+    setViolationMarkers(prev => prev.filter(m => !pathHits(m.path, preview.path)));
+    await fetchProjectsAndTree();
+    const previews = healReportRef.current?.previews || [];
+    const nextPending = previews.find(p => (nextMap[p.path] || 'pending') === 'pending');
+    if (nextPending) {
+      await focusHealFile(nextPending);
+      await runReaudit();
+    } else {
+      await finalizeDecision(nextMap);
+    }
+  }, [applyPersistedEdit, fetchProjectsAndTree, finalizeDecision, focusHealFile, runReaudit, setHealApplying, setViolationMarkers, updateStatuses]);
+
+  const handleRejectOne = useCallback(async (preview: HealPreview) => {
+    if (preview.operation === 'create') {
+      handleCloseTab(preview.path);
+    }
+    const nextMap = { ...statusesRef.current, [preview.path]: 'rejected' as PreviewStatus };
+    updateStatuses(nextMap);
+    const previews = healReportRef.current?.previews || [];
+    const nextPending = previews.find(p => (nextMap[p.path] || 'pending') === 'pending');
+    if (nextPending) {
+      await focusHealFile(nextPending);
+    } else {
+      await finalizeDecision(nextMap);
+    }
+  }, [finalizeDecision, focusHealFile, handleCloseTab, updateStatuses]);
+
+  const handleAcceptAll = useCallback(async () => {
+    const previews = healReportRef.current?.previews || [];
+    setHealApplying(true);
+    const nextMap = { ...statusesRef.current };
+    for (const preview of previews) {
+      if ((nextMap[preview.path] || 'pending') !== 'pending') continue;
+      const ok = await applyPersistedEdit(
+        preview.path,
+        preview.name,
+        preview.before,
+        preview.after,
+        preview.summary || 'Architectural heal patch',
+      );
+      if (ok) nextMap[preview.path] = 'applied';
+    }
+    updateStatuses(nextMap);
+    setHealApplying(false);
+    await finalizeDecision(nextMap);
+  }, [applyPersistedEdit, finalizeDecision, setHealApplying, updateStatuses]);
+
+  const handleRejectAll = useCallback(async () => {
+    const previews = healReportRef.current?.previews || [];
+    const nextMap = { ...statusesRef.current };
+    for (const preview of previews) {
+      if ((nextMap[preview.path] || 'pending') === 'pending') {
+        if (preview.operation === 'create') handleCloseTab(preview.path);
+        nextMap[preview.path] = 'rejected';
+      }
+    }
+    updateStatuses(nextMap);
+    await finalizeDecision(nextMap);
+  }, [finalizeDecision, handleCloseTab, updateStatuses]);
+
+  const openPreviewFile = useCallback((preview: HealPreview) => {
+    const st = statusesRef.current[preview.path] || 'pending';
+    if (preview.operation === 'modify' || st === 'applied') {
+      void handleOpenFile(preview.path);
+    } else {
+      openScratchTab(preview.path, preview.name, preview.after);
+    }
+  }, [handleOpenFile, openScratchTab]);
+
+  const revertHealPreviews = useCallback(async (targets: HealPreview[], revertWholeHeal: boolean) => {
+    if (!targets.length) return;
+    setHealApplying(true);
+    const ok = await revertPersistedChanges(
+      targets.map(p => ({ path: p.path, name: p.name, operation: p.operation, before: p.before })),
+    );
+    if (ok) {
+      const nextMap = { ...statusesRef.current };
+      for (const p of targets) nextMap[p.path] = 'reverted';
+      if (revertWholeHeal) {
+        for (const p of healReportRef.current?.previews || []) {
+          if (p.operation === 'create' && (nextMap[p.path] || 'pending') === 'pending') {
+            handleCloseTab(p.path);
+          }
+          nextMap[p.path] = 'reverted';
+        }
+      }
+      updateStatuses(nextMap);
+      await fetchProjectsAndTree();
+      await runReaudit();
+    }
+    setHealApplying(false);
+  }, [fetchProjectsAndTree, handleCloseTab, revertPersistedChanges, runReaudit, setHealApplying, updateStatuses]);
+
+  const handleRevertOne = useCallback(async (preview: HealPreview) => {
+    await revertHealPreviews([preview], false);
+  }, [revertHealPreviews]);
+
+  const handleRevertAll = useCallback(async () => {
+    const previews = healReportRef.current?.previews || [];
+    const applied = previews.filter(p => statusesRef.current[p.path] === 'applied');
+    await revertHealPreviews(applied, true);
+  }, [revertHealPreviews]);
+
+  useEffect(() => {
+    healActionsRef.current = {
+      acceptFile: async (path, keptText) => {
+        const preview = (healReportRef.current?.previews || []).find(p => p.path === path);
+        if (preview) await handleAcceptOne(preview, keptText);
+      },
+      rejectFile: async path => {
+        const preview = (healReportRef.current?.previews || []).find(p => p.path === path);
+        if (preview) await handleRejectOne(preview);
+      },
+      acceptAll: handleAcceptAll,
+    };
+  }, [handleAcceptAll, handleAcceptOne, handleRejectOne, healActionsRef]);
+
+  const startHeal = async (mode: 'single' | 'all', violationId?: string) => {
+    streamAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    streamAbortRef.current = ctrl;
+
+    setHealActive(true);
+    setHealCollapsed(false);
+    setHealTargets({ mode, violationId });
+    setHealRunning(true);
+    setHealPhase('gather');
+    setHealEvents([
+      {
+        type: 'start',
+        kind: 'agent_start',
+        agent: 'AssessorFilter',
+        message: mode === 'single' ? `Starting heal for ${violationId}...` : 'Starting Heal All with assessor filter...',
+        ts: Date.now() / 1000,
+      },
+    ]);
+    setHealError(null);
+    setHealReport(null);
+    healReportRef.current = null;
+    healJobIdRef.current = null;
+    setDismissedHealPreviewPaths([]);
+    updateStatuses({});
+
+    const activeBpId = defaultBlueprintForPath || 'archon_architecture';
+    try {
+      const startRes = await fetch(`${API_BASE}/api/conformance/heal/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          codebase_path: currentProjectPath || session?.targetPath || undefined,
+          blueprint_id: activeBpId,
+          custom_ruleset: activeBpId === 'custom' && session?.customRuleset ? session.customRuleset : undefined,
+          model: selectedModel || undefined,
+          mode,
+          violation_id: violationId,
+        }),
+      });
+      if (!startRes.ok) {
+        throw new Error(errorDetail(await startRes.text()));
+      }
+      const { job_id } = await startRes.json();
+      healJobIdRef.current = job_id;
+
+      const streamRes = await fetch(`${API_BASE}/api/conformance/heal/jobs/${job_id}/stream?start=0`, {
+        signal: ctrl.signal,
+      });
+      if (!streamRes.ok || !streamRes.body) {
+        throw new Error('Could not open healing stream.');
+      }
+
+      const reader = streamRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() || '';
+        for (const frame of frames) {
+          const line = frame.split('\n').find(l => l.startsWith('data: '));
+          if (!line) continue;
+          const evt: HealTraceEvent = JSON.parse(line.slice(6));
+          if (evt.type && evt.type !== 'trace') setHealPhase(evt.type);
+          setHealEvents(prev => [...prev, evt]);
+          if (evt.type === 'error') {
+            setHealError(evt.message || 'Healing failed.');
+          }
+          if (evt.type === 'complete' && evt.data?.report) {
+            const report = evt.data.report as HealReport;
+            healReportRef.current = report;
+            setHealReport(report);
+            const initMap: Record<string, PreviewStatus> = {};
+            for (const p of report.previews || []) initMap[p.path] = 'pending';
+            updateStatuses(initMap);
+            if (report.previews?.length) {
+              await focusHealFile(report.previews[0]);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'AbortError') {
+        setHealError(errorMessage(e));
+      }
+    } finally {
+      setHealRunning(false);
+    }
+  };
 
   // Sync across tabs: listen for storage event when Conformance Studio runs an audit
   useEffect(() => {
@@ -127,17 +464,41 @@ export function ConformancePanel() {
     return () => window.removeEventListener('storage', onStorage);
   }, [fetchSession]);
 
-  // Group violations by file
+  // Group remaining violations by file, hiding any currently moved into the active heal card.
   const groupedViolations = useMemo(() => {
     if (!session?.violations) return [];
+    const previews = healReport?.previews || [];
+    const activePreviews = previews.filter(p => (previewStatuses[p.path] || 'pending') !== 'reverted');
+    const revertedPaths = previews.filter(p => previewStatuses[p.path] === 'reverted').map(p => p.path);
+    const activeTargetIds = new Set(healReport?.target_violation_ids || []);
+
+    const isMovedToHeal = (v: ViolationItem): boolean => {
+      if (!healActive) return false;
+      const vid = `${v.source_module}->${v.target_module}`;
+      if (healRunning) {
+        if (healTargets?.mode === 'all') return true;
+        return Boolean(healTargets?.mode === 'single' && healTargets.violationId === vid);
+      }
+      if (!healReport || !previews.length || healReport.status === 'failed' || activePreviews.length === 0) {
+        return false;
+      }
+      const src = v.source_file || v.source_module;
+      const wasReverted = v.source_file
+        ? revertedPaths.some(rp => pathHits(rp, v.source_file!))
+        : revertedPaths.some(rp => rp.replace(/\.py$/, '').replace(/\//g, '.') === v.source_module);
+      if (wasReverted) return false;
+      return activeTargetIds.has(vid) || activePreviews.some(ap => pathHits(ap.path, src));
+    };
+
     const groups: { [file: string]: ViolationItem[] } = {};
     for (const v of session.violations) {
+      if (isMovedToHeal(v)) continue;
       const key = v.source_file || v.source_module;
       if (!groups[key]) groups[key] = [];
       groups[key].push(v);
     }
     return Object.entries(groups).map(([file, items]) => ({ file, items }));
-  }, [session]);
+  }, [healActive, healReport, healRunning, healTargets, previewStatuses, session]);
 
   // Build clickable cycle cards from session.cycles + cycle edges
   const cycleCards = useMemo(() => {
@@ -211,9 +572,35 @@ export function ConformancePanel() {
             </span>
           </div>
 
-          <div className="text-[11px] text-fg-subtle truncate" title={session?.blueprint?.name || 'Default Blueprint'}>
-            Blueprint: <span className="text-fg">{session?.blueprint?.name || 'Archon Architecture'}</span>
-          </div>
+          {session?.availableBlueprints && session.availableBlueprints.length > 0 ? (
+            <div className="flex items-center gap-1.5 text-[11px] text-fg-subtle">
+              <span className="shrink-0">Blueprint:</span>
+              <select
+                value={defaultBlueprintForPath || ''}
+                disabled={auditing || healRunning}
+                onChange={e => void runAuditForBlueprint(e.target.value)}
+                className="flex-1 min-w-0 bg-raised text-fg text-[11px] font-mono rounded px-1.5 py-0.5 border border-line focus:outline-none cursor-pointer truncate disabled:opacity-50"
+                title={session?.blueprint?.name || 'Select Architecture Blueprint'}
+              >
+                {session?.blueprint?.id === 'custom' && session.customRuleset && (
+                  <option value="custom">{session.blueprint.name} (Custom)</option>
+                )}
+                {session.availableBlueprints.map(bp => (
+                  <option key={bp.id} value={bp.id}>{bp.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="text-[11px] text-fg-subtle truncate" title={session?.blueprint?.name || 'Default Blueprint'}>
+              Blueprint: <span className="text-fg">{session?.blueprint?.name || 'Archon Architecture'}</span>
+            </div>
+          )}
+
+          {selectedModel && (
+            <div className="text-[10px] text-fg-muted truncate" title="Follows the LLM selector in API Copilot">
+              Heal LLM: <span className="text-fg-soft">{selectedModel}</span>
+            </div>
+          )}
 
           {session?.metrics?.coverage !== undefined && (
             <div className="text-[11px] text-fg-subtle">
@@ -234,16 +621,88 @@ export function ConformancePanel() {
             </span>
           </div>
 
-          {/* Re-Audit Action Button */}
-          <button
-            onClick={runReaudit}
-            disabled={auditing}
-            className="w-full mt-2 py-1.5 px-3 rounded bg-[#e8ff00] hover:bg-[#d6ec00] text-black font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            <Icons.Refresh />
-            <span>{auditing ? 'Scanning Codebase...' : session ? 'Re-Audit Architecture' : 'Scan Workspace'}</span>
-          </button>
+          {/* Re-Audit & Heal All Action Buttons */}
+          <div className="flex items-center gap-1.5 mt-2">
+            <button
+              onClick={runReaudit}
+              disabled={auditing || healRunning}
+              className="flex-1 py-1.5 px-2.5 rounded bg-[#e8ff00] hover:bg-[#d6ec00] text-black font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <Icons.Refresh />
+              <span>{auditing ? 'Scanning...' : session ? 'Re-Audit' : 'Scan Workspace'}</span>
+            </button>
+            {session && (session.metrics?.totalViolations || 0) > 0 && (
+              <button
+                onClick={() => startHeal('all')}
+                disabled={healRunning || auditing}
+                title="Run Assessor + LangGraph DIP Healing for all fixable violations"
+                className="py-1.5 px-2.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
+              >
+                {healRunning ? 'Healing...' : 'Heal All'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* LangGraph Healing Live Progress, Trace & Diff Review */}
+        {healActive && (
+          healCollapsed ? (
+            <div className="border border-emerald-500/35 rounded-control bg-canvas px-2.5 py-1.5 flex items-center gap-2 text-[11px]">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  healRunning
+                    ? 'bg-amber-400 animate-pulse'
+                    : healError || healReport?.status === 'failed'
+                      ? 'bg-red-400'
+                      : 'bg-emerald-400'
+                }`}
+              />
+              <span className="text-fg-soft truncate flex-1 font-mono text-[10px]">
+                {healRunning
+                  ? `Healing (${healPhase})...`
+                  : healReport?.previews?.length
+                    ? `Last Heal · ${healReport.previews.length} file(s)`
+                    : healError || healReport?.summary || 'Heal Trace'}
+              </span>
+              {Object.values(previewStatuses).filter(s => s === 'applied').length > 0 && (
+                <button
+                  type="button"
+                  disabled={healApplying || healRunning}
+                  onClick={() => void handleRevertAll()}
+                  className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-200 hover:bg-amber-500/15 cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  Revert All
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setHealCollapsed(false)}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-line text-fg hover:bg-raised cursor-pointer shrink-0"
+              >
+                Show Trace
+              </button>
+            </div>
+          ) : (
+            <HealJobCard
+              running={healRunning}
+              phase={healPhase}
+              events={healEvents}
+              error={healError}
+              report={healReport}
+              statuses={previewStatuses}
+              applying={healApplying}
+              onReview={focusHealFile}
+              onOpenFile={openPreviewFile}
+              onAcceptOne={p => void handleAcceptOne(p)}
+              onRejectOne={p => void handleRejectOne(p)}
+              onRevertOne={p => void handleRevertOne(p)}
+              onAcceptAll={() => void handleAcceptAll()}
+              onRejectAll={() => void handleRejectAll()}
+              onRevertAll={() => void handleRevertAll()}
+              onHide={() => setHealCollapsed(true)}
+            />
+          )
+        )}
 
         {/* Dependency Cycles (purple) */}
         {session && cycleCards.length > 0 && (
@@ -337,12 +796,18 @@ export function ConformancePanel() {
               <div className="text-[11px]">Click Scan Workspace above to highlight architectural violations.</div>
             </div>
           ) : groupedViolations.length === 0 ? (
-            <div className="p-3 rounded bg-canvas border border-line-subtle text-emerald-400 text-center space-y-1">
-              <div className="font-bold">{cyclesCount > 0 ? '✓ Zero Layer Violations' : '✓ 100% Conforming'}</div>
-              <div className="text-[11px] text-fg-subtle">
-                {cyclesCount > 0 ? 'No forbidden layer rules triggered, but dependency cycles exist above.' : 'No architectural violations found.'}
+            (session.violations?.length || 0) > 0 ? (
+              <div className="p-2.5 rounded bg-canvas border border-line-subtle text-fg-subtle text-center text-[11px]">
+                Remaining violations are in the active heal panel above.
               </div>
-            </div>
+            ) : (
+              <div className="p-3 rounded bg-canvas border border-line-subtle text-emerald-400 text-center space-y-1">
+                <div className="font-bold">{cyclesCount > 0 ? '✓ Zero Layer Violations' : '✓ 100% Conforming'}</div>
+                <div className="text-[11px] text-fg-subtle">
+                  {cyclesCount > 0 ? 'No forbidden layer rules triggered, but dependency cycles exist above.' : 'No architectural violations found.'}
+                </div>
+              </div>
+            )
           ) : (
             groupedViolations.map(({ file, items }) => {
               const isOpen = expandedFiles.has(file);
@@ -374,11 +839,27 @@ export function ConformancePanel() {
                             <span className="text-[#fca5a5] font-semibold text-[11px] truncate">
                               {v.source_layer} → {v.target_layer}
                             </span>
-                            {v.line_number && (
-                              <span className="text-[#fecaca] text-[10px] bg-[#ef4444]/15 px-1 rounded border border-[#ef4444]/30 flex-shrink-0">
-                                L:{v.line_number}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {v.line_number && (
+                                <span className="text-[#fecaca] text-[10px] bg-[#ef4444]/15 px-1 rounded border border-[#ef4444]/30">
+                                  L:{v.line_number}
+                                </span>
+                              )}
+                              {v.target_layer !== 'External' && v.target_layer !== 'Stdlib' && (
+                                <button
+                                  type="button"
+                                  disabled={healRunning || auditing}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    void startHeal('single', `${v.source_module}->${v.target_module}`);
+                                  }}
+                                  title="Heal this violation in sandbox and review diff"
+                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 cursor-pointer disabled:opacity-40"
+                                >
+                                  Heal
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           <div className="text-fg-subtle text-[11px] line-clamp-2">

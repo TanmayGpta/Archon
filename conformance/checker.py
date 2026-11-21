@@ -108,11 +108,15 @@ def check_architecture(
         if source_type != "internal" or target_type != "internal":
             continue
 
-        edges_checked += 1
-
         # Get the layer the AI assigned to these files (default to Application if unmapped)
         source_layer = mapping.get(source_node, "Application")
         target_layer = mapping.get(target_node, "Application")
+
+        # Pure startup composition roots wire outer layers by design; exempt them from boundary penalties.
+        if source_layer == "CompositionRoot" or target_layer == "CompositionRoot":
+            continue
+
+        edges_checked += 1
 
         # If they are in the same layer, it's generally allowed (cohesion)
         if source_layer == target_layer:

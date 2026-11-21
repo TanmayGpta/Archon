@@ -8,6 +8,9 @@ ollama>=0.3.0
 json-repair>=0.30.0
 python-dotenv>=1.0.0
 networkx>=3.0
-# conformance classifier / AI review (conformance/kev_classifier.py fallback, assessor_agent.py)
+# conformance classifier / AI review / LangGraph healing
 langchain-core>=0.3.85,<0.4.0
 langchain-groq==0.2.4
+langchain-openai~=0.2.0
+langgraph~=0.2.0
+pytest>=8.0.0

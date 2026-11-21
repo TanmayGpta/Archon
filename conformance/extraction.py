@@ -61,13 +61,13 @@ def iter_python_files(
         if rel_root == ".":
             rel_root = ""
 
-        # Prune excluded directories in-place (skip test_codebases/imported only when scanning a parent workspace)
+        # Prune excluded directories in-place (skip test_codebases when scanning a parent workspace)
         pruned = []
         for d in dirs:
             if d in all_excludes or d.startswith(".venv") or d.endswith(".egg-info"):
                 continue
             rel_sub = f"{rel_root}/{d}" if rel_root else d
-            if rel_sub == "test_codebases/imported":
+            if rel_sub == "test_codebases":
                 continue
             pruned.append(d)
         dirs[:] = pruned

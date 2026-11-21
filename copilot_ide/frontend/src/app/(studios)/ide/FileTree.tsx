@@ -45,6 +45,7 @@ export interface TreeNode {
   extension?: string;
   size?: number;
   children?: TreeNode[];
+  virtual?: boolean;
 }
 
 /* -- Inline name input: new file/folder, or rename in place ---------
@@ -111,6 +112,9 @@ export interface TreeProblemFlag {
   tooltip: string;
   hasViolation: boolean;
   hasCycle: boolean;
+  hasHeal?: boolean;
+  hasPendingCreate?: boolean;
+  healKind?: 'create' | 'modify';
 }
 
 interface TreeHandlers {
@@ -258,9 +262,9 @@ function FileTreeNode({
         onFocus={(e) => { if (e.target === e.currentTarget) onFocusRow(node.path); }}
         onKeyDown={handleKeyDown}
         onClick={handleClick}
-        draggable={!isDir && !renaming}
+        draggable={!isDir && !renaming && !node.virtual}
         onDragStart={(e) => {
-          if (!isDir) {
+          if (!isDir && !node.virtual) {
             e.dataTransfer.setData("application/json", JSON.stringify({ path: node.path, name: node.name }));
             e.dataTransfer.effectAllowed = "copy";
           }
@@ -284,12 +288,32 @@ function FileTreeNode({
               problem && !isDir
                 ? problem.hasViolation
                   ? 'text-[#fca5a5] font-medium'
-                  : 'text-[#e9d5ff] font-medium'
+                  : problem.hasCycle
+                    ? 'text-[#e9d5ff] font-medium'
+                    : problem.hasHeal
+                      ? 'text-[#86efac] font-medium'
+                      : problem.hasPendingCreate
+                        ? 'text-[#93c5fd] italic'
+                        : ''
                 : ''
             }`}
             title={problem ? `${node.path}\n\n${problem.tooltip}` : node.path}
           >
             {node.name}
+          </span>
+        )}
+        {problem?.hasHeal && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#4ade80] shadow-[0_0_6px_#4ade80] flex-shrink-0 mr-1"
+          />
+        )}
+        {!problem?.hasHeal && problem?.hasPendingCreate && (
+          <span
+            title={problem.tooltip}
+            className="text-[9px] font-bold text-[#60a5fa] flex-shrink-0 mr-1"
+          >
+            U
           </span>
         )}
         {problem?.hasViolation && (
@@ -306,7 +330,7 @@ function FileTreeNode({
         )}
 
         {/* Hover Action Buttons */}
-        {!renaming && (
+        {!renaming && !node.virtual && (
         <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-0.5 bg-surface/90 rounded-control px-1 flex-shrink-0">
           {isDir && onNewFileInDir && (
             <button

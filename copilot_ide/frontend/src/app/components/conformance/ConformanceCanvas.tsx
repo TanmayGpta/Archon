@@ -2,9 +2,15 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 
-import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 import { prefersReducedMotion } from '@/lib/motion';
+import {
+  LAYER_ANCHORS,
+  createForceLayout,
+  hashString,
+  nodeScreenR,
+  type ForceLayoutOutput,
+} from './forceLayout';
 
 // The intro plays once per page load (click or Esc skips it; reduced motion never plays it).
 // Module memory survives client-side tab switches but resets on a hard refresh.
@@ -31,13 +37,13 @@ interface ConformanceCanvasProps {
   introBounds?: 'viewport' | 'container';
 }
 
-// Intro timings (ms)
-const INTRO_FILL = 900;    // beads light up around the dial
-const INTRO_BURST = 1050;  // burst into the layout starts
-const INTRO_TWEEN = 1400;
-const INTRO_HOLD = 1000;   // full dial waits here if the layout is still settling
-// Slowest node lands at INTRO_BURST + 500 (max rank delay) + INTRO_TWEEN; hand back just after
-const INTRO_END = INTRO_BURST + 500 + INTRO_TWEEN + 100;
+// Intro timings (ms), matching bl00d.money
+const INTRO_FILL = 1500;   // beads light up around the dial
+const INTRO_BURST = 1750;  // burst into the layout starts
+const INTRO_TWEEN = 2300;
+const INTRO_HOLD = 1650;   // full dial waits here if the layout is still settling
+// Slowest node lands at INTRO_BURST + 900 (max rank delay) + INTRO_TWEEN; hand back just after
+const INTRO_END = INTRO_BURST + 900 + INTRO_TWEEN + 150;
 const WRAPPER_CLASS = 'overflow-hidden select-none bg-[#080808]';
 const SLOT_WRAPPER_CLASS = 'relative w-full h-full';
 // Dependency cycles (Tarjan SCC edges/members); saturated violet so it stays distinct from the lavender Infrastructure layer
@@ -66,24 +72,8 @@ function hexA(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Deterministic hash for subtle curve offset
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
-
 function easeCubicInOut(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// Node radius in *screen* pixels (bl00d.money: 1.6 + sqrt(deg) * 2.1), so hubs read as
-// big discs and leaves stay visible at the default zoom instead of shrinking to 1px.
-function nodeScreenR(deg: number): number {
-  return Math.min(17, 2.4 + Math.sqrt(Math.max(0, deg)) * 2.3);
 }
 
 // Per-layer shrink for the part of the radius above "small" (dense layers would otherwise crowd)
@@ -466,21 +456,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       }
     });
 
-    // Layer anchor regions for natural architectural constellation
-    const layerAnchors: Record<string, { x: number; y: number; r: number }> = {
-      Domain: { x: -70, y: 40, r: 160 },
-      Application: { x: 220, y: -120, r: 240 },
-      Presentation: { x: -260, y: -240, r: 180 },
-      Infrastructure: { x: 240, y: 220, r: 190 },
-      Observability: { x: -260, y: 240, r: 150 },
-      External: { x: 400, y: 40, r: 210 },
-      Stdlib: { x: -400, y: -50, r: 210 },
-      Unclassified: { x: 0, y: -340, r: 120 }
-    };
-
     const goldenAngle = 2.39996323;
     const newSimNodes = sortedNodes.map((n, i) => {
-      const anc = layerAnchors[n.layer] || { x: 0, y: 0, r: 140 };
+      const anc = LAYER_ANCHORS[n.layer] || { x: 0, y: 0, r: 140 };
       const h = Math.abs(hashString(n.id));
       const angle = i * goldenAngle + ((h % 17) - 8) * 0.04;
       // Scatter low-degree leaf satellites further out organically
@@ -499,9 +477,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       };
     });
 
-    const nMap = new Map<string, ConformanceNode>();
-    newSimNodes.forEach(n => nMap.set(n.id, n));
-
     // Intro playing: hand the node set over now so the beads can start filling the dial while
     // the layout below settles (the intro positions every node itself; edges stay hidden)
     if (introRef.current) {
@@ -513,90 +488,22 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       introRef.current.wait = 0;
     }
 
-    // ── bl00d.money-style force layout ──
-    // Every edge gets an invisible "bend" node (A → F → B). F is pushed around by the
-    // same forces as real nodes, so each filament bows naturally around its neighbours
-    // and the bend points fill the space between hubs instead of rigid straight chords.
-    type SimPt = SimulationNodeDatum & { kind: 'e' | 'f'; node?: ConformanceNode };
-    const realPts = new Map<string, SimPt>();
-    newSimNodes.forEach(n => realPts.set(n.id, { kind: 'e', node: n, x: n.x, y: n.y }));
-    const bendPts = new Map<string, SimPt>();
-    const simLinks: { source: SimPt; target: SimPt; d: number }[] = [];
-    visibleEdges.forEach(e => {
-      const s = realPts.get(e.source);
-      const t = realPts.get(e.target);
-      if (!s || !t || s === t) return;
-      const h = Math.abs(hashString(e.id));
-      const f: SimPt = {
-        kind: 'f',
-        x: (s.x! + t.x!) / 2 + ((h % 21) - 10),
-        y: (s.y! + t.y!) / 2 + (((h >> 5) % 21) - 10)
-      };
-      bendPts.set(e.id, f);
-      const half = (s.node!.totalDegree < 6 || t.node!.totalDegree < 6) ? 22 : 34;
-      simLinks.push({ source: s, target: f, d: half }, { source: f, target: t, d: half });
-    });
-
-    const anchorOf = (p: SimPt) => (p.node ? layerAnchors[p.node.layer] : undefined) || { x: 0, y: 0, r: 0 };
-    const sim = forceSimulation<SimPt>([...realPts.values(), ...bendPts.values()])
-      .alphaDecay(0.035)
-      .force('link', forceLink<SimPt, { source: SimPt; target: SimPt; d: number }>(simLinks).distance(l => l.d).strength(0.35))
-      .force('charge', forceManyBody<SimPt>()
-        .strength(p => p.kind === 'e' ? -110 - Math.min(40, p.node!.totalDegree) * 7 : -7)
-        .distanceMax(480))
-      .force('collide', forceCollide<SimPt>(p => p.kind === 'e' ? nodeScreenR(p.node!.totalDegree) + 4 : 1.5))
-      .force('x', forceX<SimPt>(p => anchorOf(p).x * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
-      .force('y', forceY<SimPt>(p => anchorOf(p).y * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
-      .stop();
-    // Spread simulation ticks via setTimeout(0) so rendering frames aren't starved
-    let cancelled = false;
-    let ticks = 0;
-    const settle = () => {
+    const applySettledLayout = (output: ForceLayoutOutput) => {
+      const netPositions = new Map<string, { x: number; y: number }>(output.positions);
       newSimNodes.forEach(n => {
-        const p = realPts.get(n.id)!;
-        n.x = p.x!;
-        n.y = p.y!;
-      });
-
-      // Recenter around origin (0, 0)
-      let meanX = 0, meanY = 0;
-      newSimNodes.forEach(n => { meanX += n.x!; meanY += n.y!; });
-      meanX /= Math.max(1, newSimNodes.length);
-      meanY /= Math.max(1, newSimNodes.length);
-
-      newSimNodes.forEach(n => {
-        n.x! -= meanX;
-        n.y! -= meanY;
+        const pos = netPositions.get(n.id);
+        if (pos) {
+          n.x = pos.x;
+          n.y = pos.y;
+        }
         n.vx = 0;
         n.vy = 0;
       });
-
-      // Save settled network positions
-      const netPositions = new Map<string, { x: number; y: number }>();
-      newSimNodes.forEach(n => {
-        netPositions.set(n.id, { x: n.x!, y: n.y! });
-      });
       networkPositionsRef.current = netPositions;
+      edgeCurvesRef.current = new Map(output.curves);
 
-      // Store each bend point in the edge's local frame (fraction of length along / across the
-      // chord) so curves stay correct while nodes drift or tween into other layout modes.
-      const curvesMap = new Map<string, { along: number; perp: number }>();
-      visibleEdges.forEach(e => {
-        const s = nMap.get(e.source);
-        const t = nMap.get(e.target);
-        const f = bendPts.get(e.id);
-        if (!s || !t || !f) return;
-        const dx = t.x! - s.x!;
-        const dy = t.y! - s.y!;
-        const len2 = dx * dx + dy * dy || 1;
-        const ox = f.x! - meanX - (s.x! + t.x!) / 2;
-        const oy = f.y! - meanY - (s.y! + t.y!) / 2;
-        curvesMap.set(e.id, {
-          along: Math.max(-0.3, Math.min(0.3, (ox * dx + oy * dy) / len2)),
-          perp: Math.max(-0.22, Math.min(0.22, (oy * dx - ox * dy) / len2))
-        });
-      });
-      edgeCurvesRef.current = curvesMap;
+      const nMap = new Map<string, ConformanceNode>();
+      newSimNodes.forEach(n => nMap.set(n.id, n));
 
       simNodesRef.current = newSimNodes;
       topNodeIdRef.current = newSimNodes.reduce<ConformanceNode | null>(
@@ -637,19 +544,67 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         hasFittedInitialCameraRef.current = false;
       }
     };
-    const totalTicks = 150;
-    let timerId: ReturnType<typeof setTimeout> | null = null;
-    const step = () => {
-      if (cancelled) return;
-      const t0 = performance.now();
-      while (ticks < totalTicks && performance.now() - t0 < 45) { sim.tick(); ticks++; }
-      if (ticks < totalTicks) timerId = setTimeout(step, 0);
-      else settle();
+
+    const layoutNodes = newSimNodes.map(n => ({
+      id: n.id,
+      layer: n.layer,
+      totalDegree: n.totalDegree,
+      x: n.x!,
+      y: n.y!,
+    }));
+    const layoutEdges = visibleEdges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+    }));
+
+    // Run d3-force off the main thread when Workers are available so the intro dial renders at native refresh rate
+    let cancelled = false;
+    let rafId = 0;
+    let worker: Worker | null = null;
+    const jobId = Math.floor(Math.random() * 1e9);
+
+    const startRafFallback = () => {
+      const sim = createForceLayout(layoutNodes, layoutEdges, 160);
+      const stepFrame = () => {
+        if (cancelled) return;
+        if (sim.step(6)) {
+          applySettledLayout(sim.finish());
+        } else {
+          rafId = requestAnimationFrame(stepFrame);
+        }
+      };
+      rafId = requestAnimationFrame(stepFrame);
     };
-    step();
+
+    try {
+      if (typeof Worker !== 'undefined') {
+        worker = new Worker(new URL('./forceLayout.worker.ts', import.meta.url));
+        worker.onmessage = (event: MessageEvent<{ id: number; output: ForceLayoutOutput }>) => {
+          if (cancelled || event.data?.id !== jobId) return;
+          worker?.terminate();
+          worker = null;
+          applySettledLayout(event.data.output);
+        };
+        worker.onerror = () => {
+          worker?.terminate();
+          worker = null;
+          if (!cancelled) startRafFallback();
+        };
+        worker.postMessage({ id: jobId, nodes: layoutNodes, edges: layoutEdges, ticks: 160 });
+      } else {
+        startRafFallback();
+      }
+    } catch {
+      worker?.terminate();
+      worker = null;
+      startRafFallback();
+    }
+
     return () => {
       cancelled = true;
-      if (timerId !== null) clearTimeout(timerId);
+      worker?.terminate();
+      cancelAnimationFrame(rafId);
     };
   }, [nodes, edges, filterLayers]);
 
@@ -776,7 +731,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
                 if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
               });
               // currentNodes is sorted by degree, so its index is the rank
-              currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(500, rank * 4)));
+              currentNodes.forEach((n, rank) => intro.dl.set(n.id, Math.min(900, rank * 7)));
               intro.placed = true;
               intro.started = true;
             }
@@ -786,7 +741,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             // Data still loading: idle dial
             intro.spin += dt;
             introDial = 1;
-            if (now - intro.born > 18000) finishIntro(); // never trap the screen if the audit fails
+            if (now - intro.born > 20000) finishIntro(); // never trap the screen if the audit fails
           } else {
             intro.clock += dt;
             // Layout not settled yet: hold on the full dial until it is
@@ -796,7 +751,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             currentNodes.forEach(n => {
               const tg = c >= (intro.at.get(n.id) ?? 0) ? 1 : 0;
               const a = intro.al.get(n.id) ?? 0;
-              intro.al.set(n.id, a + (tg - a) * Math.min(1, dt * 0.006));
+              intro.al.set(n.id, a + (tg - a) * Math.min(1, dt * 0.004));
               const s = intro.ring.get(n.id);
               const t = intro.targets.get(n.id);
               if (s && t) {
@@ -809,12 +764,11 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
                 n.y = s.y;
               }
             });
-            introEdgeK = Math.max(0, Math.min(1, (burst - 150) / 900));
+            introEdgeK = Math.max(0, Math.min(1, (burst - 250) / 1400));
             introFill = Math.min(1, c / INTRO_FILL);
-            const dialFadeStart = INTRO_BURST - 50;
-            introDial = c < dialFadeStart ? 1 : Math.max(0, 1 - (c - dialFadeStart) / 500);
+            introDial = c < 1700 ? 1 : Math.max(0, 1 - (c - 1700) / 700);
             // Hand back smoothly once the whole graph has formed (plus wall-clock safeguard)
-            if (c >= INTRO_END || (intro.targets.size > 0 && now - intro.born > 7000)) finishIntro();
+            if (c >= INTRO_END || (intro.targets.size > 0 && now - intro.born > 12000)) finishIntro();
           }
         }
         const introNow = introRef.current;

@@ -273,9 +273,42 @@ Provide production-ready code examples (e.g. cURL, Python, TypeScript) with corr
 # ── Workspace File Explorer & IDE Endpoints ───────────────────────────────
 
 ACTIVE_WORKSPACE_ROOT = WORKSPACE_ROOT
-RECENT_PROJECTS: List[str] = [
-    str(WORKSPACE_ROOT).replace("\\", "/")
-]
+
+
+def _seed_demo_and_recent_projects() -> List[str]:
+    """Ensure writable demo codebase exists inside gitignored test_codebases/ and pre-populate Recent Workspaces."""
+    recent: List[str] = [str(WORKSPACE_ROOT).replace("\\", "/")]
+    demo_dest = WORKSPACE_ROOT / "test_codebases" / "ecommerce_platform"
+
+    if not demo_dest.exists():
+        import shutil
+        from conformance.studio.service import normalize_target_path
+
+        try:
+            demo_src = normalize_target_path("ecommerce_platform", WORKSPACE_ROOT)
+            if demo_src.exists() and demo_src.is_dir() and demo_src.resolve() != demo_dest.resolve():
+                demo_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(
+                    demo_src,
+                    demo_dest,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git"),
+                )
+        except Exception:
+            pass
+
+    if demo_dest.exists() and demo_dest.is_dir():
+        recent.append(str(demo_dest).replace("\\", "/"))
+
+    imported_dir = WORKSPACE_ROOT / "test_codebases" / "imported"
+    if imported_dir.exists() and imported_dir.is_dir():
+        for entry in sorted(imported_dir.iterdir(), key=lambda p: p.name.lower()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                recent.append(str(entry).replace("\\", "/"))
+
+    return list(dict.fromkeys(recent))
+
+
+RECENT_PROJECTS: List[str] = _seed_demo_and_recent_projects()
 
 class OpenProjectRequest(BaseModel):
     path: str
@@ -1242,40 +1275,43 @@ You write clean, modular, production-ready code with rigorous adherence to best 
             yield f"data: {json_module.dumps({'flow_sequence': flow_result['flow_node_ids'], 'flow_steps': flow_result['steps']})}\n\n"
 
         # Determine if the model is a cloud model or local Ollama model
-        cloud_provider = None
-        for provider, models in CLOUD_MODELS.items():
-            if req.model in models:
-                cloud_provider = provider
-                break
-
         keys = load_api_keys()
+        fl_key, fl_url, fl_model, _ = _get_freellmapi_config(keys)
 
-        if cloud_provider and keys.get(cloud_provider):
-            api_key = keys[cloud_provider]
+        cloud_provider = None
+        cloud_model = req.model
+        if req.model.startswith("freellmapi:"):
+            cloud_provider = "freellmapi"
+            cloud_model = req.model.split(":", 1)[1].strip() or fl_model
+        else:
+            for provider, models in CLOUD_MODELS.items():
+                if req.model in models:
+                    cloud_provider = provider
+                    break
+
+        active_key = fl_key if cloud_provider == "freellmapi" else (keys.get(cloud_provider) if cloud_provider else None)
+
+        if cloud_provider and active_key:
+            api_key = active_key
             try:
-                if cloud_provider == "openai":
-                    async with httpx.AsyncClient() as client:
-                        async with client.stream(
-                            "POST",
-                            "https://api.openai.com/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                            json={"model": req.model, "messages": ollama_messages, "stream": True, "temperature": req.temperature or 0.2},
-                            timeout=60.0
-                        ) as response:
-                            if response.status_code != 200:
-                                err_body = (await response.aread()).decode("utf-8", errors="replace")
-                                yield f"data: {json_module.dumps({'error': f'OpenAI API Error ({response.status_code}): {err_body}'})}\n\n"
-                                return
-                            async for line in response.aiter_lines():
-                                if line.startswith("data: ") and line.strip() != "data: [DONE]":
-                                    try:
-                                        chunk = json_module.loads(line[6:])
-                                        token = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                                        if token:
-                                            yield f"data: {json_module.dumps({'token': token})}\n\n"
-                                    except (json_module.JSONDecodeError, IndexError):
-                                        continue
-                            yield f"data: {json_module.dumps({'done': True})}\n\n"
+                if cloud_provider in ("openai", "freellmapi"):
+                    endpoint = (
+                        f"{fl_url}/chat/completions"
+                        if cloud_provider == "freellmapi"
+                        else "https://api.openai.com/v1/chat/completions"
+                    )
+                    label = "FreeLLMAPI" if cloud_provider == "freellmapi" else "OpenAI"
+                    timeout_s = 90.0 if cloud_provider == "freellmapi" else 60.0
+                    async for event_chunk in _stream_openai_compatible(
+                        endpoint=endpoint,
+                        api_key=api_key,
+                        model=cloud_model,
+                        messages=ollama_messages,
+                        temperature=req.temperature or 0.2,
+                        provider_label=label,
+                        timeout_s=timeout_s,
+                    ):
+                        yield event_chunk
 
                 elif cloud_provider == "anthropic":
                     async with httpx.AsyncClient() as client:
@@ -1407,7 +1443,80 @@ def apply_agent_edit(req: FileContentRequest):
 
 # ── Cloud LLM API Key Management ──────────────────────────────────────────
 
+from urllib.parse import urlsplit, urlunsplit
+
 API_KEYS_FILE = Path("/app/data/api_keys.json") if os.path.exists("/app") else Path(os.path.expanduser("~/.archon_api_keys.json"))
+DEFAULT_FREELLMAPI_URL = (
+    "http://host.docker.internal:31415/v1"
+    if (os.path.exists("/.dockerenv") or os.path.exists("/app"))
+    else "http://127.0.0.1:31415/v1"
+)
+ALLOWED_CLOUD_PROVIDERS = ["openai", "anthropic", "gemini", "freellmapi"]
+
+
+def _normalize_freellmapi_url(raw: Optional[str] = None) -> str:
+    cleaned = (raw or "").strip().rstrip("/")
+    if not cleaned:
+        return DEFAULT_FREELLMAPI_URL
+    for suffix in ("/chat/completions", "/models"):
+        if cleaned.endswith(suffix):
+            cleaned = cleaned[: -len(suffix)].rstrip("/")
+    parsed = urlsplit(cleaned if "://" in cleaned else f"http://{cleaned}")
+    host = parsed.hostname or ""
+    in_docker = os.path.exists("/.dockerenv") or os.path.exists("/app")
+    if in_docker and host in ("localhost", "127.0.0.1"):
+        port_part = f":{parsed.port}" if parsed.port else ""
+        netloc = f"host.docker.internal{port_part}"
+    else:
+        netloc = parsed.netloc
+    path = parsed.path.rstrip("/") or "/v1"
+    return urlunsplit((parsed.scheme or "http", netloc, path, "", "")).rstrip("/")
+
+
+def _get_freellmapi_config(keys: Optional[dict] = None) -> tuple[str, str, str, bool]:
+    data = keys if keys is not None else load_api_keys()
+    ide_key = str(data.get("freellmapi") or "").strip()
+    env_key = (os.getenv("FREELLMAPI_API_KEY") or "").strip()
+    from_env = bool(not ide_key and env_key)
+    api_key = ide_key or env_key
+    raw_url = str(data.get("freellmapi_base_url") or os.getenv("FREELLMAPI_BASE_URL") or "").strip()
+    model = str(data.get("freellmapi_model") or os.getenv("FREELLMAPI_MODEL") or "auto").strip() or "auto"
+    return api_key, _normalize_freellmapi_url(raw_url), model, from_env
+
+
+async def _stream_openai_compatible(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    messages: list,
+    temperature: float,
+    provider_label: str,
+    timeout_s: float = 60.0,
+):
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "POST",
+            endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": messages, "stream": True, "temperature": temperature},
+            timeout=timeout_s,
+        ) as response:
+            if response.status_code != 200:
+                err_body = (await response.aread()).decode("utf-8", errors="replace")
+                yield f"data: {json_module.dumps({'error': f'{provider_label} API Error ({response.status_code}): {err_body}'})}\n\n"
+                return
+            async for line in response.aiter_lines():
+                if line.startswith("data: ") and line.strip() != "data: [DONE]":
+                    try:
+                        chunk = json_module.loads(line[6:])
+                        choices = chunk.get("choices") or []
+                        token = (choices[0].get("delta", {}) if choices else {}).get("content", "")
+                        if token:
+                            yield f"data: {json_module.dumps({'token': token})}\n\n"
+                    except (json_module.JSONDecodeError, IndexError):
+                        continue
+            yield f"data: {json_module.dumps({'done': True})}\n\n"
+
 
 def load_api_keys() -> dict:
     if API_KEYS_FILE.exists():
@@ -1422,8 +1531,10 @@ def save_api_keys(keys: dict):
     API_KEYS_FILE.write_text(json_module.dumps(keys, indent=2), encoding="utf-8")
 
 class ApiKeyRequest(BaseModel):
-    provider: str  # "openai", "anthropic", "gemini"
-    api_key: str
+    provider: str  # "openai", "anthropic", "gemini", "freellmapi"
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
 
 class ApiKeyClearRequest(BaseModel):
     provider: str
@@ -1443,28 +1554,69 @@ CLOUD_MODELS = {
     ]
 }
 
+
+def _mask_key(val: str) -> str:
+    if not val:
+        return ""
+    if len(val) > 10:
+        return val[:6] + "..." + val[-4:]
+    return "***"
+
+
 @app.get("/api/cloud/keys")
 def get_cloud_keys():
     """Returns which providers have API keys configured (without exposing key values)."""
     keys = load_api_keys()
+    fl_key, fl_url, fl_model, fl_from_env = _get_freellmapi_config(keys)
+    providers = {
+        provider: {
+            "configured": bool(keys.get(provider)),
+            "masked_key": _mask_key(str(keys.get(provider) or "")) if len(str(keys.get(provider) or "")) > 10 else "",
+        }
+        for provider in ["openai", "anthropic", "gemini"]
+    }
+    providers["freellmapi"] = {
+        "configured": bool(fl_key),
+        "masked_key": _mask_key(fl_key),
+        "base_url": fl_url,
+        "model": fl_model,
+        "source": "env" if fl_from_env else ("ide" if fl_key else ""),
+    }
     return {
-        "providers": {
-            provider: {
-                "configured": bool(keys.get(provider)),
-                "masked_key": (keys[provider][:6] + "..." + keys[provider][-4:]) if keys.get(provider) and len(keys[provider]) > 10 else ""
-            }
-            for provider in ["openai", "anthropic", "gemini"]
-        },
-        "cloud_models": CLOUD_MODELS
+        "providers": providers,
+        "cloud_models": CLOUD_MODELS,
     }
 
 @app.post("/api/cloud/keys")
 def set_cloud_key(req: ApiKeyRequest):
-    """Stores an API key for a cloud LLM provider persistently."""
-    if req.provider not in ["openai", "anthropic", "gemini"]:
+    """Stores an API key (and optional FreeLLMAPI endpoint/model settings) persistently."""
+    if req.provider not in ALLOWED_CLOUD_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {req.provider}")
     keys = load_api_keys()
-    keys[req.provider] = req.api_key.strip()
+    raw_key = (req.api_key or "").strip()
+    if req.provider == "freellmapi":
+        existing = (keys.get("freellmapi") or os.getenv("FREELLMAPI_API_KEY") or "").strip()
+        if not raw_key and not existing:
+            raise HTTPException(status_code=400, detail="API key is required for freellmapi")
+        if raw_key:
+            keys["freellmapi"] = raw_key
+        if req.base_url is not None:
+            if req.base_url.strip():
+                keys["freellmapi_base_url"] = _normalize_freellmapi_url(req.base_url)
+            else:
+                keys.pop("freellmapi_base_url", None)
+        if req.model is not None:
+            if req.model.strip():
+                keys["freellmapi_model"] = req.model.strip()
+            else:
+                keys.pop("freellmapi_model", None)
+        save_api_keys(keys)
+        _, fl_url, fl_model, _ = _get_freellmapi_config(keys)
+        return {"status": "success", "provider": req.provider, "base_url": fl_url, "model": fl_model}
+
+    if not raw_key:
+        raise HTTPException(status_code=400, detail=f"API key is required for {req.provider}")
+    keys[req.provider] = raw_key
     save_api_keys(keys)
     return {"status": "success", "provider": req.provider}
 
@@ -1472,7 +1624,11 @@ def set_cloud_key(req: ApiKeyRequest):
 def clear_cloud_key(req: ApiKeyClearRequest):
     """Removes a stored API key for a cloud LLM provider."""
     keys = load_api_keys()
-    if req.provider in keys:
+    if req.provider == "freellmapi":
+        for k in ("freellmapi", "freellmapi_base_url", "freellmapi_model"):
+            keys.pop(k, None)
+        save_api_keys(keys)
+    elif req.provider in keys:
         del keys[req.provider]
         save_api_keys(keys)
     return {"status": "cleared", "provider": req.provider}
@@ -1495,12 +1651,19 @@ async def get_models_extended():
         if keys.get(provider):
             cloud_models_available.extend(models)
 
+    fl_key, _, fl_model, _ = _get_freellmapi_config(keys)
+    if fl_key:
+        for candidate in (f"freellmapi:{fl_model}", "freellmapi:auto", "freellmapi:auto:smart", "freellmapi:auto:fast"):
+            if candidate not in cloud_models_available:
+                cloud_models_available.append(candidate)
+
     return {"models": local_models + cloud_models_available}
 
 class ApiKeyTestRequest(BaseModel):
     provider: str
     api_key: Optional[str] = None
     model: Optional[str] = None
+    base_url: Optional[str] = None
 
 @app.post("/api/cloud/keys/test")
 async def test_cloud_key(req: ApiKeyTestRequest):
@@ -1508,22 +1671,39 @@ async def test_cloud_key(req: ApiKeyTestRequest):
     import time
     keys = load_api_keys()
     api_key = (req.api_key or keys.get(req.provider, "")).strip()
+    if req.provider == "freellmapi":
+        fl_key, fl_url, fl_model, _ = _get_freellmapi_config(keys)
+        api_key = (req.api_key or fl_key).strip()
+        base_url = _normalize_freellmapi_url(req.base_url or fl_url)
+        test_model = (req.model or fl_model or "auto").strip()
+    else:
+        base_url = ""
+        test_model = ""
     if not api_key:
         return {"status": "error", "message": f"No API key configured for {req.provider}"}
 
     start_time = time.time()
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
-            if req.provider == "openai":
-                test_model = req.model or "gpt-4.1-mini"
+            if req.provider in ("openai", "freellmapi"):
+                if req.provider == "openai":
+                    test_model = req.model or "gpt-4.1-mini"
+                    endpoint = "https://api.openai.com/v1/chat/completions"
+                else:
+                    endpoint = f"{base_url}/chat/completions"
                 res = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    endpoint,
                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"model": test_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5}
+                    json={"model": test_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 16}
                 )
                 latency = int((time.time() - start_time) * 1000)
                 if res.status_code == 200:
-                    return {"status": "ok", "latency_ms": latency, "provider": "openai", "model": test_model}
+                    routed_model = test_model
+                    try:
+                        routed_model = res.json().get("model") or test_model
+                    except Exception:
+                        pass
+                    return {"status": "ok", "latency_ms": latency, "provider": req.provider, "model": routed_model}
                 else:
                     return {"status": "error", "message": f"HTTP {res.status_code}: {res.text[:200]}"}
 

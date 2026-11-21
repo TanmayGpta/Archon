@@ -3,6 +3,7 @@ Runs dependency extraction, cycle analysis, layer classification, and architectu
 Produces payload for the 60 FPS HTML5 Canvas engine and Next.js HUD.
 """
 
+import ast
 import os
 import sys
 import math
@@ -29,8 +30,25 @@ LAYER_COLORS = {
     "Observability": "#a7d8e0",   # Luminous ice cyan (Person)
     "External": "#ff5c2b",        # Vibrant neon orange (Fund/Weapon)
     "Stdlib": "#e2e2da",          # Diamond ivory platinum (Contract/Deal)
+    "CompositionRoot": "#9ca3af", # Neutral metallic silver (Startup composition root)
     "Unclassified": "#8b8b86"     # Muted gray (Aggregate)
 }
+
+
+def is_composition_root_file(file_path: Path, rel_path: str) -> bool:
+    """True when `rel_path` is a thin process startup entrypoint (`main.py` wiring outer layers)."""
+    if Path(rel_path).name != "main.py" or not file_path.exists():
+        return False
+    try:
+        src = file_path.read_text(encoding="utf-8", errors="ignore")
+        non_empty = [ln for ln in src.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+        if len(non_empty) > 45:
+            return False
+        tree = ast.parse(src)
+        has_defs = any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for n in tree.body)
+        return ("__main__" in src) and not has_defs
+    except Exception:
+        return False
 
 def match_layer_by_patterns(module_name: str, layers_def: List[Dict[str, Any]]) -> Optional[str]:
     """Matches a module name against blueprint regex/glob patterns."""
@@ -233,7 +251,8 @@ class ConformanceService:
         blueprint_id: Optional[str] = "archon_architecture",
         custom_ruleset: Optional[Dict[str, Any]] = None,
         include_external: bool = True,
-        classifier: str = "heuristic"
+        classifier: str = "heuristic",
+        persist_session: bool = True,
     ) -> Dict[str, Any]:
         """Runs an end-to-end architectural conformance audit.
         classifier: "heuristic" (keyword rules), "kev-precise" or "kev-efficient" (conformance/kev_classifier.py).
@@ -311,6 +330,22 @@ class ConformanceService:
                 else:
                     unmatched.append(node)
 
+        # Build relative file paths for IDE jump-to-line (pruning heavy build/cache dirs)
+        module_to_file: Dict[str, str] = {
+            mod: rel for mod, rel, _ in iter_python_files(str(scan_dir))
+        }
+
+        # Exempt pure startup composition roots (e.g. thin root main.py) before AI/heuristic layer assignment.
+        remaining_unmatched: List[str] = []
+        for node in unmatched:
+            rel = module_to_file.get(node)
+            if rel and is_composition_root_file(scan_dir / rel, rel):
+                mapping[node] = "CompositionRoot"
+                mapped_by[node] = "composition_root"
+            else:
+                remaining_unmatched.append(node)
+        unmatched = remaining_unmatched
+
         classifier_info = {"requested": classifier, "used": "heuristic", "detail": ""}
         if classifier.startswith("kev") and unmatched:
             from conformance.classifier_agent import classify_modules_with_ruleset
@@ -326,10 +361,6 @@ class ConformanceService:
                         mapped_by[node] = "classifier"
             except Exception as e:
                 classifier_info["detail"] = f"{classifier} and its Groq fallback both failed ({e}); used keyword heuristic."
-        # Build relative file paths for IDE jump-to-line (pruning heavy build/cache dirs)
-        module_to_file: Dict[str, str] = {
-            mod: rel for mod, rel, _ in iter_python_files(str(scan_dir))
-        }
 
         default_layer = next((l["name"] for l in layers_def if l["name"].lower() == "application"),
                              layers_def[0]["name"] if layers_def else "Application")
@@ -457,6 +488,7 @@ class ConformanceService:
                 "layers": [l["name"] for l in layers_def],
                 "allowed": [[r["source_layer"], r["target_layer"]] for r in ruleset.get("rules", []) if r.get("type") == "allow"]
             },
+            "customRuleset": ruleset if blueprint.get("id") == "custom" else None,
             "metrics": {
                 "healthScore": round(report.score, 1),
                 "coverage": coverage,
@@ -484,5 +516,6 @@ class ConformanceService:
             ]
         }
         # Persist session to disk so service restarts or IDE/conformance tab navigation share the state
-        save_session(result)
+        if persist_session:
+            save_session(result)
         return result
