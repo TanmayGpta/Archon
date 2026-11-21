@@ -1,10 +1,54 @@
 "use client";
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Icons, Glyph } from '../../components/Icons';
-import { FileTree, InlineNameInput, type InlineNameEdit } from './FileTree';
+import { FileTree, InlineNameInput, type InlineNameEdit, type TreeNode, type TreeProblemFlag } from './FileTree';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
 import { ErrorState, Skeleton } from '../../components/StateViews';
+import type { PendingHealPatch } from './types';
+import { normPath, pathHits } from './violationUtils';
+
+function mergePendingCreateNodes(tree: TreeNode[], pending: PendingHealPatch[]): TreeNode[] {
+  const creates = (pending || []).filter(p => p.status === 'pending' && p.operation === 'create');
+  if (!creates.length) return tree;
+
+  const cloneNodes = (list: TreeNode[]): TreeNode[] =>
+    list.map(n => (n.children ? { ...n, children: cloneNodes(n.children) } : { ...n }));
+  const rootList = cloneNodes(tree);
+
+  const sortNodes = (list: TreeNode[]) =>
+    list.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1));
+
+  for (const patch of creates) {
+    const parts = normPath(patch.path).split('/').filter(Boolean);
+    if (!parts.length) continue;
+    let level = rootList;
+    let prefix = '';
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i];
+      prefix = prefix ? `${prefix}/${seg}` : seg;
+      const isLeaf = i === parts.length - 1;
+      if (isLeaf) {
+        const exists = level.some(n => n.type === 'file' && (n.name === seg || pathHits(n.path, prefix)));
+        if (!exists) {
+          level.push({ name: seg, path: prefix, type: 'file', virtual: true });
+          sortNodes(level);
+        }
+      } else {
+        let dir = level.find(n => n.type === 'directory' && (n.name === seg || pathHits(n.path, prefix)));
+        if (!dir) {
+          dir = { name: seg, path: prefix, type: 'directory', children: [], virtual: true };
+          level.push(dir);
+          sortNodes(level);
+        } else if (!dir.children) {
+          dir.children = [];
+        }
+        level = dir.children!;
+      }
+    }
+  }
+  return rootList;
+}
 
 /* -- Activity bar and file explorer - */
 export function Sidebar() {
@@ -29,6 +73,8 @@ export function Sidebar() {
     inlineCreateName,
     inlineCreateState,
     loadingTree,
+    rightPanelTab,
+    setRightPanelTab,
     setActiveActivity,
     setFilterQuery,
     setInlineCreateName,
@@ -40,7 +86,62 @@ export function Sidebar() {
     setShowOpenProjectModal,
     setShowQuickOpen,
     workspaceTree,
+    violationMarkers,
+    pendingHealPatches,
+    setDismissedHealPreviewPaths,
+    openScratchTab,
   } = useIde();
+
+  const displayTree = useMemo(
+    () => mergePendingCreateNodes(workspaceTree, pendingHealPatches),
+    [workspaceTree, pendingHealPatches],
+  );
+
+  const flagPath = useCallback((path: string, isDir: boolean): TreeProblemFlag | null => {
+    const patches = pendingHealPatches || [];
+    const appliedPatches = patches.filter(p => p.status === 'applied');
+    const pendingCreates = patches.filter(p => p.status === 'pending' && p.operation === 'create');
+    const healHits = appliedPatches.filter(p => isDir
+      ? normPath(p.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')))
+      : pathHits(path, p.path));
+    const pendingCreateHits = !isDir ? pendingCreates.filter(p => pathHits(path, p.path)) : [];
+    const markerHits = (violationMarkers || []).filter(m => {
+      if (isDir) {
+        if (appliedPatches.some(hp => pathHits(hp.path, m.path))) return false;
+        return normPath(m.path).split('/').slice(0, -1).some((_, i, a) => pathHits(path, a.slice(0, i + 1).join('/')));
+      }
+      return pathHits(path, m.path);
+    });
+    if (!markerHits.length && !healHits.length && !pendingCreateHits.length) return null;
+
+    const hasHeal = healHits.length > 0;
+    const hasPendingCreate = !hasHeal && pendingCreateHits.length > 0;
+    // Accepted/healed files show only the green dot; unaccepted pending files keep their violation state until accepted.
+    const hasViolation = isDir || !hasHeal ? markerHits.some(m => m.kind !== 'cycle') : false;
+    const hasCycle = isDir || !hasHeal ? markerHits.some(m => m.kind === 'cycle') : false;
+    const healKind = !isDir && healHits.some(h => h.operation === 'create') ? 'create' : 'modify';
+    const vCount = hasViolation ? markerHits.filter(m => m.kind !== 'cycle').length : 0;
+    const cCount = hasCycle ? markerHits.filter(m => m.kind === 'cycle').length : 0;
+    const summaryParts = [
+      hasHeal ? `${healHits.length} healed file(s)` : '',
+      vCount > 0 ? `${vCount} violation(s)` : '',
+      cCount > 0 ? `${cCount} cycle hop(s)` : '',
+    ].filter(Boolean);
+    return {
+      hasViolation,
+      hasCycle,
+      hasHeal,
+      hasPendingCreate,
+      healKind,
+      tooltip: isDir
+        ? `${summaryParts.join(', ')} inside`
+        : [
+            ...healHits.map(h => `Healed & saved: ${h.summary || h.operation}`),
+            ...pendingCreateHits.map(h => `Pending new file preview (not accepted yet): ${h.summary || h.path}`),
+            ...(!hasHeal ? markerHits.map(m => `${m.line ? `L${m.line}: ` : ''}${m.message}`) : []),
+          ].join('\n'),
+    };
+  }, [pendingHealPatches, violationMarkers]);
   const inlineEdit: InlineNameEdit | null = renameTarget
     ? {
         mode: 'rename',
@@ -100,10 +201,13 @@ export function Sidebar() {
             <Icons.Search />
           </button>
           <button
-            onClick={() => setActiveActivity('copilot')}
-            title="Archon Agent Chat" aria-label="Archon Agent Chat"
+            onClick={() => {
+              setActiveActivity('copilot');
+              setRightPanelTab('agent');
+            }}
+            title="Archon Agent Chat (Right Panel)" aria-label="Archon Agent Chat (Right Panel)"
             className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
-              activeActivity === 'copilot'
+              activeActivity === 'copilot' || rightPanelTab === 'agent'
                 ? 'bg-raised text-accent-fg border border-accent/30'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
             }`}
@@ -111,15 +215,18 @@ export function Sidebar() {
             <Icons.ArchonAI />
           </button>
           <button
-            onClick={() => setActiveActivity('diagnostics')}
-            title="Health & Diagnostics" aria-label="Health & Diagnostics"
+            onClick={() => {
+              setActiveActivity('diagnostics');
+              setRightPanelTab('conformance');
+            }}
+            title="Conformance Violations (Right Panel)" aria-label="Conformance Violations (Right Panel)"
             className={`w-8 h-8 rounded-control flex items-center justify-center transition-all cursor-pointer ${
-              activeActivity === 'diagnostics'
-                ? 'bg-raised text-accent-fg border border-accent/30'
+              activeActivity === 'diagnostics' || rightPanelTab === 'conformance'
+                ? 'bg-raised text-[#e8ff00] border border-[#e8ff00]/40 shadow-[0_0_12px_rgba(232,255,0,0.15)]'
                 : 'text-fg-subtle hover:text-fg-soft hover:bg-surface'
             }`}
           >
-            <Icons.Diagnostics />
+            <Icons.Conformance />
           </button>
         </div>
 
@@ -128,7 +235,6 @@ export function Sidebar() {
 
       {/* ── 2. Sidebar (Explorer / Search, resizable) ──────────────── */}
       <div style={{ width: panel.size }} className="bg-surface border-r border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
-        
         {/* Project Title Bar & Explorer Actions Toolbar */}
         <div className="px-3 py-2 border-b border-line-subtle flex justify-between items-center bg-canvas">
           <div className="flex items-center gap-1.5 truncate">
@@ -230,16 +336,27 @@ export function Sidebar() {
             <ErrorState compact title="Couldn't load the workspace" detail={workspaceError} onRetry={fetchProjectsAndTree} />
           ) : loadingTree && workspaceTree.length === 0 ? (
             <Skeleton rows={9} indent label="Loading files" />
-          ) : workspaceTree.length > 0 ? (
+          ) : displayTree.length > 0 ? (
             <FileTree
-                nodes={workspaceTree}
+                nodes={displayTree}
                 activePath={activeTabPath}
                 inlineEdit={inlineEdit}
-                onSelectFile={handleOpenFile}
+                onSelectFile={p => {
+                  setDismissedHealPreviewPaths(prev => prev.filter(x => !pathHits(x, p)));
+                  const pendingCreate = (pendingHealPatches || []).find(
+                    h => h.status === 'pending' && h.operation === 'create' && pathHits(h.path, p),
+                  );
+                  if (pendingCreate) {
+                    openScratchTab(pendingCreate.path, pendingCreate.name, pendingCreate.before);
+                    return;
+                  }
+                  void handleOpenFile(p);
+                }}
                 onDelete={handleDeleteItem}
                 onRename={handleRenameItem}
                 onNewFileInDir={p => startCreate(p, false)}
                 onNewFolderInDir={p => startCreate(p, true)}
+                flag={flagPath}
               />
           ) : (
             <div className="p-3 flex flex-col gap-2 text-xs text-fg-muted">

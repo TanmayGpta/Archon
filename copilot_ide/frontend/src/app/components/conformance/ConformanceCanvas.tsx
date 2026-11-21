@@ -2,10 +2,20 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 
-// The intro plays every time the studio opens (click or Esc skips it; reduced motion never plays it)
-import { forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY, SimulationNodeDatum } from 'd3-force';
 import { ConformanceNode, ConformanceEdge, LayoutMode } from './types';
 import { prefersReducedMotion } from '@/lib/motion';
+import {
+  LAYER_ANCHORS,
+  createForceLayout,
+  hashString,
+  nodeScreenR,
+  type ForceLayoutOutput,
+} from './forceLayout';
+
+// The intro plays once per page load (click or Esc skips it; reduced motion never plays it).
+// Module memory survives client-side tab switches but resets on a hard refresh.
+let introPlayed = false;
+export const hasIntroPlayed = () => introPlayed;
 
 interface ConformanceCanvasProps {
   nodes: ConformanceNode[];
@@ -62,24 +72,8 @@ function hexA(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Deterministic hash for subtle curve offset
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
-
 function easeCubicInOut(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// Node radius in *screen* pixels (bl00d.money: 1.6 + sqrt(deg) * 2.1), so hubs read as
-// big discs and leaves stay visible at the default zoom instead of shrinking to 1px.
-function nodeScreenR(deg: number): number {
-  return Math.min(17, 2.4 + Math.sqrt(Math.max(0, deg)) * 2.3);
 }
 
 // Per-layer shrink for the part of the radius above "small" (dense layers would otherwise crowd)
@@ -297,10 +291,10 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const dragOriginRef = useRef({ x: 0, y: 0 });
   const pendingEdgeRef = useRef<ConformanceEdge | null>(null);
-  // bl00d.money intro: plays once per mount, full screen from the very first paint (it also
+  // bl00d.money intro: plays once per page load, full screen from the very first paint (it also
   // covers the audit fetch). Node positions during the intro are derived every frame from these
   // per-id maps, so the graph data reloading mid-intro can't knock nodes off the dial.
-  const [introActive, setIntroActive] = useState(true);
+  const [introActive, setIntroActive] = useState(() => !introPlayed);
   const introRef = useRef<{
     placed: boolean; // ring laid out for the current node set
     started: boolean; // dial fill has begun (clock running)
@@ -311,15 +305,13 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     spin: number; // waiting-dial rotation
     cx: number; // ring centre (world)
     cy: number;
-    dialCam: { x: number; y: number; zoom: number } | null; // camera while the dial fills
-    finalCam: { x: number; y: number; zoom: number } | null; // framing the burst lands on
     targets: Map<string, { x: number; y: number }>;
     ring: Map<string, { x: number; y: number }>;
     at: Map<string, number>; // when each bead lights up on the dial
     dl: Map<string, number>; // per-node burst delay (by rank)
     al: Map<string, number>; // per-node alpha
-  } | null>({
-    placed: false, started: false, clock: 0, last: 0, wait: 0, born: 0, spin: 0, cx: 0, cy: 0, dialCam: null, finalCam: null,
+  } | null>(introPlayed ? null : {
+    placed: false, started: false, clock: 0, last: 0, wait: 0, born: 0, spin: 0, cx: 0, cy: 0,
     targets: new Map(), ring: new Map(), at: new Map(), dl: new Map(), al: new Map()
   });
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -331,8 +323,19 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   }, []);
   const hoverArmedRef = useRef(true);
   const hoverOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const handBackPendingRef = useRef(false);
+  const fullSizeRef = useRef({ w: 0, h: 0 }); // canvas size while full screen
 
-  // End (or skip) the intro: snap to the final layout without any DOM jumping or canvas buffer wipes
+  // Give the screen back to the studio (canvas returns to its slot)
+  const handBack = useCallback(() => {
+    if (!handBackPendingRef.current && wrapperRef.current?.classList.contains('fixed')) {
+      handBackPendingRef.current = true;
+      setIntroActive(false);
+      onIntroChangeRef.current?.(false);
+    }
+  }, []);
+
+  // End (or skip) the intro: snap to the final layout
   const finishIntro = useCallback(() => {
     const intro = introRef.current;
     if (!intro) return;
@@ -340,16 +343,31 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       const t = intro.targets.get(n.id);
       if (t) { n.x = t.x; n.y = t.y; }
     });
-    if (intro.finalCam) {
-      cameraRef.current = { ...intro.finalCam };
-    }
-    cameraTweenRef.current = null;
     introRef.current = null;
+    introPlayed = true;
     introEndedAtRef.current = performance.now();
     hoverArmedRef.current = false;
-    setIntroActive(false);
-    onIntroChangeRef.current?.(false);
-  }, []);
+    handBack();
+  }, [handBack]);
+
+  // Canvas just shrank from full screen into its slot: shift the camera by the slot's offset
+  // so every node stays at the same pixel, and redraw before paint so nothing visibly moves
+  useLayoutEffect(() => {
+    if (introActive || !handBackPendingRef.current) return;
+    handBackPendingRef.current = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const cam = cameraRef.current;
+    cameraTweenRef.current = null;
+    cameraRef.current = {
+      ...cam,
+      x: cam.x + fullSizeRef.current.w / 2 - (r.left + r.width / 2),
+      y: cam.y + fullSizeRef.current.h / 2 - (r.top + r.height / 2)
+    };
+    if (animFrameIdRef.current !== null) cancelAnimationFrame(animFrameIdRef.current);
+    renderRef.current?.();
+  }, [introActive]);
 
   // Reduced motion: end the intro before the first paint. Otherwise a click or Esc skips it.
   useLayoutEffect(() => {
@@ -438,21 +456,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       }
     });
 
-    // Layer anchor regions for natural architectural constellation
-    const layerAnchors: Record<string, { x: number; y: number; r: number }> = {
-      Domain: { x: -70, y: 40, r: 160 },
-      Application: { x: 220, y: -120, r: 240 },
-      Presentation: { x: -260, y: -240, r: 180 },
-      Infrastructure: { x: 240, y: 220, r: 190 },
-      Observability: { x: -260, y: 240, r: 150 },
-      External: { x: 400, y: 40, r: 210 },
-      Stdlib: { x: -400, y: -50, r: 210 },
-      Unclassified: { x: 0, y: -340, r: 120 }
-    };
-
     const goldenAngle = 2.39996323;
     const newSimNodes = sortedNodes.map((n, i) => {
-      const anc = layerAnchors[n.layer] || { x: 0, y: 0, r: 140 };
+      const anc = LAYER_ANCHORS[n.layer] || { x: 0, y: 0, r: 140 };
       const h = Math.abs(hashString(n.id));
       const angle = i * goldenAngle + ((h % 17) - 8) * 0.04;
       // Scatter low-degree leaf satellites further out organically
@@ -471,9 +477,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       };
     });
 
-    const nMap = new Map<string, ConformanceNode>();
-    newSimNodes.forEach(n => nMap.set(n.id, n));
-
     // Intro playing: hand the node set over now so the beads can start filling the dial while
     // the layout below settles (the intro positions every node itself; edges stay hidden)
     if (introRef.current) {
@@ -481,96 +484,26 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       simEdgesRef.current = visibleEdges;
       topNodeIdRef.current = newSimNodes[0]?.id ?? null;
       introRef.current.targets = new Map();
-      introRef.current.finalCam = null;
       introRef.current.placed = false;
       introRef.current.wait = 0;
     }
 
-    // ── bl00d.money-style force layout ──
-    // Every edge gets an invisible "bend" node (A → F → B). F is pushed around by the
-    // same forces as real nodes, so each filament bows naturally around its neighbours
-    // and the bend points fill the space between hubs instead of rigid straight chords.
-    type SimPt = SimulationNodeDatum & { kind: 'e' | 'f'; node?: ConformanceNode };
-    const realPts = new Map<string, SimPt>();
-    newSimNodes.forEach(n => realPts.set(n.id, { kind: 'e', node: n, x: n.x, y: n.y }));
-    const bendPts = new Map<string, SimPt>();
-    const simLinks: { source: SimPt; target: SimPt; d: number }[] = [];
-    visibleEdges.forEach(e => {
-      const s = realPts.get(e.source);
-      const t = realPts.get(e.target);
-      if (!s || !t || s === t) return;
-      const h = Math.abs(hashString(e.id));
-      const f: SimPt = {
-        kind: 'f',
-        x: (s.x! + t.x!) / 2 + ((h % 21) - 10),
-        y: (s.y! + t.y!) / 2 + (((h >> 5) % 21) - 10)
-      };
-      bendPts.set(e.id, f);
-      const half = (s.node!.totalDegree < 6 || t.node!.totalDegree < 6) ? 22 : 34;
-      simLinks.push({ source: s, target: f, d: half }, { source: f, target: t, d: half });
-    });
-
-    const anchorOf = (p: SimPt) => (p.node ? layerAnchors[p.node.layer] : undefined) || { x: 0, y: 0, r: 0 };
-    const sim = forceSimulation<SimPt>([...realPts.values(), ...bendPts.values()])
-      .force('link', forceLink<SimPt, { source: SimPt; target: SimPt; d: number }>(simLinks).distance(l => l.d).strength(0.35))
-      .force('charge', forceManyBody<SimPt>()
-        .strength(p => p.kind === 'e' ? -110 - Math.min(40, p.node!.totalDegree) * 7 : -7)
-        .distanceMax(480))
-      .force('collide', forceCollide<SimPt>(p => p.kind === 'e' ? nodeScreenR(p.node!.totalDegree) + 4 : 1.5))
-      .force('x', forceX<SimPt>(p => anchorOf(p).x * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
-      .force('y', forceY<SimPt>(p => anchorOf(p).y * 0.35).strength(p => p.kind === 'e' ? 0.045 : 0.01))
-      .stop();
-    // Same 320 ticks as before, spread across frames (~10ms per frame) so the main thread
-    // never blocks: the intro dial keeps animating while the layout settles.
-    let cancelled = false;
-    let rafId = 0;
-    let ticks = 0;
-    const settle = () => {
+    const applySettledLayout = (output: ForceLayoutOutput) => {
+      const netPositions = new Map<string, { x: number; y: number }>(output.positions);
       newSimNodes.forEach(n => {
-        const p = realPts.get(n.id)!;
-        n.x = p.x!;
-        n.y = p.y!;
-      });
-
-      // Recenter around origin (0, 0)
-      let meanX = 0, meanY = 0;
-      newSimNodes.forEach(n => { meanX += n.x!; meanY += n.y!; });
-      meanX /= Math.max(1, newSimNodes.length);
-      meanY /= Math.max(1, newSimNodes.length);
-
-      newSimNodes.forEach(n => {
-        n.x! -= meanX;
-        n.y! -= meanY;
+        const pos = netPositions.get(n.id);
+        if (pos) {
+          n.x = pos.x;
+          n.y = pos.y;
+        }
         n.vx = 0;
         n.vy = 0;
       });
-
-      // Save settled network positions
-      const netPositions = new Map<string, { x: number; y: number }>();
-      newSimNodes.forEach(n => {
-        netPositions.set(n.id, { x: n.x!, y: n.y! });
-      });
       networkPositionsRef.current = netPositions;
+      edgeCurvesRef.current = new Map(output.curves);
 
-      // Store each bend point in the edge's local frame (fraction of length along / across the
-      // chord) so curves stay correct while nodes drift or tween into other layout modes.
-      const curvesMap = new Map<string, { along: number; perp: number }>();
-      visibleEdges.forEach(e => {
-        const s = nMap.get(e.source);
-        const t = nMap.get(e.target);
-        const f = bendPts.get(e.id);
-        if (!s || !t || !f) return;
-        const dx = t.x! - s.x!;
-        const dy = t.y! - s.y!;
-        const len2 = dx * dx + dy * dy || 1;
-        const ox = f.x! - meanX - (s.x! + t.x!) / 2;
-        const oy = f.y! - meanY - (s.y! + t.y!) / 2;
-        curvesMap.set(e.id, {
-          along: Math.max(-0.3, Math.min(0.3, (ox * dx + oy * dy) / len2)),
-          perp: Math.max(-0.22, Math.min(0.22, (oy * dx - ox * dy) / len2))
-        });
-      });
-      edgeCurvesRef.current = curvesMap;
+      const nMap = new Map<string, ConformanceNode>();
+      newSimNodes.forEach(n => nMap.set(n.id, n));
 
       simNodesRef.current = newSimNodes;
       topNodeIdRef.current = newSimNodes.reduce<ConformanceNode | null>(
@@ -602,7 +535,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       // this node set on the next frame (it needs the camera)
       if (introRef.current) {
         introRef.current.targets = computeLayoutTargets(mode, newSimNodes, visibleEdges, netPositions, selectedNode);
-        introRef.current.finalCam = null;
         introRef.current.placed = false;
         introRef.current.wait = 0;
       }
@@ -612,15 +544,68 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         hasFittedInitialCameraRef.current = false;
       }
     };
-    const step = () => {
-      if (cancelled) return;
-      const t0 = performance.now();
-      while (ticks < 320 && performance.now() - t0 < 10) { sim.tick(); ticks++; }
-      if (ticks < 320) rafId = requestAnimationFrame(step);
-      else settle();
+
+    const layoutNodes = newSimNodes.map(n => ({
+      id: n.id,
+      layer: n.layer,
+      totalDegree: n.totalDegree,
+      x: n.x!,
+      y: n.y!,
+    }));
+    const layoutEdges = visibleEdges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+    }));
+
+    // Run d3-force off the main thread when Workers are available so the intro dial renders at native refresh rate
+    let cancelled = false;
+    let rafId = 0;
+    let worker: Worker | null = null;
+    const jobId = Math.floor(Math.random() * 1e9);
+
+    const startRafFallback = () => {
+      const sim = createForceLayout(layoutNodes, layoutEdges, 160);
+      const stepFrame = () => {
+        if (cancelled) return;
+        if (sim.step(6)) {
+          applySettledLayout(sim.finish());
+        } else {
+          rafId = requestAnimationFrame(stepFrame);
+        }
+      };
+      rafId = requestAnimationFrame(stepFrame);
     };
-    step();
-    return () => { cancelled = true; cancelAnimationFrame(rafId); };
+
+    try {
+      if (typeof Worker !== 'undefined') {
+        worker = new Worker(new URL('./forceLayout.worker.ts', import.meta.url));
+        worker.onmessage = (event: MessageEvent<{ id: number; output: ForceLayoutOutput }>) => {
+          if (cancelled || event.data?.id !== jobId) return;
+          worker?.terminate();
+          worker = null;
+          applySettledLayout(event.data.output);
+        };
+        worker.onerror = () => {
+          worker?.terminate();
+          worker = null;
+          if (!cancelled) startRafFallback();
+        };
+        worker.postMessage({ id: jobId, nodes: layoutNodes, edges: layoutEdges, ticks: 160 });
+      } else {
+        startRafFallback();
+      }
+    } catch {
+      worker?.terminate();
+      worker = null;
+      startRafFallback();
+    }
+
+    return () => {
+      cancelled = true;
+      worker?.terminate();
+      cancelAnimationFrame(rafId);
+    };
   }, [nodes, edges, filterLayers]);
 
   // Layout mode transition with smooth cubic easing (keeps camera position stable)
@@ -694,41 +679,54 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
         let introFill = 0;
         let introDial = 0;
         if (intro) {
-          const dt = intro.last ? Math.min(50, now - intro.last) : 0;
+          const dt = intro.last ? Math.min(1000, now - intro.last) : 0;
           intro.last = now;
           if (!intro.born) intro.born = now;
 
-          // Lay the dial out for the current node set: visually centered on screen
-          if (!intro.placed && currentNodes.length > 0 && cssWidth > 50) {
+          if (wrapperRef.current?.classList.contains('fixed')) fullSizeRef.current = { w: cssWidth, h: cssHeight };
+
+          // Lay the dial out for the current node set: first as soon as the nodes arrive (beads
+          // start filling right away, provisional camera), then again once the layout has settled
+          // with the real camera. Compare against documentElement clientWidth so scrollbars never stall isFull.
+          if (!intro.placed && currentNodes.length > 0) {
             intro.wait++;
-            if (intro.wait > 2) {
-              const canvasRect = canvas.getBoundingClientRect();
-              const screenCenterX = window.innerWidth / 2;
-              const screenCenterY = (window.innerHeight - 56) / 2 + 56;
-              const dialOffsetX = screenCenterX - (canvasRect.left + cssWidth / 2);
-              const dialOffsetY = screenCenterY - (canvasRect.top + cssHeight / 2);
-
-              const est = computeFitT(currentNodes, cssWidth, cssHeight, 75);
-              const cam0 = intro.started && intro.dialCam
-                ? intro.dialCam
-                : { x: dialOffsetX, y: dialOffsetY, zoom: est.zoom };
-
-              intro.dialCam = cam0;
-              cameraRef.current = { ...cam0 };
+            const vw = document.documentElement.clientWidth || window.innerWidth;
+            const vh = document.documentElement.clientHeight || window.innerHeight;
+            const isFull = cssWidth >= vw - 2 && cssHeight >= vh - 2;
+            if (isFull || intro.wait > 2) {
+              const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
+              // Frame the end state exactly as the default view of the canvas's slot in the
+              // studio would, expressed in full-screen coordinates, so the hand-back is seamless
+              const slot = wrapperRef.current?.classList.contains('fixed')
+                ? wrapperRef.current.parentElement?.getBoundingClientRect()
+                : undefined;
+              let cam0 = intro.targets.size > 0
+                ? computeFitT(fitPts, cssWidth, cssHeight, 75)
+                : { x: 0, y: 0, zoom: 1 };
+              if (intro.targets.size > 0 && slot && slot.width > 50 && slot.height > 50) {
+                const fit = computeFitT(fitPts, slot.width, slot.height, 75);
+                cam0 = {
+                  ...fit,
+                  x: fit.x + slot.left + slot.width / 2 - cssWidth / 2,
+                  y: fit.y + slot.top + slot.height / 2 - cssHeight / 2
+                };
+              }
+              cameraRef.current = cam0;
               cameraTweenRef.current = null;
               hasFittedInitialCameraRef.current = true;
-
-              // Ring centred on (0, 0) world, radius 20% of the short side
+              // Ring centred on screen, radius 20% of the short side (bl00d.money)
               const rw = (Math.min(cssWidth, cssHeight) * 0.2) / cam0.zoom;
-              intro.cx = 0;
-              intro.cy = 0;
+              const cx = -cam0.x / cam0.zoom;
+              const cy = -cam0.y / cam0.zoom;
+              intro.cx = cx;
+              intro.cy = cy;
 
               const layerIdx = (l: string) => { const i = INTRO_LAYER_ORDER.indexOf(l); return i < 0 ? 99 : i; };
               const order = [...currentNodes].sort((a, b) => layerIdx(a.layer) - layerIdx(b.layer) || b.totalDegree - a.totalDegree);
               intro.ring.clear();
               order.forEach((n, i) => {
                 const a = (i / order.length) * Math.PI * 2 - Math.PI / 2;
-                intro.ring.set(n.id, { x: Math.cos(a) * rw, y: Math.sin(a) * rw });
+                intro.ring.set(n.id, { x: cx + Math.cos(a) * rw, y: cy + Math.sin(a) * rw });
                 intro.at.set(n.id, (i / order.length) * INTRO_FILL);
                 if (!intro.al.has(n.id)) intro.al.set(n.id, 0);
               });
@@ -739,12 +737,6 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             }
           }
 
-          // Layout settled: work out the final framing directly in the slot's dimensions
-          if (intro.started && intro.targets.size > 0 && !intro.finalCam && cssWidth > 50) {
-            const fitPts = currentNodes.map(n => intro.targets.get(n.id) || { x: n.x, y: n.y });
-            intro.finalCam = computeFitT(fitPts, cssWidth, cssHeight, 75);
-          }
-
           if (!intro.started) {
             // Data still loading: idle dial
             intro.spin += dt;
@@ -753,16 +745,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           } else {
             intro.clock += dt;
             // Layout not settled yet: hold on the full dial until it is
-            if (!intro.finalCam) intro.clock = Math.min(intro.clock, INTRO_HOLD);
+            if (intro.targets.size === 0) intro.clock = Math.min(intro.clock, INTRO_HOLD);
             const c = intro.clock;
             const burst = c - INTRO_BURST;
-            // Camera glides from the dial framing to the final one over the whole burst
-            if (intro.dialCam && intro.finalCam) {
-              const d = intro.dialCam, f = intro.finalCam;
-              const e = easeCubicInOut(Math.max(0, Math.min(1, burst / (INTRO_TWEEN + 900))));
-              const zoom = d.zoom * Math.pow(f.zoom / d.zoom, e);
-              cameraRef.current = { x: d.x + (f.x - d.x) * e, y: d.y + (f.y - d.y) * e, zoom };
-            }
             currentNodes.forEach(n => {
               const tg = c >= (intro.at.get(n.id) ?? 0) ? 1 : 0;
               const a = intro.al.get(n.id) ?? 0;
@@ -782,8 +767,8 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
             introEdgeK = Math.max(0, Math.min(1, (burst - 250) / 1400));
             introFill = Math.min(1, c / INTRO_FILL);
             introDial = c < 1700 ? 1 : Math.max(0, 1 - (c - 1700) / 700);
-            // The studio UI comes back smoothly once the whole graph has formed
-            if (c >= INTRO_END) finishIntro();
+            // Hand back smoothly once the whole graph has formed (plus wall-clock safeguard)
+            if (c >= INTRO_END || (intro.targets.size > 0 && now - intro.born > 12000)) finishIntro();
           }
         }
         const introNow = introRef.current;
@@ -924,9 +909,9 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
 
         // Intro dial (screen space): progress arc, outer ring, ticks and a sweeping bead
         if (introNow && introDial > 0) {
-          // Pinned to the bead ring's centre on screen (smoothly follows camera)
-          const dcx = cssWidth / 2 + cam.x;
-          const dcy = cssHeight / 2 + cam.y;
+          // Pinned to the bead ring's centre on screen (canvas centre until it is laid out)
+          const dcx = introNow.started ? cssWidth / 2 + cam.x + introNow.cx * cam.zoom : cssWidth / 2;
+          const dcy = introNow.started ? cssHeight / 2 + cam.y + introNow.cy * cam.zoom : cssHeight / 2;
           const R = Math.min(cssWidth, cssHeight) * 0.2;
           const top = -Math.PI / 2;
           ctx.lineWidth = 1;
@@ -1295,9 +1280,14 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
           // Draw Shape Based on Node Type
           const isViolation = n.violationsCount > 0;
 
-          // Vibrant Neon Glow on Nodes (radiating node's own layer color)
-          ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
-          ctx.shadowBlur = isViolation ? 10 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
+          // Neon Glow only for flagged/focused hubs or small graphs so software Canvas2D stays at 60 FPS during intro
+          const useGlow = isViolation || isHovered || isSelected || (!introNow && (n.totalDegree >= 14 || currentNodes.length <= 80));
+          if (useGlow) {
+            ctx.shadowColor = isViolation ? '#ff3b30' : n.color;
+            ctx.shadowBlur = isViolation ? 10 : isHovered ? 14 : (n.totalDegree >= 8 ? 8 : 4.5);
+          } else {
+            ctx.shadowBlur = 0;
+          }
 
           if (isViolation) {
             // Solid red disc, slightly smaller than a normal node of the same degree
@@ -1427,7 +1417,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       isRunning = false;
       if (animFrameIdRef.current) cancelAnimationFrame(animFrameIdRef.current);
     };
-  }, [mode, selectedNode, selectedEdge, highlightLayer, highlightCycles, finishIntro]);
+  }, [mode, selectedNode, selectedEdge, highlightLayer, highlightCycles, finishIntro, handBack]);
 
   // Window resize listener
   // Window resize listener (does not move or reset user camera)
@@ -1686,7 +1676,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
   return (
     <div
       ref={wrapperRef}
-      className={`${SLOT_WRAPPER_CLASS} ${WRAPPER_CLASS}`}
+      className={`${introActive ? 'fixed inset-0 z-[100]' : SLOT_WRAPPER_CLASS} ${WRAPPER_CLASS}`}
     >
       {introActive && (
         <button

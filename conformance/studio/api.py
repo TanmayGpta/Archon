@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 # Ensure Archon root is in sys.path
@@ -13,13 +14,27 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from conformance.studio.service import ConformanceService
-from conformance.studio.blueprints import load_available_blueprints, get_blueprint_by_id
+from conformance.studio.session import load_latest_session, save_session
+from conformance.studio.blueprints import (
+    RULESET_TEMPLATE,
+    RulesetError,
+    delete_custom_ruleset,
+    normalize_ruleset,
+    save_custom_ruleset,
+    scan_blueprints,
+)
 
 router = APIRouter()
 service = ConformanceService()
 
+
+class RulesetRequest(BaseModel):
+    ruleset: Any = Field(..., description="A ruleset JSON object, or a saved ArcGen architecture to compile into one")
+    name: Optional[str] = Field(None, description="Display name; defaults to the ruleset's project_name")
+
+
 class AuditRequest(BaseModel):
-    target_path: Optional[str] = Field(None, description="Path to codebase folder to audit")
+    target_path: Optional[str] = Field(None, description="Codebase folder to audit, or a github.com URL (shallow-cloned into test_codebases/imported)")
     blueprint_id: Optional[str] = Field("archon_architecture", description="ID of architecture blueprint to check against")
     include_external: Optional[bool] = Field(True, description="Whether to include stdlib and 3rd-party library nodes")
     custom_ruleset: Optional[Dict[str, Any]] = Field(None, description="Optional custom ruleset JSON")
@@ -97,11 +112,57 @@ def classifier_status():
 
 @router.get("/blueprints")
 def list_blueprints():
-    """Returns all available architecture blueprints (Clean Architecture, Archon Core, MVC, ArcGen)."""
+    """All usable blueprints (built-in, ArcGen-generated, imported) plus any ruleset files that were skipped."""
     try:
-        return {"status": "success", "blueprints": load_available_blueprints()}
+        blueprints, issues = scan_blueprints()
+        return {"status": "success", "blueprints": blueprints, "issues": issues}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/rulesets/template")
+def ruleset_template():
+    """A starter ruleset to edit and import."""
+    return JSONResponse(RULESET_TEMPLATE, headers={"Content-Disposition": 'attachment; filename="ruleset_template.json"'})
+
+
+@router.post("/rulesets/validate")
+def validate_imported_ruleset(req: RulesetRequest):
+    """Checks a ruleset (or an ArcGen architecture file) without saving it."""
+    try:
+        ruleset = normalize_ruleset(req.ruleset)
+    except RulesetError as e:
+        return {"valid": False, "errors": e.errors}
+    return {"valid": True, "errors": [], "name": ruleset["project_name"],
+            "layers": [l["name"] for l in ruleset["layers"]], "rules": len(ruleset["rules"])}
+
+
+@router.post("/rulesets")
+def import_ruleset(req: RulesetRequest):
+    """Validates and stores a ruleset so it appears in the blueprint list. Same name replaces the old one."""
+    try:
+        return {"status": "success", **save_custom_ruleset(req.ruleset, req.name)}
+    except RulesetError as e:
+        raise HTTPException(status_code=422, detail={"message": "The ruleset is not valid.", "errors": e.errors})
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not save the ruleset: {e}")
+
+
+@router.delete("/rulesets/{blueprint_id}")
+def remove_ruleset(blueprint_id: str):
+    """Deletes an imported ruleset (built-in and ArcGen blueprints are not deletable)."""
+    if not delete_custom_ruleset(blueprint_id):
+        raise HTTPException(status_code=404, detail=f"No imported ruleset with id '{blueprint_id}'.")
+    return {"status": "success", "deleted": blueprint_id}
+
+
+@router.get("/session")
+def get_session():
+    """Returns the latest audit session record so Conformance Studio and IDE share the exact same state."""
+    session = load_latest_session()
+    if not session:
+        return {"status": "none", "session": None}
+    return {"status": "success", "session": session}
 
 
 @router.post("/audit")
@@ -116,6 +177,8 @@ def audit_codebase(req: AuditRequest):
             classifier=req.classifier or "heuristic"
         )
         return result
+    except RulesetError as e:
+        raise HTTPException(status_code=422, detail={"message": "The custom ruleset is not valid.", "errors": e.errors})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Audit failed: {str(e)}")
 
@@ -149,3 +212,60 @@ def get_workspace_info():
             }
         ]
     }
+
+
+# ── Phase 4: LangGraph Architectural Healing (IDE only) ──────────────────────
+
+class HealDecisionRequest(BaseModel):
+    approved: bool
+    applied_files: List[str] = Field(default_factory=list)
+
+
+@router.post("/heal/jobs")
+def start_heal(req: Dict[str, Any]):
+    """Start a background LangGraph healing job; lazy-imports langgraph so audits never break if absent."""
+    try:
+        import langgraph  # noqa: F401
+        from conformance.healing.jobs import start_heal_job
+        from conformance.healing.schemas import HealJobRequest
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Healing engine unavailable ({e}). Rebuild orchestrator-service to install langgraph.",
+        )
+    try:
+        parsed = HealJobRequest.model_validate(req)
+        job = start_heal_job(parsed)
+        return {"status": "started", "job_id": job.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/heal/jobs/{job_id}")
+def get_heal_status(job_id: str):
+    """Return current status and verified diff previews for a healing job."""
+    from conformance.healing.jobs import get_heal_job
+    job = get_heal_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Heal job '{job_id}' not found")
+    return job.info()
+
+
+@router.get("/heal/jobs/{job_id}/stream")
+async def stream_heal_job(job_id: str, start: int = 0):
+    """Stream SSE events from a healing job (supports resuming from `start` seq index)."""
+    from conformance.healing.jobs import follow_heal_job, get_heal_job
+    job = get_heal_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Heal job '{job_id}' not found")
+    return StreamingResponse(follow_heal_job(job, start=start), media_type="text/event-stream")
+
+
+@router.post("/heal/jobs/{job_id}/decision")
+def decide_heal_job(job_id: str, req: HealDecisionRequest):
+    """Record approval or rejection on the paused LangGraph healing job."""
+    from conformance.healing.jobs import resolve_heal_job
+    try:
+        return resolve_heal_job(job_id, approved=req.approved, applied_files=req.applied_files)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))

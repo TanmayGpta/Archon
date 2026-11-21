@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Literal, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from conformance.classifier_agent import get_llm
+from conformance.classifier_agent import get_llm, load_freellmapi_config, load_ide_keys
 
 SOURCE_CHARS = 6000   # violating module, read in full up to this
 TARGET_CHARS = 2500   # imported module, enough to see what it offers
@@ -58,7 +58,14 @@ Other dependencies of {source_module}:
 
 
 def default_provider() -> Optional[str]:
-    """First provider with a key in the environment (same order as the CLI)."""
+    """First configured provider across IDE Cloud Settings, FreeLLMAPI, and environment variables."""
+    ide_keys = load_ide_keys()
+    fl_key, _, _, _ = load_freellmapi_config()
+    if fl_key:
+        return "freellmapi"
+    for prov in ("openai", "gemini"):
+        if ide_keys.get(prov):
+            return prov
     for provider, key in (("groq", "GROQ_API_KEY"), ("groq", "GROQ_API_KEY_2"), ("gemini", "GOOGLE_API_KEY"),
                           ("nvidia", "NVIDIA_API_KEY"), ("openai", "OPENAI_API_KEY")):
         if os.getenv(key):

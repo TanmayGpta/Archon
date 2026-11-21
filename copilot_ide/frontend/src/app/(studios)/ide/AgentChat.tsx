@@ -6,6 +6,7 @@ import { detectTargetFilename } from '../../components/markdown/CodeBlock';
 import ContextFileChips from '../../components/ContextFileChips';
 import { useIde } from './IdeContext';
 import { ResizeHandle, usePanelSize } from '../../components/ResizeHandle';
+import { ConformancePanel } from './ConformancePanel';
 
 /* -- Agent chat panel - */
 export function AgentChat() {
@@ -33,6 +34,8 @@ export function AgentChat() {
     includeFileContext,
     openTabs,
     revertAgentEdit,
+    rightPanelTab,
+    setRightPanelTab,
     isDraggingOverChat,
     knowledgeGraphData,
     models,
@@ -75,8 +78,41 @@ export function AgentChat() {
         onReset={panel.reset}
       />
       {/* ── 4. Archon Agent Chat Panel (Right, resizable) ─────────── */}
-      <div style={{ width: panel.size }} className="bg-surface border-l border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none">
+      <div style={{ width: panel.size }} className="bg-surface border-l border-line-subtle flex flex-col flex-shrink-0 overflow-hidden select-none relative">
         
+        {/* Switchable Tabs: API Copilot vs Conformance */}
+        <div className="h-[32px] flex flex-shrink-0 border-b border-line-subtle bg-canvas text-xs font-mono select-none">
+          <button
+            onClick={() => setRightPanelTab('agent')}
+            className={`flex-1 flex items-center justify-center gap-1.5 cursor-pointer border-b-2 transition-all ${
+              rightPanelTab === 'agent'
+                ? 'text-accent-fg border-accent bg-surface font-semibold'
+                : 'text-fg-subtle border-transparent hover:text-fg hover:bg-surface/40'
+            }`}
+          >
+            <Icons.ArchonAI />
+            <span>API Copilot</span>
+          </button>
+          <button
+            onClick={() => setRightPanelTab('conformance')}
+            className={`flex-1 flex items-center justify-center gap-1.5 cursor-pointer border-b-2 transition-all ${
+              rightPanelTab === 'conformance'
+                ? 'text-[#e8ff00] border-[#e8ff00] bg-surface font-semibold'
+                : 'text-fg-subtle border-transparent hover:text-fg hover:bg-surface/40'
+            }`}
+          >
+            <Icons.Conformance />
+            <span>Conformance</span>
+          </button>
+        </div>
+
+        {/* Conformance overlay keeps AgentChat mounted underneath so chat history is preserved */}
+        {rightPanelTab === 'conformance' && (
+          <div className="absolute inset-x-0 bottom-0 top-[32px] z-20 bg-surface flex flex-col min-h-0 select-text">
+            <ConformancePanel />
+          </div>
+        )}
+
         <div className="px-3 py-2 border-b border-line-subtle bg-canvas flex justify-between items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <div className="w-5 h-5 rounded-control bg-raised border border-line flex items-center justify-center p-0.5 flex-shrink-0">

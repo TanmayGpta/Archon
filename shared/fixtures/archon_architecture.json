@@ -11,8 +11,8 @@
     },
     {
       "name": "Application",
-      "description": "Multi-agent workflows and high-level use-case orchestration: SRS Generation multi-agent pipeline (generation.*), Self-Healing autonomous remediation agent (healing.*), and end-to-end audit pipelines.",
-      "match_patterns": ["*generation*", "*healing*"]
+      "description": "Multi-agent workflows and high-level use-case orchestration: SRS Generation multi-agent pipeline (generation.*), Self-Healing autonomous remediation agent (healing.*), violation assessor, and Studio orchestration services.",
+      "match_patterns": ["*generation*", "*healing*", "*assessor_agent*", "*studio*"]
     },
     {
       "name": "Domain",
@@ -21,8 +21,8 @@
     },
     {
       "name": "Infrastructure",
-      "description": "External integration drivers and presentation renderers: External LLM provider client adapters (classifier_agent.py, generation.llm), file system/zip handlers, and interactive vis-network HTML canvas generator (visualize.py).",
-      "match_patterns": ["*classifier_agent*", "*visualize*", "*generation.llm*"]
+      "description": "External integration drivers, local runner adapters, and renderers: External/GPU LLM provider client adapters (classifier_agent.py, kev_classifier.py, generation.llm), local runner adapter (shared.runner), and interactive vis-network HTML canvas generator (visualize.py).",
+      "match_patterns": ["*classifier_agent*", "*kev_classifier*", "*visualize*", "*generation.llm*", "*shared.runner*"]
     },
     {
       "name": "Observability",

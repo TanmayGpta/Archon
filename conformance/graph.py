@@ -14,6 +14,28 @@ STDLIB_MODULES = {
     "base64", "binascii", "codecs", "locale", "gettext", "argparse", "textwrap",
 }
 
+def _resolve_internal_target(
+    source_module: str,
+    target_module: str,
+    internal_modules: Set[str],
+    package_roots: Set[str],
+) -> str | None:
+    """Resolve `target_module` to an internal node, preferring nested service packages over root name collisions."""
+    parts = source_module.split(".")
+    # For standalone root files (e.g. `app.py`), check if a nested sub-project defines its own matching package first.
+    if len(parts) > 1 and (target_module not in internal_modules or ("." not in target_module and target_module not in package_roots)):
+        for cut in range(len(parts) - 1, 0, -1):
+            candidate = f"{'.'.join(parts[:cut])}.{target_module}"
+            if candidate in internal_modules:
+                return candidate
+    if target_module in internal_modules:
+        return target_module
+    root_import = target_module.split(".")[0]
+    if root_import in internal_modules and ("." not in target_module or root_import in package_roots):
+        return root_import
+    return None
+
+
 def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
     """
     Converts a dictionary of dependencies into a rich NetworkX Directed Graph.
@@ -22,6 +44,7 @@ def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
     G = nx.DiGraph()
     
     internal_modules = set(dependencies.keys())
+    package_roots = {m.split(".")[0] for m in internal_modules if "." in m}
 
     for source_module, imports in dependencies.items():
         # Always add the source node as "internal"
@@ -37,9 +60,9 @@ def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
             line_no = meta.get("line_number")
             snippet = meta.get("code_snippet")
             
-            if target_module in internal_modules or root_import in internal_modules:
+            target_key = _resolve_internal_target(source_module, target_module, internal_modules, package_roots)
+            if target_key is not None:
                 # It's an internal project file - draw the edge
-                target_key = target_module if target_module in internal_modules else root_import
                 G.add_node(target_key, node_type="internal")
                 G.add_edge(source_module, target_key, line_number=line_no, code_snippet=snippet)
             elif root_import in STDLIB_MODULES:
@@ -48,10 +71,11 @@ def build_dependency_graph(dependencies: Dict[str, Set[str]]) -> nx.DiGraph:
                     G.add_node(root_import, node_type="stdlib")
                 G.add_edge(source_module, root_import, line_number=line_no, code_snippet=snippet)
             else:
-                # It's a third-party library (flask, numpy, langchain, etc.)
-                if not G.has_node(root_import):
-                    G.add_node(root_import, node_type="external")
-                G.add_edge(source_module, root_import, line_number=line_no, code_snippet=snippet)
+                # Avoid attaching an unresolved dotted sub-project import onto an unrelated root internal script.
+                ext_key = target_module if root_import in internal_modules else root_import
+                if not G.has_node(ext_key):
+                    G.add_node(ext_key, node_type="external")
+                G.add_edge(source_module, ext_key, line_number=line_no, code_snippet=snippet)
                 
     return G
 

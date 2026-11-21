@@ -1,12 +1,43 @@
 "use client";
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { Icons } from '../../components/Icons';
 import { getFileIcon } from './FileTree';
 import { useIde } from './IdeContext';
+import { API_BASE } from '@/lib/api';
 
 /* -- Open project, API keys and quick-open dialogs - */
 export function IdeDialogs() {
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const [browseDirData, setBrowseDirData] = useState<{ current_path: string; parent_path: string | null; directories: { name: string; path: string }[] } | null>(null);
+
+  const handleFolderPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const firstRel = files[0].webkitRelativePath || files[0].name;
+    const folderName = firstRel.split('/')[0] || files[0].name;
+    try {
+      const res = await fetch(`${API_BASE}/api/workspace/resolve-folder?name=${encodeURIComponent(folderName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProjectPathInput(data.path);
+        return;
+      }
+    } catch {}
+    setProjectPathInput(folderName);
+  };
+
+  const loadDirectories = async (path?: string) => {
+    try {
+      const url = path ? `${API_BASE}/api/workspace/browse-directory?path=${encodeURIComponent(path)}` : `${API_BASE}/api/workspace/browse-directory`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setBrowseDirData(data);
+      }
+    } catch {}
+  };
   const {
     allFiles,
     apiKeyInputs,
@@ -60,16 +91,35 @@ export function IdeDialogs() {
 
             <div className="space-y-2">
               <label className="text-xs font-mono text-fg-muted">
-                Enter local folder path:
+                Choose local folder or enter path:
               </label>
               <div className="flex gap-2">
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  // @ts-ignore
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  className="hidden"
+                  onChange={handleFolderPicked}
+                />
                 <input
                   type="text"
                   value={projectPathInput}
                   onChange={(e) => setProjectPathInput(e.target.value)}
-                  placeholder="e.g. C:/projects/my-app or /home/me/my-app"
+                  placeholder="e.g. C:/projects/my-app or test_codebases/ecommerce_platform"
                   className="flex-1 bg-canvas border border-line rounded-control px-3 py-2 text-sm font-mono text-fg focus:outline-none focus:border-accent"
                 />
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  title="Choose folder from Windows Explorer"
+                  className="bg-raised hover:bg-overlay text-accent-fg border border-line px-3 py-2 rounded-control text-sm font-mono font-medium flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                >
+                  <Icons.FolderClosed />
+                  <span>Browse...</span>
+                </button>
                 <button
                   onClick={() => handleOpenProject(projectPathInput, false)}
                   className="bg-selected hover:bg-[#334155] text-fg-soft px-3.5 py-2 rounded-control text-sm font-mono font-semibold transition-all cursor-pointer border border-[#334155]"
@@ -79,12 +129,67 @@ export function IdeDialogs() {
                 <button
                   onClick={() => handleOpenProject(projectPathInput, true)}
                   title="Create folder and initialize project if missing"
-                  className="bg-accent-strong hover:bg-accent-hover text-white px-3.5 py-2 rounded-control text-sm font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                  className="bg-accent-strong hover:bg-accent-hover text-white px-3.5 py-2 rounded-control text-sm font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 flex-shrink-0"
                 >
                   <Icons.Sparkles />
                   <span>Create & Open</span>
                 </button>
               </div>
+
+              <div className="flex items-center justify-between text-xs font-mono text-fg-subtle pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!browsing) loadDirectories(projectPathInput || undefined);
+                    setBrowsing(!browsing);
+                  }}
+                  className="hover:text-accent-fg flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{browsing ? '▾ Hide visual folder browser' : '▸ Quick visual folder browser'}</span>
+                </button>
+              </div>
+              {browsing && browseDirData && (
+                <div className="bg-canvas border border-line rounded-control p-2.5 max-h-40 overflow-y-auto space-y-1 text-xs font-mono">
+                  <div className="text-fg-subtle flex items-center justify-between pb-1 border-b border-line-subtle">
+                    <span className="truncate" title={browseDirData.current_path}>📂 {browseDirData.current_path}</span>
+                    {browseDirData.parent_path && (
+                      <button
+                        type="button"
+                        onClick={() => loadDirectories(browseDirData.parent_path!)}
+                        className="text-accent-fg hover:underline cursor-pointer"
+                      >
+                        ⬆ Up
+                      </button>
+                    )}
+                  </div>
+                  {browseDirData.directories.length === 0 ? (
+                    <div className="text-fg-muted italic p-1">No subdirectories found</div>
+                  ) : (
+                    browseDirData.directories.map((dir) => (
+                      <div
+                        key={dir.path}
+                        className="flex items-center justify-between py-1 px-1.5 hover:bg-raised rounded cursor-pointer group"
+                        onClick={() => {
+                          setProjectPathInput(dir.path);
+                        }}
+                        onDoubleClick={() => loadDirectories(dir.path)}
+                      >
+                        <span className="text-fg group-hover:text-accent-fg truncate">📁 {dir.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadDirectories(dir.path);
+                          }}
+                          className="text-fg-subtle hover:text-white px-1 text-[11px]"
+                        >
+                          Open ➔
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             {recentProjects.length > 0 && (
@@ -138,10 +243,78 @@ export function IdeDialogs() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto custom-scrollbar">
+            <div className="p-4 space-y-4 max-h-[540px] overflow-y-auto custom-scrollbar">
               <p className="text-xs font-mono text-fg-subtle leading-relaxed">
                 Configure API keys for cloud LLM providers. Keys are stored persistently on the server and remain until manually cleared.
               </p>
+
+              {/* FreeLLMAPI Multi-Provider Router */}
+              <div className="border border-accent/40 rounded-panel p-3 bg-canvas space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="1.75"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    <span className="text-sm font-mono font-bold text-fg">FreeLLMAPI</span>
+                    <span className="text-xs font-mono text-fg-subtle truncate">auto router across providers</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {apiKeyTestStatus.freellmapi?.status === 'ok' && (
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-control max-w-[200px] truncate" title={apiKeyTestStatus.freellmapi.model || 'auto'}>
+                        Connected ({apiKeyTestStatus.freellmapi.latency}ms{apiKeyTestStatus.freellmapi.model ? ` · ${apiKeyTestStatus.freellmapi.model}` : ''})
+                      </span>
+                    )}
+                    {apiKeyTestStatus.freellmapi?.status === 'error' && (
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded-control max-w-[180px] truncate" title={apiKeyTestStatus.freellmapi.message}>{apiKeyTestStatus.freellmapi.message}</span>
+                    )}
+                    {apiKeys.freellmapi?.configured && !apiKeyTestStatus.freellmapi?.status && (
+                      <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-control">Active: {apiKeys.freellmapi.masked_key}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={apiKeyInputs.freellmapi || ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi: e.target.value }))}
+                    placeholder={apiKeys.freellmapi?.configured ? 'Key configured — enter new to replace' : 'freellmapi-...'}
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                  <button
+                    onClick={() => handleSaveApiKey('freellmapi')}
+                    disabled={!apiKeyInputs.freellmapi?.trim() && !apiKeys.freellmapi?.configured}
+                    className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white disabled:opacity-40 px-3 py-1.5 rounded-control border border-accent/40 cursor-pointer transition-colors"
+                  >
+                    {apiKeySaveStatus.freellmapi || 'Save'}
+                  </button>
+                  <button
+                    onClick={() => handleTestApiKey('freellmapi')}
+                    disabled={apiKeyTestStatus.freellmapi?.status === 'testing' || (!apiKeys.freellmapi?.configured && !apiKeyInputs.freellmapi?.trim())}
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded-control border border-line cursor-pointer transition-colors"
+                  >
+                    {apiKeyTestStatus.freellmapi?.status === 'testing' ? 'Testing...' : 'Test'}
+                  </button>
+                  {apiKeys.freellmapi?.configured && apiKeys.freellmapi?.source !== 'env' && (
+                    <button onClick={() => handleClearApiKey('freellmapi')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded-control border border-danger/30 cursor-pointer transition-colors">Clear</button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={apiKeyInputs.freellmapi_base_url ?? ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi_base_url: e.target.value }))}
+                    placeholder="http://host.docker.internal:31415/v1"
+                    title="FreeLLMAPI OpenAI-compatible Base URL"
+                    className="col-span-2 bg-raised text-[11px] font-mono text-fg-soft px-2.5 py-1 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                  <input
+                    type="text"
+                    value={apiKeyInputs.freellmapi_model ?? ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, freellmapi_model: e.target.value }))}
+                    placeholder="auto"
+                    title="Routing model (auto, auto:smart, auto:fast, or explicit model)"
+                    className="bg-raised text-[11px] font-mono text-fg-soft px-2.5 py-1 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                </div>
+              </div>
 
               {/* OpenAI */}
               <div className="border border-line rounded-panel p-3 bg-canvas space-y-2">

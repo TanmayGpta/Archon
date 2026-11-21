@@ -7,6 +7,7 @@ import { CodeEditor } from './CodeEditor';
 import { EditReview } from './EditReview';
 import { useIde } from './IdeContext';
 import { TerminalPanel } from './TerminalPanel';
+import { pathHits } from './violationUtils';
 
 /* -- Tabs, editor and the bottom panel - */
 export function EditorPane() {
@@ -31,6 +32,11 @@ export function EditorPane() {
     lastAppliedNotice,
     openTabs,
     pendingEdit,
+    pendingHealPatches,
+    healApplying,
+    dismissedHealPreviewPaths,
+    setDismissedHealPreviewPaths,
+    healActionsRef,
     pendingReveal,
     setPendingReveal,
     recentProjects,
@@ -44,6 +50,7 @@ export function EditorPane() {
     setShowIndexDrawer,
     setShowKnowledgeGraph,
     setShowOpenProjectModal,
+    violationMarkers,
   } = useIde();
 
   return (
@@ -163,24 +170,63 @@ export function EditorPane() {
           </div>
         )}
 
-        {/* Editor (CodeMirror), or the diff review of a pending agent edit */}
+        {/* Editor (CodeMirror), or inline diff review of an active agent / heal edit */}
         {activeTab ? (
-          pendingEdit && pendingEdit.path === activeTab.path ? (
-            <EditReview key={pendingEdit.id} edit={pendingEdit} onFinish={finishReview} />
-          ) : (
-            <div className="flex-1 relative overflow-hidden bg-canvas">
-              <CodeEditor
-                path={activeTab.path}
-                value={editorContent}
-                states={editorStates}
-                onChange={handleEditorChange}
-                onCursor={handleCursorChange}
-                onSave={handleSaveFile}
-                revealLine={pendingReveal?.path === activeTab.path ? pendingReveal.line : undefined}
-                onRevealed={() => setPendingReveal(null)}
-              />
-            </div>
-          )
+          (() => {
+            if (pendingEdit && pendingEdit.path === activeTab.path) {
+              return <EditReview key={pendingEdit.id} edit={pendingEdit} onFinish={finishReview} />;
+            }
+            const healIdx = !dismissedHealPreviewPaths.includes(activeTab.path)
+              ? pendingHealPatches.findIndex(p => p.status === 'pending' && pathHits(activeTab.path, p.path))
+              : -1;
+            const activeHeal = healIdx >= 0 ? pendingHealPatches[healIdx] : null;
+            const pendingHealCount = pendingHealPatches.filter(p => p.status === 'pending').length;
+            if (activeHeal) {
+              return (
+                <EditReview
+                  key={`heal-${activeHeal.path}-${activeHeal.after.length}`}
+                  edit={{
+                    id: `heal-${activeHeal.path}`,
+                    path: activeTab.path,
+                    name: activeHeal.name,
+                    before: activeHeal.before,
+                    after: activeHeal.after,
+                    summary: activeHeal.summary || 'Architectural heal patch',
+                  }}
+                  onFinish={keptText => {
+                    if (keptText === activeHeal.before) {
+                      void healActionsRef.current?.rejectFile(activeHeal.path);
+                    } else {
+                      void healActionsRef.current?.acceptFile(activeHeal.path, keptText);
+                    }
+                  }}
+                  healActions={{
+                    label: `File ${healIdx + 1} of ${pendingHealPatches.length}`,
+                    busy: healApplying,
+                    onAccept: keptText => void healActionsRef.current?.acceptFile(activeHeal.path, keptText),
+                    onReject: () => void healActionsRef.current?.rejectFile(activeHeal.path),
+                    onAcceptAll: pendingHealCount > 1 ? () => void healActionsRef.current?.acceptAll() : undefined,
+                    onClosePreview: () => setDismissedHealPreviewPaths(prev => [...prev, activeTab.path]),
+                  }}
+                />
+              );
+            }
+            return (
+              <div className="flex-1 relative overflow-hidden bg-canvas">
+                <CodeEditor
+                  path={activeTab.path}
+                  value={editorContent}
+                  states={editorStates}
+                  onChange={handleEditorChange}
+                  onCursor={handleCursorChange}
+                  onSave={handleSaveFile}
+                  revealLine={pendingReveal && pathHits(activeTab.path, pendingReveal.path) ? pendingReveal.line : undefined}
+                  onRevealed={() => setPendingReveal(null)}
+                  violationMarkers={violationMarkers}
+                />
+              </div>
+            );
+          })()
         ) : !currentProjectPath && !isGitHubWorkspace ? (
           /* No project yet: offer the ways to open one */
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-canvas select-none overflow-y-auto custom-scrollbar">

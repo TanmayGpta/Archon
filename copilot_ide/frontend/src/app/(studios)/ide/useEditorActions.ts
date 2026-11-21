@@ -8,6 +8,7 @@ import type { IdeProps } from './IdeContext';
 import type { IdeStore } from './useIdeStore';
 import type { PendingEdit } from './types';
 import { useFeedback } from '../../components/Feedback';
+import { pathHits } from './violationUtils';
 
 /* -- Tabs and editor buffer: open, close, edit, save, apply agent edits, shortcuts - */
 export function useEditorActions(ide: IdeProps & IdeStore) {
@@ -41,12 +42,12 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
   // Open a file from explorer (Local or Remote GitHub)
   // Resolves to the path that opened, or null if it couldn't be read
   const handleOpenFile = async (path: string): Promise<string | null> => {
-    const existing = openTabs.find(t => t.path === path);
+    const existing = openTabs.find(t => t.path === path || pathHits(t.path, path));
     if (existing) {
-      setActiveTabPath(path);
+      setActiveTabPath(existing.path);
       setEditorContent(existing.content);
       setIsDirty(existing.content !== existing.original);
-      return path;
+      return existing.path;
     }
 
     // Remote GitHub Workspace file fetch
@@ -300,9 +301,157 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     if (!pendingEdit) return;
     const edit = pendingEdit;
     setPendingEdit(null);
-    if (keptText === edit.before) return;
+    const accepted = keptText !== edit.before;
+    if (edit.onDecision) {
+      void edit.onDecision(keptText, accepted);
+      return;
+    }
+    if (!accepted) return;
     commitAgentEdit({ ...edit, after: keptText });
     setLastAppliedNotice(`✓ Applied reviewed edit to ${edit.name} • (Ctrl+S to save)`);
+  };
+
+  // Ensure a tab exists in memory for a newly created file before opening inline diff review
+  const openScratchTab = (path: string, name: string, initialContent = ''): string => {
+    const existing = openTabs.find(t => t.path === path || pathHits(t.path, path));
+    if (existing) {
+      setActiveTabPath(existing.path);
+      setEditorContent(existing.content);
+      setIsDirty(existing.content !== existing.original);
+      return existing.path;
+    }
+    editorStates.current.delete(path);
+    setOpenTabs(prev => [...prev, { path, name, content: initialContent, original: initialContent }]);
+    setActiveTabPath(path);
+    setEditorContent(initialContent);
+    setIsDirty(false);
+    return path;
+  };
+
+  // Persist an accepted heal patch via /api/agent/apply-edit and sync the IDE tab
+  const applyPersistedEdit = async (
+    path: string,
+    name: string,
+    before: string,
+    keptText: string,
+    summary: string,
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`${apiBase}/api/agent/apply-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, content: keptText }),
+      });
+      if (!res.ok) {
+        toast({ tone: 'error', title: `Failed to apply ${name}`, detail: errorDetail(await res.text()) });
+        return false;
+      }
+      const existing = openTabs.find(t => t.path === path || pathHits(t.path, path));
+      const resolvedPath = existing?.path || path;
+      editorStates.current.delete(resolvedPath);
+      if (existing) {
+        setOpenTabs(prev => prev.map(t => (t.path === resolvedPath ? { ...t, content: keptText, original: keptText } : t)));
+      } else {
+        setOpenTabs(prev => [...prev, { path: resolvedPath, name, content: keptText, original: keptText }]);
+      }
+      setActiveTabPath(resolvedPath);
+      setEditorContent(keptText);
+      setIsDirty(false);
+      setAgentEdits(prev => [...prev, { id: `heal-${Date.now()}`, path: resolvedPath, name, before, after: keptText, summary }]);
+      setLastAppliedNotice(null);
+      toast({ tone: 'success', title: `Healed & saved ${name}` });
+      return true;
+    } catch (e) {
+      toast({ tone: 'error', title: `Failed to apply ${name}`, detail: errorMessage(e) });
+      return false;
+    }
+  };
+
+  // Revert applied heal files on disk (restores modified files to `before`, deletes created files)
+  const revertPersistedChanges = async (
+    items: Array<{ path: string; name: string; operation: 'modify' | 'create'; before: string }>,
+  ): Promise<boolean> => {
+    if (!items.length) return true;
+    const deletedPaths: string[] = [];
+    const restoredMap = new Map<string, string>();
+    const failures: string[] = [];
+
+    for (const item of items) {
+      try {
+        if (item.operation === 'create') {
+          const res = await fetch(`${apiBase}/api/workspace/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: item.path }),
+          });
+          if (res.ok || res.status === 404) {
+            deletedPaths.push(item.path);
+          } else {
+            failures.push(`${item.name}: ${errorDetail(await res.text())}`);
+          }
+        } else {
+          const res = await fetch(`${apiBase}/api/agent/apply-edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: item.path, content: item.before }),
+          });
+          if (res.ok) {
+            restoredMap.set(item.path, item.before);
+          } else {
+            failures.push(`${item.name}: ${errorDetail(await res.text())}`);
+          }
+        }
+      } catch (e) {
+        failures.push(`${item.name}: ${errorMessage(e)}`);
+      }
+    }
+
+    const findRestored = (tabPath: string): string | undefined => {
+      for (const [p, text] of restoredMap.entries()) {
+        if (p === tabPath || pathHits(tabPath, p)) return text;
+      }
+      return undefined;
+    };
+    const isDeleted = (tabPath: string) => deletedPaths.some(p => p === tabPath || pathHits(tabPath, p));
+
+    for (const p of [...deletedPaths, ...restoredMap.keys()]) {
+      editorStates.current.delete(p);
+    }
+
+    setOpenTabs(prev => {
+      const next = prev
+        .filter(t => !isDeleted(t.path))
+        .map(t => {
+          const restored = findRestored(t.path);
+          return restored !== undefined ? { ...t, content: restored, original: restored } : t;
+        });
+      for (const t of prev) {
+        if (isDeleted(t.path) || findRestored(t.path) !== undefined) {
+          editorStates.current.delete(t.path);
+        }
+      }
+      if (isDeleted(activeTabPath)) {
+        const fallback = next[next.length - 1];
+        setActiveTabPath(fallback ? fallback.path : '');
+        setEditorContent(fallback ? fallback.content : '');
+        setIsDirty(fallback ? fallback.content !== fallback.original : false);
+      } else {
+        const activeRestored = findRestored(activeTabPath);
+        if (activeRestored !== undefined) {
+          setEditorContent(activeRestored);
+          setIsDirty(false);
+        }
+      }
+      return next;
+    });
+
+    setLastAppliedNotice(null);
+    if (failures.length > 0) {
+      toast({ tone: 'error', title: 'Some files failed to revert', detail: failures.join('; ') });
+      return false;
+    }
+    toast({ tone: 'success', title: `Reverted ${items.length} file${items.length === 1 ? '' : 's'} to pre-heal state` });
+    return true;
   };
 
   // Restore a file to how it was before an agent edit (only while the edit is still the latest text)
@@ -394,6 +543,9 @@ export function useEditorActions(ide: IdeProps & IdeStore) {
     handleCursorChange,
     handleSaveFile,
     finishReview,
+    openScratchTab,
+    applyPersistedEdit,
+    revertPersistedChanges,
     revertAgentEdit,
     handleApplyDiff,
     handleApplyCodeToEditor,

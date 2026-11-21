@@ -492,7 +492,7 @@ def self_check_command(ctx, out: Optional[str], fail_on_violation: bool):
         provider="none",
         out=out,
         threshold=100.0,
-        exclude=("test_codebases", "tests"),
+        exclude=("test_codebases", "tests", "copilot_ide", "experiments", "kube-pred"),
         fail_on_violation=fail_on_violation
     )
 

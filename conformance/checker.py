@@ -13,6 +13,11 @@ class ArchitecturalViolation(BaseModel):
     code_snippet: Optional[str] = None
     explanation: Optional[str] = None
     remediation: Optional[str] = None
+    # Relative file path for IDE deep links (e.g. "presentation/order_routes.py")
+    source_file: Optional[str] = None
+    # Blueprint context: the allowed route between the two groups and the ArcGen edges,
+    # justifications and requirements behind it (filled in by the studio service)
+    trace: Optional[Dict[str, Any]] = None
 
 def get_xai_details(source_layer: str, target_layer: str, source_mod: str, target_mod: str) -> Tuple[str, str]:
     """Provides Explainable AI (XAI) architectural rationale and remediation advice."""
@@ -102,13 +107,17 @@ def check_architecture(
         target_type = G.nodes[target_node].get("node_type") or G.nodes[target_node].get("type")
         if source_type != "internal" or target_type != "internal":
             continue
-            
+
+        # Get the layer the AI assigned to these files (default to Application if unmapped)
+        source_layer = mapping.get(source_node, "Application")
+        target_layer = mapping.get(target_node, "Application")
+
+        # Pure startup composition roots wire outer layers by design; exempt them from boundary penalties.
+        if source_layer == "CompositionRoot" or target_layer == "CompositionRoot":
+            continue
+
         edges_checked += 1
-        
-        # Get the layer the AI assigned to these files (default to unclassified)
-        source_layer = mapping.get(source_node, "unclassified")
-        target_layer = mapping.get(target_node, "unclassified")
-        
+
         # If they are in the same layer, it's generally allowed (cohesion)
         if source_layer == target_layer:
             continue
@@ -118,6 +127,7 @@ def check_architecture(
             # VIOLATION FOUND!
             line_no = data.get("line_number")
             code_line = data.get("code_snippet")
+            source_file = data.get("source_file") or G.nodes[source_node].get("filepath")
             hazard, remediation = get_xai_details(source_layer, target_layer, source_node, target_node)
             
             violations.append(
@@ -131,7 +141,8 @@ def check_architecture(
                     line_number=line_no,
                     code_snippet=code_line,
                     explanation=hazard,
-                    remediation=remediation
+                    remediation=remediation,
+                    source_file=source_file
                 )
             )
 

@@ -45,6 +45,7 @@ export interface TreeNode {
   extension?: string;
   size?: number;
   children?: TreeNode[];
+  virtual?: boolean;
 }
 
 /* -- Inline name input: new file/folder, or rename in place ---------
@@ -107,6 +108,15 @@ export function InlineNameInput({ edit, className = '' }: { edit: InlineNameEdit
   );
 }
 
+export interface TreeProblemFlag {
+  tooltip: string;
+  hasViolation: boolean;
+  hasCycle: boolean;
+  hasHeal?: boolean;
+  hasPendingCreate?: boolean;
+  healKind?: 'create' | 'modify';
+}
+
 interface TreeHandlers {
   activePath: string;
   inlineEdit?: InlineNameEdit | null;
@@ -115,6 +125,7 @@ interface TreeHandlers {
   onRename?: (path: string, oldName: string) => void;
   onNewFileInDir?: (parentPath: string) => void;
   onNewFolderInDir?: (parentPath: string) => void;
+  flag?: (path: string, isDir: boolean) => string | TreeProblemFlag | null;
 }
 
 /* -- Keyboard-navigable file tree (WAI-ARIA tree pattern) ------
@@ -187,6 +198,7 @@ function FileTreeNode({
   onRename,
   onNewFileInDir,
   onNewFolderInDir,
+  flag,
   isExpanded,
   setExpanded,
   tabStop,
@@ -202,6 +214,10 @@ function FileTreeNode({
 }) {
   const isDir = node.type === 'directory';
   const isActive = node.path === activePath;
+  const rawProblem = flag?.(node.path, isDir) ?? null;
+  const problem: TreeProblemFlag | null = typeof rawProblem === 'string'
+    ? { tooltip: rawProblem, hasViolation: true, hasCycle: false }
+    : rawProblem;
   const renaming = inlineEdit?.mode === 'rename' && inlineEdit.path === node.path ? { ...inlineEdit, isDir } : null;
   const creatingHere = isDir && inlineEdit?.mode === 'create' && inlineEdit.path === node.path ? inlineEdit : null;
   const expanded = isExpanded(node, depth) || !!creatingHere;
@@ -246,9 +262,9 @@ function FileTreeNode({
         onFocus={(e) => { if (e.target === e.currentTarget) onFocusRow(node.path); }}
         onKeyDown={handleKeyDown}
         onClick={handleClick}
-        draggable={!isDir && !renaming}
+        draggable={!isDir && !renaming && !node.virtual}
         onDragStart={(e) => {
-          if (!isDir) {
+          if (!isDir && !node.virtual) {
             e.dataTransfer.setData("application/json", JSON.stringify({ path: node.path, name: node.name }));
             e.dataTransfer.effectAllowed = "copy";
           }
@@ -267,11 +283,54 @@ function FileTreeNode({
         {renaming ? (
           <InlineNameInput edit={renaming} className="ml-0.5" />
         ) : (
-          <span className="truncate flex-1 ml-0.5" title={node.path}>{node.name}</span>
+          <span
+            className={`truncate flex-1 ml-0.5 ${
+              problem && !isDir
+                ? problem.hasViolation
+                  ? 'text-[#fca5a5] font-medium'
+                  : problem.hasCycle
+                    ? 'text-[#e9d5ff] font-medium'
+                    : problem.hasHeal
+                      ? 'text-[#86efac] font-medium'
+                      : problem.hasPendingCreate
+                        ? 'text-[#93c5fd] italic'
+                        : ''
+                : ''
+            }`}
+            title={problem ? `${node.path}\n\n${problem.tooltip}` : node.path}
+          >
+            {node.name}
+          </span>
+        )}
+        {problem?.hasHeal && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#4ade80] shadow-[0_0_6px_#4ade80] flex-shrink-0 mr-1"
+          />
+        )}
+        {!problem?.hasHeal && problem?.hasPendingCreate && (
+          <span
+            title={problem.tooltip}
+            className="text-[9px] font-bold text-[#60a5fa] flex-shrink-0 mr-1"
+          >
+            U
+          </span>
+        )}
+        {problem?.hasViolation && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#ef4444] shadow-[0_0_6px_#ef4444] flex-shrink-0 mr-1"
+          />
+        )}
+        {problem?.hasCycle && (
+          <span
+            title={problem.tooltip}
+            className="w-[7px] h-[7px] rounded-full bg-[#c026ff] shadow-[0_0_6px_#c026ff] flex-shrink-0 mr-1"
+          />
         )}
 
         {/* Hover Action Buttons */}
-        {!renaming && (
+        {!renaming && !node.virtual && (
         <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center gap-0.5 bg-surface/90 rounded-control px-1 flex-shrink-0">
           {isDir && onNewFileInDir && (
             <button
@@ -333,6 +392,7 @@ function FileTreeNode({
               onRename={onRename}
               onNewFileInDir={onNewFileInDir}
               onNewFolderInDir={onNewFolderInDir}
+              flag={flag}
               isExpanded={isExpanded}
               setExpanded={setExpanded}
               tabStop={tabStop}

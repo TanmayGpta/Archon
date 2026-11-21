@@ -11,6 +11,26 @@ export interface ConformanceViolation {
   code_snippet?: string;
   explanation?: string;
   remediation?: string;
+  source_file?: string;
+  trace?: ViolationTrace | null;
+}
+
+// One allow rule of the blueprint, with the ArcGen edges it was compiled from
+export interface TraceRule {
+  source: string;
+  target: string;
+  arcgenEdges: string[];
+  justification: string;
+  requirements: string[];
+}
+
+// Blueprint context for a violation: the allowed route between the two groups, or (when there is
+// none) everything the source group may depend on
+export interface ViolationTrace {
+  kind: 'indirect_route' | 'allowed_from_source';
+  route: string[] | null;
+  rules: TraceRule[];
+  fromArcgen: boolean;
 }
 
 export interface ConformanceNode {
@@ -18,6 +38,8 @@ export interface ConformanceNode {
   label: string;
   fullPath: string;
   layer: string;
+  // How an internal file got its group (absent for stdlib / external)
+  mappedBy?: 'pattern' | 'classifier' | 'unclassified' | null;
   nodeType: 'internal' | 'stdlib' | 'external';
   color: string;
   inDegree: number;
@@ -56,6 +78,12 @@ export interface ConformanceEdge {
 
 export interface ConformanceMetrics {
   healthScore: number;
+  // % of the codebase's own files mapped to a blueprint group (older snapshots lack these)
+  coverage?: number;
+  classifiedModules?: number;
+  unclassifiedModules?: number;
+  checkedDependencies?: number;
+  excludedDependencies?: number;
   totalModules: number;
   internalModules: number;
   stdlibModules: number;
@@ -76,6 +104,8 @@ export interface BlueprintInfo {
   id: string;
   name: string;
   description: string;
+  // shared_fixtures (built-in) | arcgen_synthesis | custom (imported)
+  source?: string;
   // Only on the audited blueprint: layer order and allowed [source, target] layer pairs
   layers?: string[];
   allowed?: [string, string][];
