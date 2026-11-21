@@ -52,6 +52,7 @@ def iter_python_files(
         ".venv", "venv", "__pycache__", ".git", ".idea", ".vscode",
         "node_modules", ".next", ".pytest_cache", ".mypy_cache", ".ruff_cache",
         "conformance_sessions", "graphify-out", ".turbo", "dist", "build", "htmlcov",
+        "test_codebases",
     }
     all_excludes = default_excludes | set(exclude_dirs or [])
     root_abs = os.path.abspath(project_root)
@@ -61,16 +62,11 @@ def iter_python_files(
         if rel_root == ".":
             rel_root = ""
 
-        # Prune excluded directories in-place (skip test_codebases when scanning a parent workspace)
-        pruned = []
-        for d in dirs:
-            if d in all_excludes or d.startswith(".venv") or d.endswith(".egg-info"):
-                continue
-            rel_sub = f"{rel_root}/{d}" if rel_root else d
-            if rel_sub == "test_codebases":
-                continue
-            pruned.append(d)
-        dirs[:] = pruned
+        # Prune excluded directories in-place (skip test_codebases anywhere inside a parent workspace)
+        dirs[:] = [
+            d for d in dirs
+            if d not in all_excludes and not d.startswith(".venv") and not d.endswith(".egg-info")
+        ]
 
         for file in files:
             if not file.endswith(".py"):

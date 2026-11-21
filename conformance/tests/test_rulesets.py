@@ -20,7 +20,11 @@ from conformance.studio.service import resolve_blueprint
 
 # A real saved ArcGen output. If this test starts failing after an ArcGen change, the output
 # format moved and conformance/studio/arcgen_adapter.py needs to follow it.
-REAL_ARCGEN = ROOT / "copilot_ide" / "architecture" / "enterprise_b2b_payment_gateway_architecture.json"
+_ARCGEN_CANDIDATES = [
+    ROOT / "copilot_ide" / "architecture" / "enterprise_b2b_payment_gateway_architecture.json",
+    ROOT / "architecture" / "enterprise_b2b_payment_gateway_architecture.json",
+]
+REAL_ARCGEN = next((p for p in _ARCGEN_CANDIDATES if p.exists()), _ARCGEN_CANDIDATES[0])
 
 GRAPH = {
     "project_name": "Shop",
