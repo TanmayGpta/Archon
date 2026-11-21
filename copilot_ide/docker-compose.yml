@@ -69,8 +69,8 @@ services:
       - ../shared:/workspace/shared:ro
       - ../test_codebases:/archon_repo/test_codebases:ro
       - ./services/orchestrator_service/app:/app/app
-      # Host user folders for external repo scanning. Windows default; WSL/Linux set HOST_USERS_DIR=/mnt/c/Users in .env
-      - ${HOST_USERS_DIR:-C:\Users}:/mnt/c/Users:ro
+      # Host user folders for external repo scanning. Override via HOST_USERS_DIR in .env (defaults to $HOME on Linux/macOS/WSL, C:\Users on Windows)
+      - ${HOST_USERS_DIR:-${HOME:-C:\Users}}:/mnt/c/Users:ro
     environment:
       - PORT=8000
       - HOST=0.0.0.0
