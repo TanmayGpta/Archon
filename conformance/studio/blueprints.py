@@ -20,7 +20,7 @@ from shared.schema import ArchitectureRuleset
 _root = Path("/workspace") if Path("/workspace/shared/fixtures").exists() else Path(__file__).resolve().parent.parent.parent
 FIXTURES_DIR = _root / "shared" / "fixtures"
 # In Docker /workspace is copilot_ide itself; on the host it is a folder of the repo root.
-_workspace = (_root / "copilot_ide") if (_root / "copilot_ide").exists() else _root
+_workspace = _root if _root == Path("/workspace") else ((_root / "copilot_ide") if (_root / "copilot_ide" / "services").exists() else _root)
 # Where ArcGen's save-to-workspace writes (arcgen_service/app/router.py: WORKSPACE_ROOT / "architecture").
 ARCGEN_DIR = Path(os.getenv("ARCHON_ARCHITECTURE_DIR") or (_workspace / "architecture"))
 RULESETS_DIR = Path(os.getenv("ARCHON_RULESETS_DIR") or (_workspace / "rulesets"))

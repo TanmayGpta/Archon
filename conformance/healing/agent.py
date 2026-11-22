@@ -398,6 +398,8 @@ class HealGraphState(TypedDict, total=False):
     target_violations: List[Dict[str, Any]]
     skipped_violations: List[Dict[str, str]]
     target_ids: List[str]
+    source_paths: List[str]
+    project_prefix: str
     blueprint_context: str
     sources_text: str
     plan: Optional[Dict[str, Any]]
@@ -441,7 +443,7 @@ def _format_blueprint_context(ruleset: Dict[str, Any], violations: List[Dict[str
     return "\n".join(lines)
 
 
-def _gather_sources(codebase: Path, violations: List[Dict[str, Any]]) -> str:
+def _collect_source_paths(codebase: Path, violations: List[Dict[str, Any]]) -> List[str]:
     rel_files: List[str] = []
     source_dirs: set[str] = set()
     for v in violations:
@@ -477,10 +479,35 @@ def _gather_sources(codebase: Path, violations: List[Dict[str, Any]]) -> str:
 
     if (codebase / "main.py").exists() and "main.py" not in rel_files:
         rel_files.append("main.py")
-    sections = []
-    for rel in rel_files:
-        sections.append(f"### {rel}\n```python\n{read_numbered_source(codebase, rel)}\n```")
-    return "\n\n".join(sections)
+    return rel_files
+
+
+def _detect_project_prefix(rel_files: List[str], violations: List[Dict[str, Any]]) -> str:
+    """Return shared top folder prefix (e.g. 'Atempt2/') when all violating modules sit inside it."""
+    roots = set()
+    for v in violations:
+        sf = (v.get("source_file") or "").replace("\\", "/").lstrip("/")
+        if "/" in sf:
+            roots.add(sf.split("/", 1)[0])
+        elif sf:
+            return ""
+    if len(roots) == 1:
+        top = next(iter(roots))
+        if top not in {"domain", "application", "presentation", "infrastructure", "observability", "src", "app"}:
+            if all(p.startswith(f"{top}/") for p in rel_files if p != "main.py"):
+                return f"{top}/"
+    return ""
+
+
+def _format_gathered_sources(codebase: Path, rel_files: List[str]) -> str:
+    return "\n\n".join(
+        f"### {rel}\n```python\n{read_numbered_source(codebase, rel)}\n```"
+        for rel in rel_files
+    )
+
+
+def _gather_sources(codebase: Path, violations: List[Dict[str, Any]]) -> str:
+    return _format_gathered_sources(codebase, _collect_source_paths(codebase, violations))
 
 
 def _format_feedback(v: VerificationResult) -> str:
@@ -490,7 +517,14 @@ def _format_feedback(v: VerificationResult) -> str:
     if v.guardrail_rejections:
         parts.append("Guardrail rejections:\n- " + "\n- ".join(v.guardrail_rejections))
     if v.new_violation_ids:
-        parts.append("New architectural violations introduced:\n- " + "\n- ".join(v.new_violation_ids))
+        parts.append(
+            "New architectural violations introduced:\n- "
+            + "\n- ".join(v.new_violation_ids)
+            + "\nFix: NEVER import any adapter or outer-layer module inside the violating inner-layer file "
+            "(not at top level, not inside def main(), and not lazily inside any function). "
+            "In that file, import ONLY the abstract Protocol/ABC port and accept it via parameter or constructor injection; "
+            "keep concrete adapter wiring strictly in an outer composition entrypoint (e.g. a thin main.py) or omit it from the inner module."
+        )
     if not v.tests_passed and v.test_output:
         parts.append(f"Tests / import smoke check failed:\n{v.test_output}")
     if v.passed is False and not (v.syntax_errors or v.guardrail_rejections or v.new_violation_ids):
@@ -616,15 +650,29 @@ def build_healing_graph(
         codebase = Path(state["codebase_dir"])
         violations = state["target_violations"]
         emit("gather", f"Gathering source files for {len(violations)} violation(s)...", {"_agent": "ContextGatherer", "_kind": "agent_start"})
-        sources_text = _gather_sources(codebase, violations)
+        source_paths = _collect_source_paths(codebase, violations)
+        project_prefix = _detect_project_prefix(source_paths, violations)
+        sources_text = _format_gathered_sources(codebase, source_paths)
         bp_ctx = _format_blueprint_context(state["ruleset"], violations)
         target_ids = [violation_id_of(v) for v in violations]
         emit(
             "gather",
             f"Gathered context for {len(target_ids)} violation(s)",
-            {"_agent": "ContextGatherer", "_kind": "agent_end", "targets": target_ids, "prompt_chars": len(sources_text)},
+            {
+                "_agent": "ContextGatherer",
+                "_kind": "agent_end",
+                "targets": target_ids,
+                "source_paths": source_paths,
+                "prompt_chars": len(sources_text),
+            },
         )
-        return {"sources_text": sources_text, "blueprint_context": bp_ctx, "target_ids": target_ids}
+        return {
+            "sources_text": sources_text,
+            "source_paths": source_paths,
+            "project_prefix": project_prefix,
+            "blueprint_context": bp_ctx,
+            "target_ids": target_ids,
+        }
 
     def plan_node(state: HealGraphState) -> Dict[str, Any]:
         emit("plan", "Designing Dependency Inversion plan...", {"_agent": "DIPPlanner", "_kind": "agent_start"})
@@ -633,9 +681,13 @@ def build_healing_graph(
         else:
             targets_main = any((v.get("source_file") or "").endswith("main.py") for v in state["target_violations"])
             extra_rule = "" if targets_main else " or creating ports for composition-root wiring in main.py"
+            prefix = state.get("project_prefix") or ""
+            port_example = f"{prefix}domain/ports.py or {prefix}application/ports.py"
             sys_prompt = (
                 "You are a senior software architect resolving architectural import violations cleanly using Dependency Inversion (DIP).\n"
-                "Design minimal Typing/ABC ports in inner layers (e.g. domain/ports.py or application/ports.py) and constructor injection via __init__.\n"
+                f"Design minimal Typing/ABC ports in inner layers (e.g. {port_example}) and dependency injection via __init__ or function parameters.\n"
+                "The violating inner-layer module must import ONLY the abstract port, NEVER the new concrete adapter (even inside def main() or helper functions).\n"
+                "Always preserve full relative file paths from the repository root (including any parent folders).\n"
                 f"NEVER propose deleting functionality, editing tests/JSON files{extra_rule}."
             )
             viol_brief = json.dumps(
@@ -675,20 +727,37 @@ def build_healing_graph(
         if patch_fn is not None:
             patch_set = patch_fn({**state, "attempt": attempt})
         else:
+            prefix = state.get("project_prefix") or ""
+            source_paths = state.get("source_paths") or []
+            prefix_rule = (
+                f" Target files live under '{prefix}'; keep the '{prefix}' prefix on both modified and newly created paths (e.g. '{prefix}domain/ports.py')."
+                if prefix else ""
+            )
+            main_hint = f"'{prefix}main.py'" if prefix else "'main.py'"
             sys_prompt = (
                 "You are a surgical Python refactoring engineer.\n"
                 "Rules:\n"
-                "1. Output ONLY relative POSIX paths (no '..' or leading '/'). Only edit or create .py files.\n"
-                "2. NEVER delete functionality, tests, or imports without introducing a Protocol/ABC port and constructor injection.\n"
+                f"1. Output ONLY relative POSIX paths (no '..' or leading '/') copying exact repository-relative paths verbatim (including parent subdirectories). Only edit or create .py files.{prefix_rule}\n"
+                "2. NEVER delete functionality, tests, or imports without introducing a Protocol/ABC port and dependency injection.\n"
                 "3. Preserve every public class and top-level function signature cleanly so callers keep working.\n"
-                "4. For operation='modify', every edits[i].search MUST match verbatim text in the source file WITHOUT line numbers ('  1| ') "
-                "and must appear ONLY ONCE. Emit AT MOST ONE consolidated edit per contiguous changed region so edits never overlap or re-match text changed by an earlier edit.\n"
+                "4. For operation='modify', keep each edits[i].search small (only the lines around the change), copying verbatim text WITHOUT line numbers ('  1| '), "
+                "appearing ONLY ONCE. Emit AT MOST ONE consolidated edit per contiguous changed region so edits never overlap or re-match earlier edits.\n"
                 "5. Keep existing callers and composition root working cleanly so all imports and runtime tests succeed.\n"
-                "6. If a ports.py file already exists or sibling modules already import symbols from `.ports` / `domain.ports`, use operation='modify' to preserve all existing port classes/methods."
+                "6. If a ports.py file already exists or sibling modules already import symbols from `.ports` / `domain.ports`, use operation='modify' to preserve all existing port classes/methods.\n"
+                "7. CRITICAL — NEVER import any concrete adapter class or outer-layer module inside the violating inner-layer file (not at top level, not inside def main(), and not lazily inside any function). "
+                "Inside the violating inner-layer file, import ONLY the abstract Protocol/ABC port and accept it via an optional/injected parameter (raising RuntimeError if None when no caller injects it), "
+                f"putting concrete adapter instantiation ONLY in an outer caller or thin {main_hint} composition script (<= 35 lines, no def/class definitions)."
+            )
+            paths_block = (
+                "Exact existing file paths (use verbatim for operation='modify'):\n"
+                + "\n".join(f"- {p}" for p in source_paths)
+                + "\n\n"
+                if source_paths else ""
             )
             feedback_block = f"\n\nPREVIOUS ATTEMPT FEEDBACK (fix every issue):\n{state['feedback']}" if state.get("feedback") else ""
             usr_prompt = (
                 f"Healing Plan:\n{json.dumps(state.get('plan') or {}, indent=1)}\n\n"
+                f"{paths_block}"
                 f"Blueprint rules:\n{state['blueprint_context']}{feedback_block}\n\n"
                 f"Current source files:\n{state['sources_text']}"
             )

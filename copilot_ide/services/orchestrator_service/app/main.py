@@ -379,11 +379,9 @@ def normalize_workspace_path(p_str: str) -> Path:
         cand = (ACTIVE_WORKSPACE_ROOT / cleaned).resolve()
         if cand.exists():
             return cand
-        host_archon = Path("/mnt/c/Users/krish/OneDrive/Desktop/Archon")
-        if (host_archon / cleaned).exists():
-            return (host_archon / cleaned).resolve()
-        if (WORKSPACE_ROOT / cleaned).exists():
-            return (WORKSPACE_ROOT / cleaned).resolve()
+        for fallback_root in (WORKSPACE_ROOT, Path("/archon_repo"), WORKSPACE_ROOT.parent):
+            if (fallback_root / cleaned).exists():
+                return (fallback_root / cleaned).resolve()
         return cand
     return p.resolve()
 
@@ -951,10 +949,11 @@ def get_workspace_tree(subpath: str = ""):
             pass
         return items
 
+    is_user_home = str(ACTIVE_WORKSPACE_ROOT).rstrip("/") in ("/mnt/c/Users", "/home") or ACTIVE_WORKSPACE_ROOT.parent == Path("/mnt/c/Users")
     return {
         "root": str(ACTIVE_WORKSPACE_ROOT.name),
         "root_path": str(ACTIVE_WORKSPACE_ROOT).replace("\\", "/"),
-        "tree": build_tree(target_dir, 0, 2 if str(ACTIVE_WORKSPACE_ROOT) == "/mnt/c/Users/gaura" else 6)
+        "tree": build_tree(target_dir, 0, 2 if is_user_home else 6)
     }
 
 @app.get("/api/workspace/all-files")

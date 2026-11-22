@@ -8,7 +8,6 @@ from pathlib import Path
 for candidate in [
     Path("/workspace"),
     Path(__file__).resolve().parent.parent,
-    Path("C:/Users/krish/OneDrive/Desktop/Archon"),
 ]:
     if candidate.exists() and str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))

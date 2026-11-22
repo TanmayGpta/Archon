@@ -418,6 +418,100 @@ class TestHealingCore(unittest.TestCase):
             self.assertIn("### domain/ports.py", gathered)
             self.assertIn("### domain/payment_rule.py", gathered)
 
+    def test_all_mode_eligibility_resolves_blueprint_with_active_assessor(self):
+        from unittest.mock import patch
+        from conformance.assessor_agent import ViolationAssessment
+
+        fix_verdict = ViolationAssessment(
+            summary="Needs DIP port",
+            hazard="Couples domain to presentation",
+            advantages=["Keeps domain pure"],
+            verdict="fix",
+            recommendation="Introduce Protocol port",
+        )
+        with patch("conformance.assessor_agent.assess_violation", return_value=fix_verdict) as mock_assess:
+            eligible, skipped = filter_eligible_violations(
+                ECOMMERCE,
+                self.baseline,
+                mode="all",
+                provider="freellmapi",
+            )
+        self.assertTrue(eligible)
+        self.assertEqual(mock_assess.call_count, len(eligible))
+        self.assertFalse(any("assessor skipped check" in s["reason"] for s in skipped))
+
+    def test_nested_subfolder_prefix_and_external_dep_pytest_fallback(self):
+        import tempfile
+        from conformance.healing.agent import _collect_source_paths, _detect_project_prefix
+        from conformance.healing.sandbox import apply_patches
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Atempt2" / "domain").mkdir(parents=True)
+            (root / "Atempt2" / "infrastructure").mkdir(parents=True)
+            (root / "Atempt2" / "tests").mkdir(parents=True)
+            (root / "Atempt2" / "__init__.py").write_text("", encoding="utf-8")
+            (root / "Atempt2" / "domain" / "__init__.py").write_text("", encoding="utf-8")
+            (root / "Atempt2" / "infrastructure" / "__init__.py").write_text("", encoding="utf-8")
+            (root / "Atempt2" / "infrastructure" / "store.py").write_text(
+                "class Store:\n    def get(self): return 1\n", encoding="utf-8"
+            )
+            (root / "Atempt2" / "domain" / "evaluate_models.py").write_text(
+                "from Atempt2.infrastructure.store import Store\n\ndef run(store=None):\n    return (store or Store()).get()\n",
+                encoding="utf-8",
+            )
+            (root / "Atempt2" / "tests" / "test_dataset.py").write_text(
+                "import nonexistent_ml_pkg_xyz\n\ndef test_dummy():\n    assert True\n",
+                encoding="utf-8",
+            )
+
+            violations = [{
+                "source_module": "Atempt2.domain.evaluate_models",
+                "target_module": "Atempt2.infrastructure.store",
+                "source_file": "Atempt2/domain/evaluate_models.py",
+            }]
+            paths = _collect_source_paths(root, violations)
+            self.assertEqual(_detect_project_prefix(paths, violations), "Atempt2/")
+
+            _, errs = apply_patches(root, [FilePatch(path="evaluate_models.py", edits=[SearchReplace(search="x", replace="y")])])
+            self.assertTrue(errs and "Atempt2/domain/evaluate_models.py" in errs[0], errs)
+
+            audit = ConformanceService(str(root)).run_audit(target_path=str(root), blueprint_id="clean_architecture", persist_session=False)
+            good = [
+                FilePatch(
+                    path="Atempt2/domain/ports.py",
+                    operation="create",
+                    content="from typing import Protocol\n\nclass StorePort(Protocol):\n    def get(self): ...\n",
+                ),
+                FilePatch(
+                    path="Atempt2/infrastructure/store_adapter.py",
+                    operation="create",
+                    content="from domain.ports import StorePort\n\nclass StoreAdapter(StorePort):\n    def get(self): return 1\n",
+                ),
+                FilePatch(
+                    path="Atempt2/domain/evaluate_models.py",
+                    edits=[SearchReplace(
+                        search="from Atempt2.infrastructure.store import Store\n\ndef run(store=None):\n    return (store or Store()).get()",
+                        replace="from Atempt2.domain.ports import StorePort\n\ndef run(store: StorePort = None):\n    return store.get() if store else 1",
+                    )],
+                ),
+            ]
+            ver = verify_in_sandbox(root, "clean_architecture", good, audit, target_violation_ids=["Atempt2.domain.evaluate_models->Atempt2.infrastructure.store"])
+            self.assertTrue(ver.passed, (ver.guardrail_rejections, ver.syntax_errors, ver.new_violation_ids, ver.test_output))
+
+            bad_internal = [
+                FilePatch(
+                    path="Atempt2/domain/evaluate_models.py",
+                    edits=[SearchReplace(
+                        search="from Atempt2.infrastructure.store import Store",
+                        replace="from Atempt2.domain.missing_module import Ghost",
+                    )],
+                ),
+            ]
+            ver_bad = verify_in_sandbox(root, "clean_architecture", bad_internal, audit)
+            self.assertFalse(ver_bad.passed)
+            self.assertFalse(ver_bad.tests_passed)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

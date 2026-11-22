@@ -65,6 +65,7 @@ services:
       - .:/workspace
       - ../conformance:/workspace/conformance:ro
       - ../shared:/workspace/shared:ro
+      - ../test_codebases:/archon_repo/test_codebases:ro
       - ${HOST_USERS_DIR:-/tmp}:/mnt/c/Users:ro
     environment:
       - PORT=8000

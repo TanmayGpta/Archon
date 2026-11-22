@@ -51,7 +51,7 @@ interface ConformanceStudioProps {
 
 const getMockAuditData = (blueprintId: string): ConformanceAuditResult => ({
   status: 'preview',
-  targetPath: 'C:\\Users\\krish\\OneDrive\\Desktop\\Archon (Interactive Preview)',
+  targetPath: 'Archon (Interactive Preview)',
   blueprint: {
     id: blueprintId,
     name: 'Archon System Architecture',

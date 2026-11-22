@@ -156,6 +156,7 @@ def _execute_heal_job(
             mode=req.mode,
             target_violation_id=req.violation_id,
             provider=req.provider,
+            custom_ruleset=req.custom_ruleset,
         )
         job.emit(
             "eligible",

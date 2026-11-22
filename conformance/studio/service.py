@@ -106,50 +106,52 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
     direct = Path(clean)
     if direct.exists():
         return direct.resolve()
-        
-    # 2. Check mounted targets directory (e.g. /workspace/targets/FinSight)
-    clean_sub = clean.replace('\\', '/').lstrip('/')
-    basename = Path(clean_sub).name
-    host_archon = Path("/mnt/c/Users/krish/OneDrive/Desktop/Archon")
-    target_candidates = [
-        Path("/workspace/targets") / basename,
-        default_root / "targets" / basename,
-        default_root.parent / "targets" / basename,
-        host_archon / clean_sub,
-        host_archon / "test_codebases" / basename,
-        host_archon / "targets" / basename,
-        Path("/workspace") / clean_sub,
-        default_root / clean_sub
-    ]
-    for tc in target_candidates:
-        if tc.exists():
-            return tc.resolve()
 
-    # 3. Windows drive translation for Linux Docker (e.g. C:\Users\... -> /mnt/c/Users/...)
-    if len(clean) >= 2 and clean[1] == ':':
+    # 2. Windows drive translation for Linux Docker (e.g. C:\Users\... -> /mnt/c/Users/...)
+    clean_sub = clean.replace('\\', '/').lstrip('/')
+    is_win_abs = len(clean) >= 2 and clean[1] == ':'
+    is_abs = is_win_abs or clean.startswith('/')
+    if is_win_abs:
         drive = clean[0].lower()
-        sub = clean[2:].replace('\\', '/')
-        if sub.startswith('/'):
-            sub = sub[1:]
+        sub = clean[2:].lstrip('\\/')
         candidates = [
             Path(f"/mnt/{drive}/{sub}"),
             Path(f"/{drive}/{sub}"),
             Path(f"/host_{drive}/{sub}"),
-            Path(f"/workspace/{sub}")
+            Path(f"/workspace/{sub}"),
+            Path(f"/archon_repo/{sub}"),
         ]
         for c in candidates:
             if c.exists():
                 return c.resolve()
 
-    # 4. Relative to workspace root
-    rel = (default_root / clean).resolve()
-    if rel.exists():
-        return rel
+    # 3. Check mounted targets / bundled test_codebases directories (Docker and host runs)
+    basename = Path(clean_sub).name
+    repo_root = Path("/archon_repo")
+    target_candidates = [
+        default_root / "test_codebases" / basename,
+        default_root.parent / "test_codebases" / basename,
+        repo_root / "test_codebases" / basename,
+        default_root / "targets" / basename,
+        default_root.parent / "targets" / basename,
+        Path("/workspace/test_codebases") / basename,
+        Path("/workspace/targets") / basename,
+    ]
+    if not is_abs:
+        target_candidates.extend([
+            default_root / clean_sub,
+            default_root.parent / clean_sub,
+            Path("/workspace") / clean_sub,
+            repo_root / clean_sub,
+        ])
+    for tc in target_candidates:
+        if tc.exists():
+            return tc.resolve()
 
     return direct.resolve()
 
 
-def resolve_blueprint(blueprint_id: Optional[str], custom_ruleset: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def resolve_blueprint(blueprint_id: Optional[str], custom_ruleset: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Custom ruleset if given, else the named blueprint, else the first available one."""
     if custom_ruleset:
         # Raises RulesetError (a ValueError) listing every problem; an ArcGen graph is compiled first.

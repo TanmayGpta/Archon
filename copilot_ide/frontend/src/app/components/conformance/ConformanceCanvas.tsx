@@ -344,6 +344,7 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
       if (t) { n.x = t.x; n.y = t.y; }
     });
     introRef.current = null;
+    layoutTweenRef.current = null;
     introPlayed = true;
     introEndedAtRef.current = performance.now();
     hoverArmedRef.current = false;
@@ -614,6 +615,17 @@ export const ConformanceCanvas: React.FC<ConformanceCanvasProps> = ({
     if (!currentNodes || currentNodes.length === 0) return;
 
     const netPos = networkPositionsRef.current;
+    // During intro, the intro animation owns node positions; don't queue a dormant tween that
+    // would snap onto pre-settled anchor coordinates on the frame finishIntro() hands back
+    if (introRef.current) {
+      layoutTweenRef.current = null;
+      if (introRef.current.targets.size > 0 && netPos.size > 0) {
+        introRef.current.targets = computeLayoutTargets(mode, currentNodes, simEdgesRef.current, netPos, selectedNode);
+      }
+      return;
+    }
+    if (mode === 'network' && netPos.size === 0) return;
+
     const targets = computeLayoutTargets(mode, currentNodes, simEdgesRef.current, netPos, selectedNode);
 
     const starts = new Map<string, { x: number; y: number }>();
