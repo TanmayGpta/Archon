@@ -90,6 +90,7 @@ services:
       - FREELLMAPI_API_KEY=${FREELLMAPI_API_KEY:-}
       - FREELLMAPI_BASE_URL=${FREELLMAPI_BASE_URL:-}
       - FREELLMAPI_MODEL=${FREELLMAPI_MODEL:-}
+      - HOST_USERS_DIR=${HOST_USERS_DIR:-${HOME:-}}
       - PYTHONUNBUFFERED=1
     extra_hosts:
       - "host.docker.internal:host-gateway"

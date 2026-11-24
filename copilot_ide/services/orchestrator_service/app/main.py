@@ -10,6 +10,8 @@ import os
 import asyncio
 import logging
 
+logger = logging.getLogger(__name__)
+
 from .config import RAG_SERVICE_URL, INGESTION_SERVICE_URL, OLLAMA_URL, DEFAULT_MODEL, get_ollama_url
 from .context_suggester import suggest_context_files
 from .github_workspace import GitHubWorkspaceClient
@@ -321,6 +323,68 @@ class TerminalExecRequest(BaseModel):
 
 import subprocess
 
+_HOST_MOUNT = Path("/mnt/c/Users")
+_COMMON_HOST_SUBDIRS = ("Projects", "projects", "Desktop", "Documents", "repos", "code", "src", "dev", "workspace", "work")
+
+
+def _resolve_host_linux_path(cleaned: str) -> Optional[Path]:
+    if not _HOST_MOUNT.is_dir():
+        return None
+    env_home = (os.getenv("HOST_USERS_DIR") or "").strip().replace("\\", "/").rstrip("/")
+    if env_home.startswith("/") and (cleaned == env_home or cleaned.startswith(env_home + "/")):
+        rel = cleaned[len(env_home):].lstrip("/")
+        return (_HOST_MOUNT / rel) if rel else _HOST_MOUNT
+    if cleaned == "~" or cleaned.startswith("~/"):
+        rel = cleaned[1:].lstrip("/")
+        return (_HOST_MOUNT / rel) if rel else _HOST_MOUNT
+    if cleaned.startswith("/home/") or cleaned.startswith("/Users/"):
+        parts = cleaned.strip("/").split("/")
+        if len(parts) >= 2:
+            cand_home = _HOST_MOUNT / "/".join(parts[2:]) if len(parts) > 2 else _HOST_MOUNT
+            cand_parent = _HOST_MOUNT / "/".join(parts[1:])
+            for cand in (cand_home, cand_parent):
+                if cand.exists():
+                    return cand
+            return cand_home
+    return None
+
+
+def _find_folder_by_name(name_clean: str) -> Optional[Path]:
+    if not name_clean:
+        return None
+    candidates: List[Path] = [
+        ACTIVE_WORKSPACE_ROOT / name_clean,
+        WORKSPACE_ROOT / "test_codebases" / name_clean,
+        WORKSPACE_ROOT / "targets" / name_clean,
+        WORKSPACE_ROOT / name_clean,
+        Path("/archon_repo") / name_clean,
+    ]
+    if _HOST_MOUNT.is_dir():
+        candidates.append(_HOST_MOUNT / name_clean)
+        for sub in _COMMON_HOST_SUBDIRS:
+            candidates.append(_HOST_MOUNT / sub / name_clean)
+    for c in candidates:
+        if c.exists() and c.is_dir():
+            return c.resolve()
+
+    walk_roots = [WORKSPACE_ROOT]
+    if _HOST_MOUNT.is_dir():
+        walk_roots.append(_HOST_MOUNT)
+    for base in walk_roots:
+        base_str = str(base)
+        for root, dirs, _ in os.walk(base_str):
+            dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in IGNORED_DIRS)
+            depth = root[len(base_str):].count(os.sep)
+            if depth > 2:
+                dirs.clear()
+                continue
+            if name_clean in dirs:
+                found_p = Path(root) / name_clean
+                if found_p.is_dir():
+                    return found_p.resolve()
+    return None
+
+
 def normalize_workspace_path(p_str: str) -> Path:
     cleaned = p_str.strip().replace("\\", "/")
 
@@ -374,14 +438,27 @@ def normalize_workspace_path(p_str: str) -> Path:
             sub = cleaned[idx + 5:].lstrip("/")
             return (Path("/workspace") / sub).resolve() if sub else Path("/workspace").resolve()
 
+    # 5. Handle Linux host home / ~ paths mapped into /mnt/c/Users
+    if not Path(cleaned).exists():
+        host_resolved = _resolve_host_linux_path(cleaned)
+        if host_resolved is not None and host_resolved.exists():
+            return host_resolved.resolve()
+
     p = Path(cleaned)
     if not p.is_absolute() and not cleaned.startswith("/"):
         cand = (ACTIVE_WORKSPACE_ROOT / cleaned).resolve()
         if cand.exists():
             return cand
-        for fallback_root in (WORKSPACE_ROOT, Path("/archon_repo"), WORKSPACE_ROOT.parent):
+        fallback_roots: list[Path] = [WORKSPACE_ROOT, Path("/archon_repo"), WORKSPACE_ROOT.parent]
+        if _HOST_MOUNT.is_dir():
+            fallback_roots.append(_HOST_MOUNT)
+        for fallback_root in fallback_roots:
             if (fallback_root / cleaned).exists():
                 return (fallback_root / cleaned).resolve()
+        if "/" not in cleaned and cleaned not in (".", ".."):
+            found = _find_folder_by_name(cleaned)
+            if found is not None:
+                return found
         return cand
     return p.resolve()
 
@@ -478,28 +555,11 @@ def open_workspace_project(req: OpenProjectRequest):
 
 @app.get("/api/workspace/resolve-folder")
 def resolve_folder_path(name: str):
-    """Given a folder name selected in Windows Explorer, resolves its full path."""
+    """Given a folder name selected in OS Explorer, resolves its full path."""
     name_clean = name.strip().replace("\\", "/").rstrip("/").split("/")[-1]
-    candidates = [
-        ACTIVE_WORKSPACE_ROOT / name_clean,
-        WORKSPACE_ROOT / "test_codebases" / name_clean,
-        WORKSPACE_ROOT / "targets" / name_clean,
-        WORKSPACE_ROOT / name_clean,
-    ]
-    for c in candidates:
-        if c.exists() and c.is_dir():
-            return {"found": True, "path": str(c).replace("\\", "/")}
-    
-    # Recursive search up to 2 levels deep
-    for root, dirs, _ in os.walk(str(WORKSPACE_ROOT)):
-        depth = root[len(str(WORKSPACE_ROOT)):].count(os.sep)
-        if depth > 2:
-            dirs.clear()
-            continue
-        if name_clean in dirs:
-            found_p = Path(root) / name_clean
-            return {"found": True, "path": str(found_p).replace("\\", "/")}
-            
+    found = _find_folder_by_name(name_clean)
+    if found is not None:
+        return {"found": True, "path": str(found).replace("\\", "/")}
     return {"found": False, "path": name}
 
 
@@ -1276,31 +1336,49 @@ You write clean, modular, production-ready code with rigorous adherence to best 
         # Determine if the model is a cloud model or local Ollama model
         keys = load_api_keys()
         fl_key, fl_url, fl_model, _ = _get_freellmapi_config(keys)
+        groq_key, _ = _get_groq_key(keys)
 
         cloud_provider = None
         cloud_model = req.model
         if req.model.startswith("freellmapi:"):
             cloud_provider = "freellmapi"
             cloud_model = req.model.split(":", 1)[1].strip() or fl_model
+        elif req.model.startswith("groq:"):
+            cloud_provider = "groq"
+            cloud_model = req.model.split(":", 1)[1].strip() or "openai/gpt-oss-120b"
         else:
             for provider, models in CLOUD_MODELS.items():
                 if req.model in models:
                     cloud_provider = provider
                     break
+            if not cloud_provider and req.model in _GROQ_LIVE_MODELS:
+                cloud_provider = "groq"
+            elif not cloud_provider and req.model.startswith("gemini-"):
+                cloud_provider = "gemini"
 
-        active_key = fl_key if cloud_provider == "freellmapi" else (keys.get(cloud_provider) if cloud_provider else None)
+        if cloud_provider == "freellmapi":
+            active_key = fl_key
+        elif cloud_provider == "groq":
+            active_key = groq_key
+        else:
+            active_key = keys.get(cloud_provider) if cloud_provider else None
 
         if cloud_provider and active_key:
             api_key = active_key
             try:
-                if cloud_provider in ("openai", "freellmapi"):
-                    endpoint = (
-                        f"{fl_url}/chat/completions"
-                        if cloud_provider == "freellmapi"
-                        else "https://api.openai.com/v1/chat/completions"
-                    )
-                    label = "FreeLLMAPI" if cloud_provider == "freellmapi" else "OpenAI"
-                    timeout_s = 90.0 if cloud_provider == "freellmapi" else 60.0
+                if cloud_provider in ("openai", "groq", "freellmapi"):
+                    if cloud_provider == "freellmapi":
+                        endpoint = f"{fl_url}/chat/completions"
+                        label = "FreeLLMAPI"
+                        timeout_s = 90.0
+                    elif cloud_provider == "groq":
+                        endpoint = "https://api.groq.com/openai/v1/chat/completions"
+                        label = "Groq"
+                        timeout_s = 60.0
+                    else:
+                        endpoint = "https://api.openai.com/v1/chat/completions"
+                        label = "OpenAI"
+                        timeout_s = 60.0
                     async for event_chunk in _stream_openai_compatible(
                         endpoint=endpoint,
                         api_key=api_key,
@@ -1357,31 +1435,41 @@ You write clean, modular, production-ready code with rigorous adherence to best 
                         if system_content:
                             gemini_payload["systemInstruction"] = {"parts": [{"text": system_content}]}
 
-                        async with client.stream(
-                            "POST",
-                            f"https://generativelanguage.googleapis.com/v1beta/models/{req.model}:streamGenerateContent?alt=sse&key={api_key}",
-                            headers={"Content-Type": "application/json"},
-                            json=gemini_payload,
-                            timeout=60.0
-                        ) as response:
-                            if response.status_code != 200:
-                                err_body = (await response.aread()).decode("utf-8", errors="replace")
-                                yield f"data: {json_module.dumps({'error': f'Gemini API Error ({response.status_code}): {err_body}'})}\n\n"
-                                return
-                            async for line in response.aiter_lines():
-                                if line.startswith("data: "):
-                                    try:
-                                        chunk = json_module.loads(line[6:])
-                                        candidates = chunk.get("candidates", [])
-                                        if candidates:
-                                            parts = candidates[0].get("content", {}).get("parts", [])
-                                            for part in parts:
-                                                token = part.get("text", "")
-                                                if token:
-                                                    yield f"data: {json_module.dumps({'token': token})}\n\n"
-                                    except (json_module.JSONDecodeError, IndexError):
+                        errors: list[tuple[str, int, str]] = []
+                        key_id = _gemini_key_id(api_key)
+                        candidates = _gemini_endpoints(api_key, req.model, stream=True)
+                        for idx, (kind, endpoint_url) in enumerate(candidates):
+                            async with client.stream(
+                                "POST",
+                                endpoint_url,
+                                headers={"Content-Type": "application/json", "x-goog-api-key": api_key.strip()},
+                                json=gemini_payload,
+                                timeout=60.0
+                            ) as response:
+                                if response.status_code != 200:
+                                    err_body = (await response.aread()).decode("utf-8", errors="replace")
+                                    errors.append((kind, response.status_code, _extract_provider_error(err_body, response.status_code)))
+                                    if response.status_code in (400, 401, 403) and idx + 1 < len(candidates):
                                         continue
-                            yield f"data: {json_module.dumps({'done': True})}\n\n"
+                                    break
+                                _remember_gemini_route(key_id, kind)
+                                async for line in response.aiter_lines():
+                                    if line.startswith("data: "):
+                                        try:
+                                            chunk = json_module.loads(line[6:])
+                                            cand_list = chunk.get("candidates", [])
+                                            if cand_list:
+                                                parts = cand_list[0].get("content", {}).get("parts", [])
+                                                for part in parts:
+                                                    token = part.get("text", "")
+                                                    if token:
+                                                        yield f"data: {json_module.dumps({'token': token})}\n\n"
+                                        except (json_module.JSONDecodeError, IndexError):
+                                            continue
+                                yield f"data: {json_module.dumps({'done': True})}\n\n"
+                                return
+                        if errors:
+                            yield f"data: {json_module.dumps({'error': f'Gemini API Error: {_select_gemini_error(errors)}'})}\n\n"
 
             except Exception as e:
                 err_msg = str(e) if str(e) else repr(e)
@@ -1450,7 +1538,49 @@ DEFAULT_FREELLMAPI_URL = (
     if (os.path.exists("/.dockerenv") or os.path.exists("/app"))
     else "http://127.0.0.1:31415/v1"
 )
-ALLOWED_CLOUD_PROVIDERS = ["openai", "anthropic", "gemini", "freellmapi"]
+ALLOWED_CLOUD_PROVIDERS = ["openai", "anthropic", "gemini", "groq", "freellmapi"]
+_GROQ_LIVE_MODELS: set[str] = set()
+
+
+def _get_groq_key(keys: Optional[dict] = None) -> tuple[str, bool]:
+    data = keys if keys is not None else load_api_keys()
+    ide_key = str(data.get("groq") or "").strip()
+    arcgen_key = ""
+    if not ide_key:
+        for settings_path in (
+            Path("/workspace/services/arcgen_service/output/llm_settings.json"),
+            Path(__file__).resolve().parent.parent.parent / "arcgen_service" / "output" / "llm_settings.json",
+        ):
+            if settings_path.is_file():
+                try:
+                    arcgen_key = str(
+                        (json_module.loads(settings_path.read_text(encoding="utf-8")).get("keys") or {}).get("groq") or ""
+                    ).strip()
+                    if arcgen_key:
+                        break
+                except Exception:
+                    pass
+    env_key = (os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY_2") or "").strip()
+    resolved = ide_key or arcgen_key or env_key
+    from_env = bool(not ide_key and resolved)
+    return resolved, from_env
+
+
+def _filter_groq_chat_models(data: list) -> list[str]:
+    skip = (
+        "whisper", "tts", "guard", "prompt-guard", "orpheus",
+        "arabic-saudi", "embed", "audio", "vision", "clip", "playai",
+    )
+    preferred = ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b")
+    raw = {
+        str(m.get("id", "")).strip()
+        for m in (data or [])
+        if isinstance(m, dict) and str(m.get("id", "")).strip()
+        and not any(s in str(m.get("id", "")).lower() for s in skip)
+    }
+    ordered = [m for m in preferred if m in raw]
+    rest = sorted(m for m in raw if m not in ordered)
+    return ordered + rest
 
 
 def _normalize_freellmapi_url(raw: Optional[str] = None) -> str:
@@ -1502,7 +1632,7 @@ async def _stream_openai_compatible(
         ) as response:
             if response.status_code != 200:
                 err_body = (await response.aread()).decode("utf-8", errors="replace")
-                yield f"data: {json_module.dumps({'error': f'{provider_label} API Error ({response.status_code}): {err_body}'})}\n\n"
+                yield f"data: {json_module.dumps({'error': f'{provider_label} API Error: {_extract_provider_error(err_body, response.status_code)}'})}\n\n"
                 return
             async for line in response.aiter_lines():
                 if line.startswith("data: ") and line.strip() != "data: [DONE]":
@@ -1530,7 +1660,7 @@ def save_api_keys(keys: dict):
     API_KEYS_FILE.write_text(json_module.dumps(keys, indent=2), encoding="utf-8")
 
 class ApiKeyRequest(BaseModel):
-    provider: str  # "openai", "anthropic", "gemini", "freellmapi"
+    provider: str  # "openai", "anthropic", "gemini", "groq", "freellmapi"
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
@@ -1542,14 +1672,17 @@ CLOUD_MODELS = {
     "openai": ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "o3", "o4-mini"],
     "anthropic": ["claude-sonnet-4-20250514", "claude-haiku-4-20250414"],
     "gemini": [
-        "gemini-3.7-flash",
-        "gemini-3.6-flash",
+        "gemini-3.8-flash",
+        "gemini-3.5-pro",
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
         "gemini-3.1-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-omni-flash"
+        "gemini-3.1-flash-lite"
+    ],
+    "groq": [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b"
     ]
 }
 
@@ -1562,17 +1695,83 @@ def _mask_key(val: str) -> str:
     return "***"
 
 
+_GEMINI_VERTEX_KEYS: set[str] = set()
+
+
+def _gemini_key_id(api_key: str) -> str:
+    import hashlib
+    return hashlib.sha256(api_key.strip().encode("utf-8")).hexdigest()
+
+
+def _remember_gemini_route(key_id: str, kind: str) -> None:
+    if kind == "vertex":
+        _GEMINI_VERTEX_KEYS.add(key_id)
+    else:
+        _GEMINI_VERTEX_KEYS.discard(key_id)
+
+
+def _gemini_endpoints(api_key: str, model: str, stream: bool = False) -> list[tuple[str, str]]:
+    """Return ordered (kind, url) candidates for Gemini keys.
+
+    Both AIza* and newer Google AI Studio AQ.* keys work on generativelanguage.googleapis.com.
+    AQ.* keys created in Vertex AI Express Mode fall back to aiplatform.googleapis.com (and are
+    remembered in-memory by key hash to skip the extra round-trip on subsequent calls).
+    """
+    key = api_key.strip()
+    action = "streamGenerateContent?alt=sse" if stream else "generateContent"
+    aistudio = ("aistudio", f"https://generativelanguage.googleapis.com/v1beta/models/{model}:{action}")
+    if not key.startswith("AQ."):
+        return [aistudio]
+    vertex = ("vertex", f"https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:{action}")
+    if _gemini_key_id(key) in _GEMINI_VERTEX_KEYS:
+        return [vertex, aistudio]
+    return [aistudio, vertex]
+
+
+def _select_gemini_error(errors: list[tuple[str, int, str]]) -> str:
+    """Pick the most informative error when trying AI Studio then Vertex AI Express."""
+    if len(errors) > 1 and errors[0][1] in (400, 401) and errors[1][1] == 403:
+        return errors[1][2]
+    return errors[0][2]
+
+
+def _extract_provider_error(body: str, status_code: int) -> str:
+    """Extract a clean human-readable message from JSON error payloads (Google/OpenAI/Anthropic)."""
+    try:
+        parsed = json_module.loads(body)
+        if isinstance(parsed, list) and parsed:
+            parsed = parsed[0]
+        if isinstance(parsed, dict):
+            err = parsed.get("error")
+            if isinstance(err, dict) and err.get("message"):
+                return f"HTTP {status_code}: {err['message']}"
+            if isinstance(err, str) and err:
+                return f"HTTP {status_code}: {err}"
+            if parsed.get("message"):
+                return f"HTTP {status_code}: {parsed['message']}"
+    except Exception:
+        pass
+    compact = " ".join(body.split())[:200]
+    return f"HTTP {status_code}: {compact}"
+
+
 @app.get("/api/cloud/keys")
 def get_cloud_keys():
     """Returns which providers have API keys configured (without exposing key values)."""
     keys = load_api_keys()
     fl_key, fl_url, fl_model, fl_from_env = _get_freellmapi_config(keys)
+    groq_key, groq_from_env = _get_groq_key(keys)
     providers = {
         provider: {
             "configured": bool(keys.get(provider)),
             "masked_key": _mask_key(str(keys.get(provider) or "")) if len(str(keys.get(provider) or "")) > 10 else "",
         }
         for provider in ["openai", "anthropic", "gemini"]
+    }
+    providers["groq"] = {
+        "configured": bool(groq_key),
+        "masked_key": _mask_key(groq_key),
+        "source": "env" if groq_from_env else ("ide" if groq_key else ""),
     }
     providers["freellmapi"] = {
         "configured": bool(fl_key),
@@ -1647,8 +1846,52 @@ async def get_models_extended():
     keys = load_api_keys()
     cloud_models_available = []
     for provider, models in CLOUD_MODELS.items():
-        if keys.get(provider):
+        if provider != "groq" and keys.get(provider):
             cloud_models_available.extend(models)
+
+    gemini_key = (keys.get("gemini") or "").strip()
+    if gemini_key:
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as g_client:
+                g_res = await g_client.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers={"x-goog-api-key": gemini_key},
+                )
+            if g_res.status_code == 200:
+                skip = (
+                    "tts", "live", "image", "embedding", "aqa", "vision",
+                    "veo", "imagen", "learnlm", "gemma", "deep-research", "computer-use",
+                )
+                for m in g_res.json().get("models", []):
+                    methods = m.get("supportedGenerationMethods") or []
+                    name = str(m.get("name", "")).removeprefix("models/")
+                    if (
+                        "generateContent" in methods
+                        and name.startswith("gemini-")
+                        and not any(s in name.lower() for s in skip)
+                        and name not in cloud_models_available
+                    ):
+                        cloud_models_available.append(name)
+        except Exception:
+            pass
+
+    groq_key, _ = _get_groq_key(keys)
+    if groq_key:
+        live_groq: list[str] = []
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as gr_client:
+                gr_res = await gr_client.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {groq_key}"},
+                )
+            if gr_res.status_code == 200:
+                live_groq = _filter_groq_chat_models(gr_res.json().get("data", []))
+                _GROQ_LIVE_MODELS.update(live_groq)
+        except Exception:
+            pass
+        for candidate in (live_groq or CLOUD_MODELS["groq"]):
+            if candidate not in cloud_models_available:
+                cloud_models_available.append(candidate)
 
     fl_key, _, fl_model, _ = _get_freellmapi_config(keys)
     if fl_key:
@@ -1690,6 +1933,11 @@ async def test_cloud_key(req: ApiKeyTestRequest):
         api_key = (req.api_key or fl_key).strip()
         base_url = _normalize_freellmapi_url(req.base_url or fl_url)
         test_model = (req.model or fl_model or "auto").strip()
+    elif req.provider == "groq":
+        groq_key, _ = _get_groq_key(keys)
+        api_key = (req.api_key or groq_key).strip()
+        base_url = ""
+        test_model = (req.model or "").strip()
     else:
         base_url = ""
         test_model = ""
@@ -1699,10 +1947,27 @@ async def test_cloud_key(req: ApiKeyTestRequest):
     start_time = time.time()
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
-            if req.provider in ("openai", "freellmapi"):
+            if req.provider in ("openai", "groq", "freellmapi"):
                 if req.provider == "openai":
                     test_model = req.model or "gpt-4.1-mini"
                     endpoint = "https://api.openai.com/v1/chat/completions"
+                elif req.provider == "groq":
+                    if not test_model:
+                        m_res = await client.get(
+                            "https://api.groq.com/openai/v1/models",
+                            headers={"Authorization": f"Bearer {api_key}"},
+                        )
+                        if m_res.status_code != 200:
+                            return {"status": "error", "message": _extract_provider_error(m_res.text, m_res.status_code)}
+                        live_groq = _filter_groq_chat_models(m_res.json().get("data", []))
+                        _GROQ_LIVE_MODELS.update(live_groq)
+                        for pref in ("openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"):
+                            if pref in live_groq:
+                                test_model = pref
+                                break
+                        if not test_model:
+                            test_model = live_groq[0] if live_groq else "openai/gpt-oss-20b"
+                    endpoint = "https://api.groq.com/openai/v1/chat/completions"
                 else:
                     endpoint = f"{base_url}/chat/completions"
                 res = await client.post(
@@ -1719,7 +1984,7 @@ async def test_cloud_key(req: ApiKeyTestRequest):
                         pass
                     return {"status": "ok", "latency_ms": latency, "provider": req.provider, "model": routed_model}
                 else:
-                    return {"status": "error", "message": f"HTTP {res.status_code}: {res.text[:200]}"}
+                    return {"status": "error", "message": _extract_provider_error(res.text, res.status_code)}
 
             elif req.provider == "anthropic":
                 test_model = req.model or "claude-haiku-4-20250414"
@@ -1735,17 +2000,27 @@ async def test_cloud_key(req: ApiKeyTestRequest):
                     return {"status": "error", "message": f"HTTP {res.status_code}: {res.text[:200]}"}
 
             elif req.provider == "gemini":
-                test_model = req.model or "gemini-3.7-flash"
-                res = await client.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{test_model}:generateContent?key={api_key}",
-                    headers={"Content-Type": "application/json"},
-                    json={"contents": [{"role": "user", "parts": [{"text": "ping"}]}]}
-                )
-                latency = int((time.time() - start_time) * 1000)
-                if res.status_code == 200:
-                    return {"status": "ok", "latency_ms": latency, "provider": "gemini", "model": test_model}
-                else:
-                    return {"status": "error", "message": f"HTTP {res.status_code}: {res.text[:200]}"}
+                test_model = req.model or "gemini-3.8-flash"
+                errors: list[tuple[str, int, str]] = []
+                key_id = _gemini_key_id(api_key)
+                candidates = _gemini_endpoints(api_key, test_model, stream=False)
+                for idx, (kind, endpoint_url) in enumerate(candidates):
+                    res = await client.post(
+                        endpoint_url,
+                        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+                        json={"contents": [{"role": "user", "parts": [{"text": "ping"}]}]}
+                    )
+                    if res.status_code == 200:
+                        latency = int((time.time() - start_time) * 1000)
+                        _remember_gemini_route(key_id, kind)
+                        return {"status": "ok", "latency_ms": latency, "provider": "gemini", "model": test_model}
+                    errors.append((kind, res.status_code, _extract_provider_error(res.text, res.status_code)))
+                    if res.status_code in (400, 401, 403) and idx + 1 < len(candidates):
+                        continue
+                    break
+                err_msg = _select_gemini_error(errors)
+                logger.warning(f"Gemini key test failed ({test_model}): {err_msg}")
+                return {"status": "error", "message": err_msg}
 
             else:
                 return {"status": "error", "message": f"Unknown provider: {req.provider}"}

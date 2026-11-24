@@ -28,22 +28,41 @@ case "${1:-}" in
     esac
     kubectl get pod $POD >/dev/null 2>&1 || kubectl apply -f "$DIR/pod.yaml"
     kubectl wait --for=condition=Ready pod/$POD --timeout=600s || exit 1
-    if ! kubectl exec $POD -- test -d /work/runs/$RUN; then
-      tar -cf - -C "$DIR/runs" "$RUN" | kubectl exec -i $POD -- bash -c 'mkdir -p /work/runs && tar -xf - -C /work/runs'
+    if ! kubectl exec "$POD" -- test -d "/work/runs/$RUN" </dev/null 2>/dev/null; then
+      tar -cf - -C "$DIR/runs" "$RUN" | kubectl exec -i "$POD" -- bash -c 'mkdir -p /work/runs && tar -xf - -C /work/runs'
     fi
-    kubectl exec -i $POD -- bash -s <<EOF
-cd /work; export HF_HOME=/work/hf HF_HUB_DISABLE_XET=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-if pgrep -f kev.serve >/dev/null; then exit 0; fi
-if [ ! -d kev ]; then pip install -q uv && git clone -q --depth 1 https://github.com/jaredpalmer/kev.git && (cd kev && uv sync -q --extra serve); fi
-cd kev && setsid nohup uv run --extra serve python -m kev.serve --run /work/runs/$RUN --port 8009 > /work/serve.log 2>&1 < /dev/null &
+    if ! kubectl exec "$POD" -- pgrep -f '[k]ev\.serve|[b]oot_kev\.sh' </dev/null >/dev/null 2>&1; then
+      kubectl exec -i "$POD" -- bash -c 'cat > /work/boot_kev.sh && chmod +x /work/boot_kev.sh' <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd /work
+export HF_HOME=/work/hf HF_HUB_DISABLE_XET=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+if [ ! -x /work/kev/.venv/bin/python ]; then
+  pip install -q uv
+  if [ ! -d kev ]; then
+    git clone -q --depth 1 https://github.com/jaredpalmer/kev.git
+  fi
+  (cd kev && uv sync -q --extra serve)
+fi
+if [ -d /work/hf/hub/models--Qwen--Qwen3.5-9B-Base/snapshots ]; then
+  export HF_HUB_OFFLINE=1
+fi
+cd /work/kev
+exec /work/kev/.venv/bin/python -m kev.serve --run "/work/runs/$RUN" --port 8009
 EOF
+      kubectl exec "$POD" -- bash -c 'setsid nohup /work/boot_kev.sh </dev/null >/work/serve.log 2>&1 & sleep 1' </dev/null
+    fi
     forward
-    echo "launched $RUN (a fresh pod first downloads Qwen3.5-9B-Base, ~18 GB)" ;;
+    if kubectl exec "$POD" -- test -d /work/hf/hub/models--Qwen--Qwen3.5-9B-Base/snapshots </dev/null 2>/dev/null; then
+      echo "launched $RUN (using baked base model)"
+    else
+      echo "launched $RUN (a fresh pod first downloads Qwen3.5-9B-Base, ~18 GB)"
+    fi ;;
   status)
     phase=$(pod_phase); server=stopped
     if [ "$phase" = Running ]; then
-      if kubectl exec $POD -- curl -sf -m 5 http://127.0.0.1:8009/v1/models >/dev/null 2>&1; then server=ready
-      elif kubectl exec $POD -- pgrep -f kev.serve >/dev/null 2>&1; then server=loading; fi
+      if kubectl exec "$POD" -- curl -sf -m 5 http://127.0.0.1:8009/v1/models </dev/null >/dev/null 2>&1; then server=ready
+      elif kubectl exec "$POD" -- pgrep -f '[k]ev\.serve|[b]oot_kev\.sh' </dev/null >/dev/null 2>&1; then server=loading; fi
     fi
     pgrep -f "$FWD" >/dev/null && fwd=up || fwd=down
     [ "$server" = ready ] && [ "$fwd" = down ] && forward && fwd=up

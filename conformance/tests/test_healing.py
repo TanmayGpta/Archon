@@ -512,6 +512,110 @@ class TestHealingCore(unittest.TestCase):
             self.assertFalse(ver_bad.passed)
             self.assertFalse(ver_bad.tests_passed)
 
+    def test_413_treated_as_provider_failure_and_compact_sources_capped(self):
+        import tempfile
+        from conformance.healing.agent import _format_compact_sources, _is_provider_failure
+
+        self.assertTrue(_is_provider_failure(RuntimeError("Error code: 413 - Request too large")))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel_files = []
+            violations = []
+            for idx in range(6):
+                rel = f"mod_{idx}.py"
+                rel_files.append(rel)
+                lines = [f"import os  # top {idx}"]
+                for line_no in range(2, 402):
+                    if line_no == 120:
+                        lines.append(f"from infra.db_{idx} import Repo_{idx}  # VIOLATION_{idx}")
+                    else:
+                        lines.append(f"x_{line_no} = 'padding_value_{idx}_{line_no}_abcdefghij'")
+                (root / rel).write_text("\n".join(lines) + "\n", encoding="utf-8")
+                violations.append(
+                    {
+                        "source_module": f"mod_{idx}",
+                        "target_module": f"infra.db_{idx}",
+                        "source_file": rel,
+                        "line_number": 120,
+                    }
+                )
+
+            compact = _format_compact_sources(root, rel_files, violations, max_chars=11000)
+            self.assertLessEqual(len(compact), 11000)
+            self.assertIn("from infra.db_0 import Repo_0  # VIOLATION_0", compact)
+            self.assertIn(" 120| ", compact)
+
+    def test_sandbox_skips_venv_variants_and_broken_symlinks(self):
+        import os
+        import tempfile
+        from conformance.healing.sandbox import _iter_repo_py_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "domain").mkdir()
+            (root / "presentation").mkdir()
+            (root / "domain" / "__init__.py").write_text("", encoding="utf-8")
+            (root / "presentation" / "__init__.py").write_text("", encoding="utf-8")
+            (root / "presentation" / "controllers.py").write_text(
+                "class ResponseFormatter:\n    @staticmethod\n    def format_error(msg: str) -> str:\n        return f'ERR: {msg}'\n",
+                encoding="utf-8",
+            )
+            (root / "domain" / "payment_rule.py").write_text(
+                "from presentation.controllers import ResponseFormatter  # VIOLATION: Domain -> Presentation\n\n\n"
+                "class PaymentRuleValidator:\n"
+                "    def validate(self, amount: float) -> str:\n"
+                "        return ResponseFormatter.format_error('bad') if amount <= 0 else 'ok'\n",
+                encoding="utf-8",
+            )
+
+            # Virtualenvs (.venv-linux and custom pyvenv.cfg env) with broken symlinks and python files
+            venv_linux_bin = root / ".venv-linux" / "bin"
+            venv_linux_bin.mkdir(parents=True)
+            (root / ".venv-linux" / "pyvenv.cfg").write_text("home = /nonexistent\n", encoding="utf-8")
+            (root / ".venv-linux" / "lib").mkdir(parents=True)
+            (root / ".venv-linux" / "lib" / "fake.py").write_text("x = 1\n", encoding="utf-8")
+
+            custom_bin = root / "custom_env" / "bin"
+            custom_bin.mkdir(parents=True)
+            (root / "custom_env" / "pyvenv.cfg").write_text("home = /nonexistent\n", encoding="utf-8")
+            (root / "custom_env" / "lib").mkdir(parents=True)
+            (root / "custom_env" / "lib" / "fake.py").write_text("x = 1\n", encoding="utf-8")
+
+            try:
+                os.symlink("/nonexistent/host/python3.12", venv_linux_bin / "python")
+                os.symlink("python", venv_linux_bin / "python3")
+                os.symlink("python", venv_linux_bin / "python3.12")
+                os.symlink("/nonexistent/python", custom_bin / "python")
+                os.symlink("/nonexistent/target.py", root / "dangling_link.py")
+            except OSError:
+                self.skipTest("Symlink creation unsupported in this environment")
+
+            discovered = {p.relative_to(root).as_posix() for p in _iter_repo_py_files(root)}
+            self.assertEqual(
+                discovered,
+                {
+                    "domain/__init__.py",
+                    "domain/payment_rule.py",
+                    "presentation/__init__.py",
+                    "presentation/controllers.py",
+                },
+            )
+
+            audit = ConformanceService(str(root)).run_audit(
+                target_path=str(root),
+                blueprint_id="clean_architecture",
+                persist_session=False,
+            )
+            ver = verify_in_sandbox(
+                root,
+                "clean_architecture",
+                _clean_dip_patches().patches,
+                audit,
+                target_violation_ids=["domain.payment_rule->presentation.controllers"],
+            )
+            self.assertTrue(ver.passed, (ver.guardrail_rejections, ver.syntax_errors, ver.new_violation_ids, ver.test_output))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

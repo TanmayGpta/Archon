@@ -65,7 +65,11 @@ def iter_python_files(
         # Prune excluded directories in-place (skip test_codebases anywhere inside a parent workspace)
         dirs[:] = [
             d for d in dirs
-            if d not in all_excludes and not d.startswith(".venv") and not d.endswith(".egg-info")
+            if d not in all_excludes
+            and not d.startswith(".venv")
+            and not d.startswith("venv-")
+            and not d.endswith(".egg-info")
+            and not os.path.isfile(os.path.join(root, d, "pyvenv.cfg"))
         ]
 
         for file in files:

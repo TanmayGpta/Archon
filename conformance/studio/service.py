@@ -101,16 +101,16 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
     if not p_str or not p_str.strip():
         return default_root
     clean = p_str.strip().strip('"').strip("'")
-    
+
     # 1. Direct check
     direct = Path(clean)
     if direct.exists():
         return direct.resolve()
 
-    # 2. Windows drive translation for Linux Docker (e.g. C:\Users\... -> /mnt/c/Users/...)
+    # 2. Windows drive and Linux host-home translation for Linux Docker
     clean_sub = clean.replace('\\', '/').lstrip('/')
     is_win_abs = len(clean) >= 2 and clean[1] == ':'
-    is_abs = is_win_abs or clean.startswith('/')
+    is_abs = is_win_abs or clean.startswith('/') or clean.startswith('~')
     if is_win_abs:
         drive = clean[0].lower()
         sub = clean[2:].lstrip('\\/')
@@ -125,6 +125,26 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
             if c.exists():
                 return c.resolve()
 
+    host_mount = Path("/mnt/c/Users")
+    if host_mount.is_dir():
+        clean_slash = clean.replace('\\', '/')
+        env_home = (os.getenv("HOST_USERS_DIR") or "").strip().replace('\\', '/').rstrip('/')
+        linux_candidates = []
+        if env_home.startswith('/') and (clean_slash == env_home or clean_slash.startswith(env_home + '/')):
+            rel = clean_slash[len(env_home):].lstrip('/')
+            linux_candidates.append(host_mount / rel if rel else host_mount)
+        elif clean_slash == '~' or clean_slash.startswith('~/'):
+            rel = clean_slash[1:].lstrip('/')
+            linux_candidates.append(host_mount / rel if rel else host_mount)
+        elif clean_slash.startswith('/home/') or clean_slash.startswith('/Users/'):
+            parts = clean_slash.strip('/').split('/')
+            if len(parts) >= 2:
+                linux_candidates.append(host_mount / '/'.join(parts[2:]) if len(parts) > 2 else host_mount)
+                linux_candidates.append(host_mount / '/'.join(parts[1:]))
+        for lc in linux_candidates:
+            if lc.exists():
+                return lc.resolve()
+
     # 3. Check mounted targets / bundled test_codebases directories (Docker and host runs)
     basename = Path(clean_sub).name
     repo_root = Path("/archon_repo")
@@ -137,6 +157,10 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
         Path("/workspace/test_codebases") / basename,
         Path("/workspace/targets") / basename,
     ]
+    if host_mount.is_dir():
+        target_candidates.append(host_mount / basename)
+        for sub in ("Projects", "projects", "Desktop", "Documents", "repos", "code", "src", "dev", "workspace", "work"):
+            target_candidates.append(host_mount / sub / basename)
     if not is_abs:
         target_candidates.extend([
             default_root / clean_sub,
@@ -144,6 +168,8 @@ def normalize_target_path(p_str: Optional[str], default_root: Path) -> Path:
             Path("/workspace") / clean_sub,
             repo_root / clean_sub,
         ])
+        if host_mount.is_dir():
+            target_candidates.append(host_mount / clean_sub)
     for tc in target_candidates:
         if tc.exists():
             return tc.resolve()

@@ -108,7 +108,7 @@ export function IdeDialogs() {
                   type="text"
                   value={projectPathInput}
                   onChange={(e) => setProjectPathInput(e.target.value)}
-                  placeholder="e.g. C:/projects/my-app or test_codebases/ecommerce_platform"
+                  placeholder="e.g. ~/Projects/my-app, /home/user/Projects/my-app, or test_codebases/ecommerce_platform"
                   className="flex-1 bg-canvas border border-line rounded-control px-3 py-2 text-sm font-mono text-fg focus:outline-none focus:border-accent"
                 />
                 <button
@@ -150,17 +150,27 @@ export function IdeDialogs() {
               </div>
               {browsing && browseDirData && (
                 <div className="bg-canvas border border-line rounded-control p-2.5 max-h-40 overflow-y-auto space-y-1 text-xs font-mono">
-                  <div className="text-fg-subtle flex items-center justify-between pb-1 border-b border-line-subtle">
+                  <div className="text-fg-subtle flex items-center justify-between gap-2 pb-1 border-b border-line-subtle">
                     <span className="truncate" title={browseDirData.current_path}>📂 {browseDirData.current_path}</span>
-                    {browseDirData.parent_path && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         type="button"
-                        onClick={() => loadDirectories(browseDirData.parent_path!)}
-                        className="text-accent-fg hover:underline cursor-pointer"
+                        onClick={() => loadDirectories('/mnt/c/Users')}
+                        className="text-fg-soft hover:text-accent-fg hover:underline cursor-pointer"
+                        title="Jump to host home folder (/mnt/c/Users)"
                       >
-                        ⬆ Up
+                        ⌂ Host Home
                       </button>
-                    )}
+                      {browseDirData.parent_path && (
+                        <button
+                          type="button"
+                          onClick={() => loadDirectories(browseDirData.parent_path!)}
+                          className="text-accent-fg hover:underline cursor-pointer"
+                        >
+                          ⬆ Up
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {browseDirData.directories.length === 0 ? (
                     <div className="text-fg-muted italic p-1">No subdirectories found</div>
@@ -410,14 +420,14 @@ export function IdeDialogs() {
                   <div className="flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                     <span className="text-sm font-mono font-bold text-fg">Google Gemini</span>
-                    <span className="text-xs font-mono text-fg-subtle">gemini-3.7-flash / gemini-3.1-pro / gemini-3.5-flash</span>
+                    <span className="text-xs font-mono text-fg-subtle">gemini-3.8-flash / gemini-3.5-pro / gemini-3.5-flash</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {apiKeyTestStatus.gemini?.status === 'ok' && (
                       <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-control">Connected ({apiKeyTestStatus.gemini.latency}ms)</span>
                     )}
                     {apiKeyTestStatus.gemini?.status === 'error' && (
-                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded-control max-w-[180px] truncate" title={apiKeyTestStatus.gemini.message}>{apiKeyTestStatus.gemini.message}</span>
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded-control" title={apiKeyTestStatus.gemini.message}>Failed</span>
                     )}
                     {apiKeys.gemini?.configured && !apiKeyTestStatus.gemini?.status && (
                       <span className="text-xs font-mono text-[#818cf8] bg-[#818cf8]/10 px-2 py-0.5 rounded-control">Active: {apiKeys.gemini.masked_key}</span>
@@ -429,7 +439,7 @@ export function IdeDialogs() {
                     type="password"
                     value={apiKeyInputs.gemini || ''}
                     onChange={(e) => setApiKeyInputs(prev => ({ ...prev, gemini: e.target.value }))}
-                    placeholder={apiKeys.gemini?.configured ? 'Key configured — enter new to replace' : 'AIza...'}
+                    placeholder={apiKeys.gemini?.configured ? 'Key configured — enter new to replace' : 'AIza... or AQ....'}
                     className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
                   />
                   <button onClick={() => handleSaveApiKey('gemini')} className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white px-3 py-1.5 rounded-control border border-accent/40 cursor-pointer transition-colors">
@@ -446,6 +456,60 @@ export function IdeDialogs() {
                     <button onClick={() => handleClearApiKey('gemini')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded-control border border-danger/30 cursor-pointer transition-colors">Clear</button>
                   )}
                 </div>
+                {apiKeyTestStatus.gemini?.status === 'error' && (
+                  <div className="text-xs font-mono text-danger break-words bg-danger/10 px-2.5 py-1.5 rounded-control border border-danger/20">
+                    {apiKeyTestStatus.gemini.message}
+                  </div>
+                )}
+              </div>
+
+              {/* Groq Cloud */}
+              <div className="border border-line rounded-panel p-3 bg-canvas space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+                    <span className="text-sm font-mono font-bold text-fg">Groq Cloud</span>
+                    <span className="text-xs font-mono text-fg-subtle">openai/gpt-oss-120b / openai/gpt-oss-20b / qwen/qwen3.8-27b</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {apiKeyTestStatus.groq?.status === 'ok' && (
+                      <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-control">Connected ({apiKeyTestStatus.groq.latency}ms)</span>
+                    )}
+                    {apiKeyTestStatus.groq?.status === 'error' && (
+                      <span className="text-xs font-mono text-danger bg-danger/10 px-2 py-0.5 rounded-control" title={apiKeyTestStatus.groq.message}>Failed</span>
+                    )}
+                    {apiKeys.groq?.configured && !apiKeyTestStatus.groq?.status && (
+                      <span className="text-xs font-mono text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-control">Active: {apiKeys.groq.masked_key}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={apiKeyInputs.groq || ''}
+                    onChange={(e) => setApiKeyInputs(prev => ({ ...prev, groq: e.target.value }))}
+                    placeholder={apiKeys.groq?.configured ? 'Key configured — enter new to replace' : 'gsk_...'}
+                    className="flex-1 bg-raised text-xs font-mono text-fg px-2.5 py-1.5 rounded-control border border-line focus:outline-none focus:border-accent placeholder-fg-subtle"
+                  />
+                  <button onClick={() => handleSaveApiKey('groq')} className="text-xs font-mono bg-selected hover:bg-accent text-accent-fg hover:text-white px-3 py-1.5 rounded-control border border-accent/40 cursor-pointer transition-colors">
+                    {apiKeySaveStatus.groq || 'Save'}
+                  </button>
+                  <button
+                    onClick={() => handleTestApiKey('groq')}
+                    disabled={apiKeyTestStatus.groq?.status === 'testing' || (!apiKeys.groq?.configured && !apiKeyInputs.groq?.trim())}
+                    className="text-xs font-mono bg-raised hover:bg-selected text-fg-muted hover:text-fg disabled:opacity-40 px-2.5 py-1.5 rounded-control border border-line cursor-pointer transition-colors"
+                  >
+                    {apiKeyTestStatus.groq?.status === 'testing' ? 'Testing...' : 'Test'}
+                  </button>
+                  {apiKeys.groq?.configured && apiKeys.groq?.source !== 'env' && (
+                    <button onClick={() => handleClearApiKey('groq')} className="text-xs font-mono text-danger hover:bg-danger/10 px-2 py-1.5 rounded-control border border-danger/30 cursor-pointer transition-colors">Clear</button>
+                  )}
+                </div>
+                {apiKeyTestStatus.groq?.status === 'error' && (
+                  <div className="text-xs font-mono text-danger break-words bg-danger/10 px-2.5 py-1.5 rounded-control border border-danger/20">
+                    {apiKeyTestStatus.groq.message}
+                  </div>
+                )}
               </div>
             </div>
           </div>

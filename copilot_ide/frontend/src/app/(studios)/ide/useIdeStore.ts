@@ -73,6 +73,7 @@ export function useIdeStore() {
     openai: '',
     anthropic: '',
     gemini: '',
+    groq: '',
     freellmapi: '',
     freellmapi_base_url: 'http://host.docker.internal:31415/v1',
     freellmapi_model: 'auto',

@@ -17,15 +17,38 @@ from conformance.studio.service import ConformanceService, is_composition_root_f
 
 SANDBOX_ROOT = Path(tempfile.gettempdir()) / "archon_heal_sandbox"
 _SKIP_DIR_NAMES = {
-    "__pycache__", ".git", ".venv", "node_modules", ".next",
-    ".pytest_cache", ".mypy_cache", "conformance_sessions", "dist", "build",
+    "__pycache__", ".git", ".venv", "venv", "node_modules", ".next",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", "conformance_sessions",
+    "dist", "build", "graphify-out", ".turbo", "htmlcov", ".idea", ".vscode",
 }
 
 
+def _is_dangling_symlink(path: Path) -> bool:
+    return os.path.islink(path) and not os.path.exists(path)
+
+
+def _is_skipped_dir(name: str, full_path: Optional[Path] = None) -> bool:
+    if (
+        name in _SKIP_DIR_NAMES
+        or name.startswith(".venv")
+        or name.startswith("venv-")
+        or name.endswith(".egg-info")
+    ):
+        return True
+    if full_path is not None and os.path.isfile(os.path.join(full_path, "pyvenv.cfg")):
+        return True
+    return False
+
+
 def _ignore_sandbox_entries(src: str, names: List[str]) -> List[str]:
-    """Skip cache/build folders and imported clone trees when copying into a sandbox."""
-    ignored = [n for n in names if n in _SKIP_DIR_NAMES or n.endswith(".pyc")]
-    if Path(src).name == "test_codebases" and "imported" in names:
+    """Skip cache/build/virtualenv folders, dangling symlinks, and imported clone trees."""
+    src_path = Path(src)
+    ignored: List[str] = []
+    for n in names:
+        full = src_path / n
+        if n.endswith(".pyc") or _is_skipped_dir(n, full) or _is_dangling_symlink(full):
+            ignored.append(n)
+    if src_path.name == "test_codebases" and "imported" in names and "imported" not in ignored:
         ignored.append("imported")
     return ignored
 
@@ -141,10 +164,19 @@ def filter_eligible_violations(
 
 
 def _iter_repo_py_files(root: Path) -> List[Path]:
-    return [
-        p for p in sorted(root.rglob("*.py"))
-        if not any(part in _SKIP_DIR_NAMES for part in p.relative_to(root).parts[:-1])
-    ]
+    py_files: List[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        base = Path(dirpath)
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if not _is_skipped_dir(d, base / d) and not _is_dangling_symlink(base / d)
+        )
+        for fname in sorted(filenames):
+            if fname.endswith(".py"):
+                p = base / fname
+                if not _is_dangling_symlink(p):
+                    py_files.append(p)
+    return py_files
 
 
 def _find_matching_path_hint(root: Path, missing_rel: str) -> Optional[str]:
@@ -256,10 +288,11 @@ def _build_sandbox_env(root: Path) -> Dict[str, str]:
         str(d)
         for d in sorted(root.iterdir())
         if d.is_dir()
-        and d.name not in _SKIP_DIR_NAMES
+        and not _is_dangling_symlink(d)
+        and not _is_skipped_dir(d.name, d)
         and not d.name.startswith(".")
         and d.name.lower() not in {"domain", "application", "presentation", "infrastructure", "observability", "tests", "test", "docs"}
-        and any(d.rglob("*.py"))
+        and bool(_iter_repo_py_files(d))
     ]
     py_path = os.pathsep.join([str(root), *sub_roots])
     return {**os.environ, "PYTHONPATH": py_path, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -316,7 +349,7 @@ _MISSING_MOD_RE = re.compile(r"(?:ModuleNotFoundError|ImportError):\s+No module 
 
 def run_sandbox_tests(root: Path, baseline_dir: Optional[Path] = None) -> Tuple[bool, str]:
     """Run pytest if tests exist, otherwise run an import smoke test over internal modules."""
-    has_tests = any(root.rglob("test_*.py")) or (root / "tests").exists()
+    has_tests = any(p.name.startswith("test_") for p in _iter_repo_py_files(root)) or (root / "tests").exists()
     if not has_tests:
         return _verify_smoke_without_regressions(root, baseline_dir)
 
@@ -374,9 +407,14 @@ def verify_in_sandbox(
     """Apply patches to an isolated temp copy, then run guardrails + re-audit + tests."""
     sandbox = SANDBOX_ROOT / uuid.uuid4().hex[:10]
     sandbox.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(codebase_dir.resolve(), sandbox, ignore=_ignore_sandbox_entries)
 
     try:
+        shutil.copytree(
+            codebase_dir.resolve(),
+            sandbox,
+            ignore=_ignore_sandbox_entries,
+            ignore_dangling_symlinks=True,
+        )
         changes, apply_errors = apply_patches(sandbox, patches)
         rejections = list(apply_errors)
         syntax: List[str] = []

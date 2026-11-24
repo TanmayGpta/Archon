@@ -145,7 +145,7 @@ export function useApiKeys(ide: IdeProps & IdeStore) {
             base_url: apiKeyInputs.freellmapi_base_url?.trim() || undefined,
             model: apiKeyInputs.freellmapi_model?.trim() || undefined,
           }
-        : { provider, api_key: apiKeyInputs[provider] || undefined };
+        : { provider, api_key: apiKeyInputs[provider]?.trim() || undefined };
     try {
       const res = await fetch(`${apiBase}/api/cloud/keys/test`, {
         method: 'POST',

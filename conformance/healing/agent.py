@@ -5,6 +5,7 @@ LangGraph is imported lazily inside `_build_graph()` so containers built without
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import time
@@ -20,10 +21,12 @@ from conformance.classifier_agent import (
 )
 
 from conformance.healing.sandbox import (
+    _iter_repo_py_files,
     apply_patches,
     build_diff_previews,
     module_to_relpath,
     read_numbered_source,
+    resolve_safe_subpath,
     verify_in_sandbox,
     violation_id_of,
 )
@@ -55,6 +58,22 @@ def _probe_ollama_model() -> Optional[str]:
         return None
 
 
+def _load_arcgen_keys() -> Dict[str, str]:
+    """Load saved keys from ArcGen's persistent llm_settings.json if available."""
+    candidates = [
+        Path("/workspace/services/arcgen_service/output/llm_settings.json"),
+        Path(__file__).resolve().parents[2] / "copilot_ide" / "services" / "arcgen_service" / "output" / "llm_settings.json",
+    ]
+    for p in candidates:
+        if p.is_file():
+            try:
+                raw = json.loads(p.read_text(encoding="utf-8")).get("keys") or {}
+                return {k: str(v).strip() for k, v in raw.items() if isinstance(v, str) and v.strip()}
+            except Exception:
+                pass
+    return {}
+
+
 def _parse_model_override(model_override: Optional[str]) -> Optional[tuple[str, str]]:
     """Map an IDE LLM picker value (e.g. 'freellmapi:auto:fast', 'gpt-4.1') to (provider, model)."""
     raw = (model_override or "").strip()
@@ -64,6 +83,11 @@ def _parse_model_override(model_override: Optional[str]) -> Optional[tuple[str, 
     if low.startswith("freellmapi:"):
         sub = raw.split(":", 1)[1].strip() or "auto"
         return "freellmapi", sub
+    if low.startswith("groq:"):
+        sub = raw.split(":", 1)[1].strip() or "openai/gpt-oss-120b"
+        return "groq", sub
+    if low.startswith(("openai/gpt-oss-", "qwen/", "allam-", "llama-")):
+        return "groq", raw
     if low.startswith(("gpt-", "o1", "o3", "o4")):
         return "openai", raw
     if low.startswith("gemini-"):
@@ -101,19 +125,30 @@ def _build_candidate_model(prov: str, key: str, base_url: str = "", model_name: 
     if prov == "gemini":
         if not key:
             return None
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        resolved_model = (model_name or "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-        return f"gemini:{resolved_model}", ChatGoogleGenerativeAI(
-            model=resolved_model, temperature=0.1, google_api_key=key, max_retries=0, timeout=45.0
-        )
+        resolved_model = (model_name or "gemini-3.8-flash").strip() or "gemini-3.8-flash"
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            return f"gemini:{resolved_model}", ChatGoogleGenerativeAI(
+                model=resolved_model, temperature=0.1, google_api_key=key, max_retries=0, timeout=45.0
+            )
+        except ImportError:
+            from langchain_openai import ChatOpenAI
+            return f"gemini:{resolved_model}", ChatOpenAI(
+                model=resolved_model,
+                temperature=0.1,
+                api_key=key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                max_retries=0,
+                timeout=45.0,
+            )
     if prov == "groq":
         if not key:
             return None
         from langchain_groq import ChatGroq
 
-        return "groq", ChatGroq(
-            model="llama-3.3-70b-versatile", temperature=0.1, groq_api_key=key, max_retries=0, timeout=45.0
+        resolved_model = (model_name or "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
+        return f"groq:{resolved_model}", ChatGroq(
+            model=resolved_model, temperature=0.1, groq_api_key=key, max_retries=0, timeout=45.0
         )
     if prov == "nvidia":
         if not key:
@@ -150,6 +185,7 @@ def resolve_candidate_models(
 ) -> List[tuple[str, Any]]:
     """Return ordered (label, chat_model) candidates across picker selection, IDE Cloud Settings, env keys, and Ollama."""
     ide_keys = load_ide_keys()
+    arcgen_keys = _load_arcgen_keys()
     req = (provider or "").strip().lower() or None
     parsed_override = _parse_model_override(model_override)
 
@@ -169,6 +205,17 @@ def resolve_candidate_models(
         raw_specs.append(("freellmapi", key, base_url, primary))
         raw_specs.append(("freellmapi", key, base_url, backup))
 
+    def _add_groq(key: str, preferred_model: str = "") -> None:
+        if not key:
+            return
+        seen_models: list[str] = []
+        for m in (preferred_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"):
+            clean_m = (m or "").strip()
+            if clean_m and clean_m not in seen_models:
+                seen_models.append(clean_m)
+        for m in seen_models:
+            raw_specs.append(("groq", key, "", m))
+
     if req:
         ov_model = parsed_override[1] if (parsed_override and parsed_override[0] == req) else ""
         if req == "freellmapi":
@@ -179,8 +226,13 @@ def resolve_candidate_models(
         elif req == "gemini":
             raw_specs.append(("gemini", ide_keys.get("gemini") or (os.getenv("GOOGLE_API_KEY") or "").strip(), "", ov_model))
         elif req == "groq":
-            for env_name in ("GROQ_API_KEY", "GROQ_API_KEY_2"):
-                raw_specs.append(("groq", (os.getenv(env_name) or "").strip(), "", ""))
+            for k in (
+                ide_keys.get("groq", ""),
+                arcgen_keys.get("groq", ""),
+                (os.getenv("GROQ_API_KEY") or "").strip(),
+                (os.getenv("GROQ_API_KEY_2") or "").strip(),
+            ):
+                _add_groq(k, ov_model)
         elif req == "nvidia":
             raw_specs.append(("nvidia", (os.getenv("NVIDIA_API_KEY") or "").strip(), "", ov_model))
         elif req == "ollama":
@@ -200,18 +252,30 @@ def resolve_candidate_models(
                 k = ide_keys.get("gemini") or (os.getenv("GOOGLE_API_KEY") or "").strip()
                 if k:
                     raw_specs.append(("gemini", k, "", ov_model))
-                    if ov_model != "gemini-2.5-flash":
-                        raw_specs.append(("gemini", k, "", "gemini-2.5-flash"))
+                    if ov_model != "gemini-3.8-flash":
+                        raw_specs.append(("gemini", k, "", "gemini-3.8-flash"))
+            elif ov_prov == "groq":
+                for k in (
+                    ide_keys.get("groq", ""),
+                    arcgen_keys.get("groq", ""),
+                    (os.getenv("GROQ_API_KEY") or "").strip(),
+                    (os.getenv("GROQ_API_KEY_2") or "").strip(),
+                ):
+                    _add_groq(k, ov_model)
             elif ov_prov == "ollama" and _probe_ollama_model():
                 raw_specs.append(("ollama", "ollama", "", ov_model))
 
-        # 2. User-saved IDE settings (FreeLLMAPI/OpenAI/Gemini) run ahead of fallback .env keys.
+        # 2. User-saved IDE/ArcGen settings run ahead of fallback .env keys.
         _add_freellmapi(ide_keys.get("freellmapi", ""), fl_ide_url, fl_ide_model)
         _add_freellmapi(fl_env_key, fl_env_url, fl_env_model)
         if ide_keys.get("openai"):
             raw_specs.append(("openai", ide_keys["openai"], "", ""))
         if ide_keys.get("gemini"):
             raw_specs.append(("gemini", ide_keys["gemini"], "", ""))
+        if ide_keys.get("groq"):
+            _add_groq(ide_keys["groq"])
+        if arcgen_keys.get("groq"):
+            _add_groq(arcgen_keys["groq"])
         for prov, env_name in (
             ("openai", "OPENAI_API_KEY"),
             ("gemini", "GOOGLE_API_KEY"),
@@ -221,7 +285,10 @@ def resolve_candidate_models(
         ):
             val = (os.getenv(env_name) or "").strip()
             if val:
-                raw_specs.append((prov, val, "", ""))
+                if prov == "groq":
+                    _add_groq(val)
+                else:
+                    raw_specs.append((prov, val, "", ""))
         raw_specs.append(("ollama", "ollama", "", ""))
 
     models: List[tuple[str, Any]] = []
@@ -255,10 +322,18 @@ def resolve_chat_model(provider: Optional[str] = None) -> tuple[str, Any]:
     return resolve_candidate_models(provider)[0]
 
 
+def _is_request_too_large(exc: Exception) -> bool:
+    """True when the provider rejected the payload size (HTTP 413)."""
+    if getattr(exc, "status_code", None) == 413:
+        return True
+    msg = str(exc).lower()
+    return "error code: 413" in msg or "request too large" in msg
+
+
 def _is_provider_failure(exc: Exception) -> bool:
     """True when an exception indicates auth, quota, network, or provider unavailability (not schema formatting)."""
     status_code = getattr(exc, "status_code", None)
-    if status_code in (401, 403, 404, 408, 410, 429, 500, 502, 503, 504):
+    if status_code in (401, 403, 404, 408, 410, 413, 429, 500, 502, 503, 504):
         return True
     cls_name = type(exc).__name__.lower()
     if any(
@@ -282,12 +357,17 @@ def _is_provider_failure(exc: Exception) -> bool:
         for tok in (
             "invalid api key",
             "invalid_api_key",
+            "expired_api_key",
+            "invalid auth key",
+            "does not exist",
             "authentication",
             "unauthorized",
             "error code: 401",
             "error code: 403",
             "error code: 410",
+            "error code: 413",
             "error code: 429",
+            "request too large",
             "end of life",
             "no longer available",
             "decommissioned",
@@ -321,8 +401,8 @@ def _parse_json_to_schema(raw_text: str, schema: type):
 
 
 def _prefer_direct_json(pname: str, llm: Any) -> bool:
-    """Use single-shot JSON mode for multi-provider routers / Ollama to avoid slow 2x tool-call hangs."""
-    return (pname.startswith("freellmapi:") or pname.startswith("ollama:")) and type(llm).__name__ == "ChatOpenAI"
+    """Use single-shot JSON mode for multi-provider routers / Ollama / Groq / Gemini to avoid slow 2x tool-call hangs."""
+    return pname.startswith(("freellmapi:", "ollama:", "gemini:", "groq:")) and type(llm).__name__ in ("ChatOpenAI", "ChatGroq")
 
 
 def _invoke_structured_traced(
@@ -402,6 +482,7 @@ class HealGraphState(TypedDict, total=False):
     project_prefix: str
     blueprint_context: str
     sources_text: str
+    compact_sources_text: str
     plan: Optional[Dict[str, Any]]
     patches: List[Dict[str, Any]]
     verification: Optional[Dict[str, Any]]
@@ -456,12 +537,9 @@ def _collect_source_paths(codebase: Path, violations: List[Dict[str, Any]]) -> L
                 rel_files.append(rel)
 
     # Include existing ports files and sibling callers importing ports so incremental heals extend rather than clobber them.
-    skip_dirs = {"__pycache__", ".git", ".venv", "venv", "node_modules", ".next"}
     extra_ports: List[str] = []
     sibling_port_users: List[str] = []
-    for path in sorted(codebase.rglob("*.py")):
-        if any(part in skip_dirs for part in path.parts):
-            continue
+    for path in _iter_repo_py_files(codebase):
         rel = path.relative_to(codebase).as_posix()
         if rel in rel_files:
             continue
@@ -504,6 +582,153 @@ def _format_gathered_sources(codebase: Path, rel_files: List[str]) -> str:
         f"### {rel}\n```python\n{read_numbered_source(codebase, rel)}\n```"
         for rel in rel_files
     )
+
+
+def _trim_at_line_boundary(text: str, budget: int) -> str:
+    if len(text) <= budget:
+        return text
+    suffix = "\n# ... truncated ..."
+    limit = max(60, budget - len(suffix))
+    cut = text.rfind("\n", 0, limit)
+    if cut <= 0:
+        cut = limit
+    return text[:cut] + suffix
+
+
+def _render_primary_compact(lines: List[str], focus_lines: List[int], budget: int) -> str:
+    """Keep top imports plus exact line-numbered windows around every violating line."""
+    full = "\n".join(f"{i + 1:4d}| {line}" for i, line in enumerate(lines))
+    if len(full) <= budget:
+        return full
+
+    def _window_text(header_end: int, radius: int) -> str:
+        intervals: List[tuple[int, int]] = [(1, min(len(lines), header_end))]
+        for ln in sorted({n for n in focus_lines if 1 <= n <= len(lines)}):
+            intervals.append((max(1, ln - radius), min(len(lines), ln + radius)))
+        merged: List[tuple[int, int]] = []
+        for s, e in sorted(intervals):
+            if merged and s <= merged[-1][1] + 2:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+            else:
+                merged.append((s, e))
+        parts: List[str] = []
+        prev_e = 0
+        for s, e in merged:
+            if prev_e and s > prev_e + 1:
+                parts.append(f"# ... lines {prev_e + 1}-{s - 1} omitted ...")
+            for idx in range(s - 1, e):
+                parts.append(f"{idx + 1:4d}| {lines[idx]}")
+            prev_e = e
+        if prev_e < len(lines):
+            parts.append(f"# ... lines {prev_e + 1}-{len(lines)} omitted ...")
+        return "\n".join(parts)
+
+    for header_end, radius in ((35, 18), (25, 10), (18, 5)):
+        rendered = _window_text(header_end, radius)
+        if len(rendered) <= budget:
+            return rendered
+    return _trim_at_line_boundary(_window_text(18, 5), budget)
+
+
+def _render_secondary_skeleton(text: str, budget: int) -> str:
+    """Keep full small context files or AST class/def signatures with real line numbers."""
+    lines = text.splitlines()
+    full = "\n".join(f"{i + 1:4d}| {line}" for i, line in enumerate(lines))
+    if len(full) <= budget:
+        return full
+
+    keep: set[int] = set()
+    try:
+        tree = ast.parse(text)
+        imports = 0
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)) and imports < 15:
+                for ln in range(node.lineno, (node.end_lineno or node.lineno) + 1):
+                    keep.add(ln)
+                imports += 1
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                keep.add(node.lineno)
+                if (
+                    node.body
+                    and isinstance(node.body[0], ast.Expr)
+                    and isinstance(getattr(node.body[0], "value", None), ast.Constant)
+                    and isinstance(node.body[0].value.value, str)
+                ):
+                    keep.add(node.body[0].lineno)
+                if isinstance(node, ast.ClassDef):
+                    for sub in node.body:
+                        if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            keep.add(sub.lineno)
+    except SyntaxError:
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if i < 20 or stripped.startswith(("import ", "from ", "class ", "def ", "async def ")):
+                keep.add(i + 1)
+
+    if not keep:
+        keep.update(range(1, min(len(lines), 25) + 1))
+
+    parts: List[str] = []
+    prev_ln = 0
+    for ln in sorted(n for n in keep if 1 <= n <= len(lines)):
+        if prev_ln and ln > prev_ln + 1:
+            parts.append(f"# ... lines {prev_ln + 1}-{ln - 1} omitted ...")
+        parts.append(f"{ln:4d}| {lines[ln - 1]}")
+        prev_ln = ln
+    if prev_ln < len(lines):
+        parts.append(f"# ... lines {prev_ln + 1}-{len(lines)} omitted ...")
+    return _trim_at_line_boundary("\n".join(parts), budget)
+
+
+def _format_compact_sources(
+    codebase: Path,
+    rel_files: List[str],
+    violations: List[Dict[str, Any]],
+    max_chars: int = 11000,
+) -> str:
+    """Format violation-focused code context capped to fit low-TPM providers cleanly."""
+    focus_by_file: Dict[str, List[int]] = {}
+    for v in violations:
+        src_rel = v.get("source_file") or module_to_relpath(codebase, v["source_module"])
+        if not src_rel:
+            continue
+        ln = v.get("line_number")
+        bucket = focus_by_file.setdefault(src_rel, [])
+        if isinstance(ln, int) and ln > 0:
+            bucket.append(ln)
+
+    primary = [r for r in rel_files if r in focus_by_file]
+    secondary = [r for r in rel_files if r not in focus_by_file]
+    p_total = int(max_chars * 0.75) if (primary and secondary) else max_chars
+    s_total = max_chars - p_total if (primary and secondary) else max_chars
+
+    sections: List[str] = []
+
+    def _emit_group(files: List[str], group_budget: int, is_primary: bool) -> None:
+        rem_budget = group_budget
+        for idx, rel in enumerate(files):
+            rem_files = len(files) - idx
+            per_file_cap = max(250, rem_budget // rem_files)
+            try:
+                raw = resolve_safe_subpath(codebase, rel).read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            wrapper_len = len(rel) + 22
+            body_budget = max(160, per_file_cap - wrapper_len)
+            if is_primary:
+                body = _render_primary_compact(raw.splitlines(), focus_by_file.get(rel, []), body_budget)
+            else:
+                body = _render_secondary_skeleton(raw, body_budget)
+            block = f"### {rel}\n```python\n{body}\n```"
+            sections.append(block)
+            rem_budget = max(0, rem_budget - len(block) - 2)
+
+    _emit_group(primary, p_total, True)
+    _emit_group(secondary, s_total, False)
+    joined = "\n\n".join(sections)
+    if len(joined) > max_chars:
+        joined = _trim_at_line_boundary(joined, max_chars)
+    return joined
 
 
 def _gather_sources(codebase: Path, violations: List[Dict[str, Any]]) -> str:
@@ -576,6 +801,7 @@ def build_healing_graph(
         usr_prompt: str,
         schema: type,
         attempt: int = 1,
+        compact_usr_prompt: Optional[str] = None,
     ):
         candidates = _get_candidates()
         start_idx = int(llm_cache.get("idx") or 0)
@@ -583,67 +809,87 @@ def build_healing_graph(
         for idx in range(start_idx, len(candidates)):
             pname, model = candidates[idx]
             prefer_json = _prefer_direct_json(pname, model)
-            t0 = time.monotonic()
-            emit(
-                "trace",
-                f"Calling {pname} ({schema.__name__}, {'json' if prefer_json else 'structured'})",
-                {
-                    "_agent": agent_name,
-                    "_kind": "model_start",
-                    "provider": pname,
-                    "schema": schema.__name__,
-                    "mode": "json" if prefer_json else "structured",
-                    "attempt": attempt,
-                    "prompt_chars": len(sys_prompt) + len(usr_prompt),
-                },
+            use_compact = bool(
+                compact_usr_prompt
+                and pname.startswith("groq:")
+                and (len(sys_prompt) + len(usr_prompt)) > 15000
+                and len(compact_usr_prompt) < len(usr_prompt)
             )
-            try:
-                out, meta = _invoke_structured_traced(model, sys_prompt, usr_prompt, schema, prefer_json=prefer_json)
-                dt = round(time.monotonic() - t0, 2)
-                llm_cache["idx"] = idx
-                llm_cache["provider"] = pname
-                routed = meta.get("routed_model")
-                detail = f" · routed: {routed}" if routed else ""
+            prompt_attempts = [compact_usr_prompt] if use_compact else [usr_prompt]
+            if not use_compact and compact_usr_prompt and len(compact_usr_prompt) < len(usr_prompt):
+                prompt_attempts.append(compact_usr_prompt)
+
+            for p_idx, active_prompt in enumerate(prompt_attempts):
+                t0 = time.monotonic()
                 emit(
                     "trace",
-                    f"Model response in {dt:.1f}s ({meta.get('mode')}{detail})",
+                    f"Calling {pname} ({schema.__name__}, {'json' if prefer_json else 'structured'})",
                     {
                         "_agent": agent_name,
-                        "_kind": "model_end",
+                        "_kind": "model_start",
                         "provider": pname,
-                        "routed_model": routed,
-                        "mode": meta.get("mode"),
-                        "duration_s": dt,
-                        "tokens": meta.get("tokens"),
+                        "schema": schema.__name__,
+                        "mode": "json" if prefer_json else "structured",
+                        "attempt": attempt,
+                        "prompt_chars": len(sys_prompt) + len(active_prompt),
+                        "compact": active_prompt is compact_usr_prompt,
                     },
                 )
-                return out
-            except Exception as exc:
-                dt = round(time.monotonic() - t0, 2)
-                err_txt = f"{type(exc).__name__}: {exc}"
-                errors.append(f"{pname}: {err_txt}")
-                is_prov_fail = _is_provider_failure(exc)
-                emit(
-                    "trace",
-                    f"{pname} failed after {dt:.1f}s: {err_txt[:160]}",
-                    {
-                        "_agent": agent_name,
-                        "_kind": "error" if not is_prov_fail else "retry",
-                        "provider": pname,
-                        "duration_s": dt,
-                        "error": err_txt[:400],
-                    },
-                )
-                if idx + 1 < len(candidates) and is_prov_fail:
-                    next_name = candidates[idx + 1][0]
+                try:
+                    out, meta = _invoke_structured_traced(model, sys_prompt, active_prompt, schema, prefer_json=prefer_json)
+                    dt = round(time.monotonic() - t0, 2)
+                    llm_cache["idx"] = idx
+                    llm_cache["provider"] = pname
+                    routed = meta.get("routed_model")
+                    detail = f" · routed: {routed}" if routed else ""
                     emit(
-                        stage,
-                        f"Provider '{pname}' failed ({type(exc).__name__}); falling back to '{next_name}'...",
-                        {"_agent": agent_name, "_kind": "retry", "from": pname, "to": next_name},
+                        "trace",
+                        f"Model response in {dt:.1f}s ({meta.get('mode')}{detail})",
+                        {
+                            "_agent": agent_name,
+                            "_kind": "model_end",
+                            "provider": pname,
+                            "routed_model": routed,
+                            "mode": meta.get("mode"),
+                            "duration_s": dt,
+                            "tokens": meta.get("tokens"),
+                        },
                     )
-                    continue
-                if not is_prov_fail:
-                    raise
+                    return out
+                except Exception as exc:
+                    dt = round(time.monotonic() - t0, 2)
+                    err_txt = f"{type(exc).__name__}: {exc}"
+                    if _is_request_too_large(exc) and p_idx + 1 < len(prompt_attempts):
+                        emit(
+                            stage,
+                            f"Payload too large for '{pname}' ({len(active_prompt)} chars); retrying with focused source slices...",
+                            {"_agent": agent_name, "_kind": "retry", "provider": pname},
+                        )
+                        continue
+                    errors.append(f"{pname}: {err_txt}")
+                    is_prov_fail = _is_provider_failure(exc)
+                    emit(
+                        "trace",
+                        f"{pname} failed after {dt:.1f}s: {err_txt[:160]}",
+                        {
+                            "_agent": agent_name,
+                            "_kind": "error" if not is_prov_fail else "retry",
+                            "provider": pname,
+                            "duration_s": dt,
+                            "error": err_txt[:400],
+                        },
+                    )
+                    if idx + 1 < len(candidates) and is_prov_fail:
+                        next_name = candidates[idx + 1][0]
+                        emit(
+                            stage,
+                            f"Provider '{pname}' failed ({type(exc).__name__}); falling back to '{next_name}'...",
+                            {"_agent": agent_name, "_kind": "retry", "from": pname, "to": next_name},
+                        )
+                        break
+                    if not is_prov_fail:
+                        raise
+                    break
         raise RuntimeError(f"All healing LLM providers failed ({'; '.join(errors)})")
 
     def gather_node(state: HealGraphState) -> Dict[str, Any]:
@@ -653,6 +899,7 @@ def build_healing_graph(
         source_paths = _collect_source_paths(codebase, violations)
         project_prefix = _detect_project_prefix(source_paths, violations)
         sources_text = _format_gathered_sources(codebase, source_paths)
+        compact_sources_text = _format_compact_sources(codebase, source_paths, violations, max_chars=11000)
         bp_ctx = _format_blueprint_context(state["ruleset"], violations)
         target_ids = [violation_id_of(v) for v in violations]
         emit(
@@ -668,6 +915,7 @@ def build_healing_graph(
         )
         return {
             "sources_text": sources_text,
+            "compact_sources_text": compact_sources_text,
             "source_paths": source_paths,
             "project_prefix": project_prefix,
             "blueprint_context": bp_ctx,
@@ -709,7 +957,28 @@ def build_healing_graph(
                 f"Blueprint: {state['blueprint_name']}\n\n{state['blueprint_context']}\n\n"
                 f"Violations to heal:\n{viol_brief}\n\nSource files:\n{state['sources_text']}"
             )
-            plan = _invoke_with_fallback("plan", "DIPPlanner", sys_prompt, usr_prompt, HealingPlan)
+            compact_viol = json.dumps(
+                [
+                    {
+                        "id": violation_id_of(v),
+                        "source": f"{v['source_module']} ({v['source_layer']})",
+                        "target": f"{v['target_module']} ({v['target_layer']})",
+                        "file": v.get("source_file"),
+                        "line": v.get("line_number"),
+                        "snippet": v.get("code_snippet"),
+                    }
+                    for v in state["target_violations"]
+                ],
+                separators=(",", ":"),
+            )
+            compact_sources = state.get("compact_sources_text") or state["sources_text"]
+            compact_usr_prompt = (
+                f"Blueprint: {state['blueprint_name']}\n\n{state['blueprint_context'][:2000]}\n\n"
+                f"Violations to heal:\n{compact_viol}\n\nSource files:\n{compact_sources}"
+            )
+            plan = _invoke_with_fallback(
+                "plan", "DIPPlanner", sys_prompt, usr_prompt, HealingPlan, compact_usr_prompt=compact_usr_prompt
+            )
         emit(
             "plan",
             f"Designed {len(plan.ports)} DIP port(s)",
@@ -761,7 +1030,17 @@ def build_healing_graph(
                 f"Blueprint rules:\n{state['blueprint_context']}{feedback_block}\n\n"
                 f"Current source files:\n{state['sources_text']}"
             )
-            patch_set = _invoke_with_fallback("patch", "PatchWriter", sys_prompt, usr_prompt, PatchSet, attempt=attempt)
+            compact_feedback = f"\n\nPREVIOUS ATTEMPT FEEDBACK (fix every issue):\n{state['feedback'][:1500]}" if state.get("feedback") else ""
+            compact_sources = state.get("compact_sources_text") or state["sources_text"]
+            compact_usr_prompt = (
+                f"Healing Plan:\n{json.dumps(state.get('plan') or {}, separators=(',', ':'))}\n\n"
+                f"{paths_block}"
+                f"Blueprint rules:\n{state['blueprint_context'][:1600]}{compact_feedback}\n\n"
+                f"Current source files:\n{compact_sources}"
+            )
+            patch_set = _invoke_with_fallback(
+                "patch", "PatchWriter", sys_prompt, usr_prompt, PatchSet, attempt=attempt, compact_usr_prompt=compact_usr_prompt
+            )
 
         raw_patches = [p.model_dump() for p in patch_set.patches]
         emit(
